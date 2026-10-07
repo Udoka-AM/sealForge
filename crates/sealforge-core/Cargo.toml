@@ -1,0 +1,18 @@
+[package]
+name = "sealforge-core"
+description = "Deterministic, I/O-free auction logic shared by the coordinator, CLI and WASM auditor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+hex.workspace = true
+blake2b_simd.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

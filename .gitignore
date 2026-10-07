@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Builds
+target/
+.next/
+out/
+dist/
+pkg/
+*.tsbuildinfo
+next-env.d.ts
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.seed
+secrets/
+
+# Local data
+*.sqlite
+*.sqlite3
+data/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+coverage/

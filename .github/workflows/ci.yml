@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.89.0
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - name: Auditor builds for WASM
+        run: cargo check -p sealforge-auditor --target wasm32-unknown-unknown --no-default-features --features wasm
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sealforge
+          POSTGRES_PASSWORD: sealforge
+          POSTGRES_DB: sealforge
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sealforge" --health-interval 5s --health-retries 10
+    env:
+      PGPASSWORD: sealforge
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply migrations
+        run: for f in migrations/*.sql; do psql -h localhost -U sealforge -d sealforge -v ON_ERROR_STOP=1 -f "$f"; done
+      - name: Load dev seed
+        run: psql -h localhost -U sealforge -d sealforge -v ON_ERROR_STOP=1 -f seed/dev.sql
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build

@@ -1,0 +1,23 @@
+# Replace the hostnames with the real domains (PRD open question Q10).
+# Access logs drop client IPs (docs/02-TRD.md §2.7).
+(no_ip_logs) {
+	log {
+		format filter {
+			fields {
+				request>remote_ip delete
+				request>client_ip delete
+				request>headers>X-Forwarded-For delete
+			}
+		}
+	}
+}
+
+api.sealforge.example {
+	import no_ip_logs
+	reverse_proxy coordinator:8080
+}
+
+grpc.sealforge.example {
+	import no_ip_logs
+	reverse_proxy envoy:8081
+}

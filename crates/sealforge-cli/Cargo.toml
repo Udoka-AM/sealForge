@@ -1,0 +1,19 @@
+[package]
+name = "sealforge-cli"
+description = "sealForge CLI for organisers and trustees"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "sealforge"
+path = "src/main.rs"
+
+[dependencies]
+sealforge-core.workspace = true
+sealforge-escrow.workspace = true
+anyhow.workspace = true
+clap.workspace = true

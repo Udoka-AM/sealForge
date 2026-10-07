@@ -1,0 +1,57 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/sealforge-core",
+  "crates/sealforge-coordinator",
+  "crates/sealforge-escrow",
+  "crates/sealforge-auditor",
+  "crates/sealforge-cli",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Udoka-AM/sealForge"
+authors = ["Udoka-AM"]
+
+[workspace.dependencies]
+sealforge-core = { path = "crates/sealforge-core" }
+sealforge-escrow = { path = "crates/sealforge-escrow" }
+sealforge-auditor = { path = "crates/sealforge-auditor" }
+
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"
+blake2b_simd = "1"
+clap = { version = "4.5", features = ["derive", "env"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+axum = "0.8"
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "migrate", "macros"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+wasm-bindgen = "0.2"
+
+# Zcash / FROST: pinned in Milestone 1, task 1.2 (see docs/VERSIONS.md).
+# Uncomment once versions are verified against NU7 testnet and Ironwood.
+# zcash_client_backend = "=0.25.0-pre.1"
+# zcash_client_sqlite = "..."
+# zcash_primitives = "..."
+# zcash_keys = "..."
+# zcash_protocol = "..."
+# pczt = "..."
+# frost-core = "3"
+# reddsa = { version = "...", features = ["frost"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.release.package.sealforge-auditor]
+opt-level = "s"

@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/* Design tokens: docs/04-UI-UX-BRIEF.md §4.3. Dark is the default theme. */
+:root {
+  --bg: #0b0d10;
+  --surface: #13161b;
+  --surface-2: #1b1f26;
+  --border: #262b33;
+  --text: #eceae4;
+  --text-muted: #9aa0a9;
+  --primary: #f4b728;
+  --primary-ink: #0b0d10;
+  --accent: #d9573b;
+  --success: #3fb37f;
+  --warning: #e5a50a;
+  --danger: #e5484d;
+  --info: #3e8ede;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #fafaf7;
+    --surface: #ffffff;
+    --surface-2: #f2f1ec;
+    --border: #e3e1da;
+    --text: #16181c;
+    --text-muted: #5d636c;
+    --primary: #b9850a;
+    --primary-ink: #ffffff;
+    --accent: #b8432a;
+    --success: #1f8a5b;
+    --warning: #a86f00;
+    --danger: #c62f35;
+    --info: #2369b3;
+    color-scheme: light;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --radius-chip: 6px;
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --radius-sheet: 20px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.num {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: reduced-motion must override component styles */
+    animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced-motion must override component styles */
+    transition-duration: 0.01ms !important;
+  }
+}

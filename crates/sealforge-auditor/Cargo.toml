@@ -1,0 +1,30 @@
+[package]
+name = "sealforge-auditor"
+description = "Independent auditor: rescans the escrow with the published IVK and recomputes the result"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "sealforge-audit"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+cli = ["dep:clap", "dep:anyhow"]
+wasm = ["dep:wasm-bindgen"]
+
+[dependencies]
+sealforge-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow = { workspace = true, optional = true }
+clap = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }

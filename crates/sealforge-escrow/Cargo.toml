@@ -1,0 +1,15 @@
+[package]
+name = "sealforge-escrow"
+description = "FROST 2-of-3 escrow: DKG orchestration and PCZT signing for refunds and payouts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+sealforge-core.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+# frost-core, reddsa (RedPallas), pczt: added in Milestone 1, task 1.5.
