@@ -55,6 +55,15 @@ mod hex_32 {
 mod tests {
     use super::*;
 
+    /// Shared with packages/bid (TypeScript): both must produce this exact value.
+    #[test]
+    fn cross_language_vector() {
+        assert_eq!(
+            hex::encode(commitment("7K3QX9MZ2P", "utest1refundexample", &[1; 32])),
+            "76d9fde6644588bafdcfda79e63389a225284a84b51e634ab02a43ad2070592e"
+        );
+    }
+
     #[test]
     fn commitment_is_deterministic_and_salted() {
         let a = commitment("7K3QX9MZ2P", "utest1abc", &[1; 32]);
