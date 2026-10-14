@@ -163,7 +163,7 @@ Indexes: `(auction_id, status)`, `UNIQUE (txid) WHERE txid IS NOT NULL`.
 | `auction_id` | `UUID` | ✓ | — | FK |
 | `bid_id` | `UUID` | | `NULL` | FK → `bids.id`. `NULL` for payout notes |
 | `kind` | `batch_kind` | ✓ | `'refund'` | |
-| `denomination_zat` | `BIGINT` | ✓ | — | Canonical 1/2/5 × 10^k, or the remainder note |
+| `denomination_zat` | `BIGINT` | ✓ | — | Canonical 1/2/5 × 10^k only |
 | `not_before` | `TIMESTAMPTZ` | ✓ | — | Random delay (CSPRNG) |
 | `batch_id` | `UUID` | | `NULL` | FK → `tx_batches.id` |
 | `status` | `note_status` | ✓ | `'planned'` | `planned` · `batched` · `broadcast` · `confirmed` · `failed` |
@@ -258,8 +258,8 @@ Enforced in the coordinator handlers (role extractor + per-auction ownership che
 | Duplicate commitment in one auction | The second and later bids are `invalid` (`duplicate_commitment`) and fully refunded |
 | Bid amount | > 0. `under_reserve` if < `reserve_zat` (full refund) |
 | Late bid | `block_height > close_height` → `late` (full refund) |
-| Refund total | Sum of a bid's `refund_notes` must equal `refund_due_zat` exactly (checked by a DB constraint trigger and in `sealforge-core` tests) |
-| Denominations | Each note ∈ {1, 2, 5} × 10^k zat with 10^4 ≤ note (≥ 0.0001 ZEC), plus at most one remainder note per bid |
+| Refund total | Sum of a bid's `refund_notes` must equal `refund_due_zat` minus its dust (`refund_due_zat % 10000`), checked by a DB constraint trigger and in `sealforge-core` tests. Dust (< 0.0001 ZEC) is not sent |
+| Denominations | Each note ∈ {1, 2, 5} × 10^k zat with 10^4 ≤ note (≥ 0.0001 ZEC). No non-canonical notes |
 | Pubkeys | Exactly 32 bytes |
 
 ## 5.8 Retention and deletion

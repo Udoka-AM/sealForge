@@ -1,0 +1,36 @@
+{
+  "params": {
+    "bidders": 500,
+    "median_bid_zec": 0.5,
+    "quantity": 50,
+    "seed": 7,
+    "spread": 1.0,
+    "trials": 20
+  },
+  "results": [
+    {
+      "label": "Naive refunds",
+      "linked_share": 1.0,
+      "notes_per_refund": 1.0,
+      "scenario": "naive"
+    },
+    {
+      "label": "Remainder in smallest note",
+      "linked_share": 0.9816633266533064,
+      "notes_per_refund": 6.765731462925851,
+      "scenario": "remainder_in_smallest_note"
+    },
+    {
+      "label": "sealForge, any bid amount",
+      "linked_share": 0.001102204408817635,
+      "notes_per_refund": 6.765731462925851,
+      "scenario": "sealforge_raw_bids"
+    },
+    {
+      "label": "sealForge, rounded bids",
+      "linked_share": 0.0017219270966727554,
+      "notes_per_refund": 1.0331421547350341,
+      "scenario": "sealforge_rounded_bids"
+    }
+  ]
+}

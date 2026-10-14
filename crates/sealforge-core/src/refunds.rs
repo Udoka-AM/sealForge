@@ -1,8 +1,12 @@
 //! Refund planner (Milestone 3, task 3.8). ZIP 318-style refund privacy.
 //!
-//! - Each refund is split into canonical notes ({1, 2, 5} × 10^k zat).
-//!   Any remainder below the smallest denomination joins the smallest note
-//!   (PRD open question Q7), so a bid has at most one non-canonical note.
+//! - Each refund is split into canonical notes ({1, 2, 5} × 10^k zat) only.
+//!   Any remainder below the smallest denomination (0.0001 ZEC) is **dust**
+//!   and is not sent: it is worth less than the network fee for one note, and
+//!   a non-canonical note would have a unique value that links the refund to
+//!   the bid (measured by tools/linkability-harness: 98% linked when the
+//!   remainder joined the smallest note, 0.1% when dust is dropped).
+//!   Bids made in the web app use at most 4 decimals, so they have no dust.
 //! - Each note gets its own random delay in `[min_delay, max_delay]`.
 //! - Due notes are grouped into batches that interleave bidders, so a single
 //!   transaction rarely carries one bidder's whole refund.
@@ -46,16 +50,15 @@ pub struct PlannedNote {
     pub delay_secs: u64,
 }
 
-/// Split a refund into notes: canonical denominations, largest first, with
-/// any sub-denomination remainder added to the smallest note.
+/// Split a refund into canonical notes, largest first. The sub-denomination
+/// dust (see [`refund_dust`]) is not included.
 pub fn split_refund(due: Zatoshi) -> Vec<Zatoshi> {
-    let (mut notes, remainder) = denominations::split(due);
-    match (notes.last_mut(), remainder) {
-        (Some(smallest), Some(rem)) => smallest.0 += rem.0,
-        (None, Some(rem)) => notes.push(rem),
-        (_, None) => {}
-    }
-    notes
+    denominations::split(due).0
+}
+
+/// The part of a refund below the smallest denomination, which is not sent.
+pub fn refund_dust(due: Zatoshi) -> Zatoshi {
+    Zatoshi(due.0 % denominations::MIN_DENOMINATION)
 }
 
 /// Plan the notes for one refund. `random` must return uniformly random `u64`s
@@ -142,7 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn notes_sum_to_due_with_at_most_one_non_canonical_note() {
+    fn notes_are_canonical_and_sum_to_due_minus_dust() {
         for due in [
             0,
             1,
@@ -154,32 +157,32 @@ mod tests {
             98_765_432_101,
         ] {
             let notes = split_refund(Zatoshi(due));
-            assert_eq!(notes.iter().map(|n| n.0).sum::<u64>(), due, "due={due}");
-            assert!(
-                notes.iter().filter(|n| !is_canonical(**n)).count() <= 1,
+            let dust = refund_dust(Zatoshi(due));
+            assert!(notes.iter().all(|n| is_canonical(*n)), "due={due}");
+            assert!(dust.0 < MIN_DENOMINATION);
+            assert_eq!(
+                notes.iter().map(|n| n.0).sum::<u64>() + dust.0,
+                due,
                 "due={due}"
             );
         }
     }
 
     #[test]
-    fn remainder_joins_smallest_note() {
-        // 0.37000123 ZEC = 0.2 + 0.1 + 0.05 + (0.02 + 123 zat)
-        let notes = split_refund(Zatoshi(37_000_123));
+    fn dust_is_not_sent() {
+        // 0.37000123 ZEC = 0.2 + 0.1 + 0.05 + 0.02, plus 123 zat of dust.
+        let due = Zatoshi(37_000_123);
         assert_eq!(
-            notes,
+            split_refund(due),
             vec![
                 Zatoshi(20_000_000),
                 Zatoshi(10_000_000),
                 Zatoshi(5_000_000),
-                Zatoshi(2_000_123)
+                Zatoshi(2_000_000)
             ]
         );
-        // Below the smallest denomination: one note for the whole amount.
-        assert_eq!(
-            split_refund(Zatoshi(MIN_DENOMINATION - 1)),
-            vec![Zatoshi(MIN_DENOMINATION - 1)]
-        );
+        assert_eq!(refund_dust(due), Zatoshi(123));
+        assert!(split_refund(Zatoshi(MIN_DENOMINATION - 1)).is_empty());
         assert!(split_refund(Zatoshi::ZERO).is_empty());
     }
 

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 354" width="720" height="354" font-family="IBM Plex Sans, system-ui, sans-serif" role="img" aria-labelledby="title desc">
+<title id="title">Refunds an exit observer can link to a bid</title>
+<desc id="desc">Naive refunds: 100.0% linked; Remainder in smallest note: 98.2% linked; sealForge, any bid amount: 0.1% linked; sealForge, rounded bids: 0.2% linked</desc>
+<rect width="100%" height="100%" fill="#0B0D10"/>
+<text x="24" y="36" fill="#ECEAE4" font-size="18" font-weight="600">Refunds an exit observer can link to a bid</text>
+<text x="24" y="58" fill="#9AA0A9" font-size="12">500 bidders, 50 lots, 20 seeded auctions each. Lower is better.</text>
+<text x="24" y="102" fill="#ECEAE4" font-size="13">Naive refunds</text>
+<text x="24" y="118" fill="#9AA0A9" font-size="11">1.0 notes per refund</text>
+<rect x="230" y="90" width="420.0" height="24" rx="3" fill="#E5484D"/>
+<text x="658.0" y="107" fill="#ECEAE4" font-size="13" font-family="IBM Plex Mono, monospace">100.0%</text>
+<text x="24" y="158" fill="#ECEAE4" font-size="13">Remainder in smallest note</text>
+<text x="24" y="174" fill="#9AA0A9" font-size="11">6.8 notes per refund</text>
+<rect x="230" y="146" width="412.3" height="24" rx="3" fill="#E5484D"/>
+<text x="650.3" y="163" fill="#ECEAE4" font-size="13" font-family="IBM Plex Mono, monospace">98.2%</text>
+<text x="24" y="214" fill="#ECEAE4" font-size="13">sealForge, any bid amount</text>
+<text x="24" y="230" fill="#9AA0A9" font-size="11">6.8 notes per refund</text>
+<rect x="230" y="202" width="2.0" height="24" rx="3" fill="#3FB37F"/>
+<text x="240.0" y="219" fill="#ECEAE4" font-size="13" font-family="IBM Plex Mono, monospace">0.1%</text>
+<text x="24" y="270" fill="#ECEAE4" font-size="13">sealForge, rounded bids</text>
+<text x="24" y="286" fill="#9AA0A9" font-size="11">1.0 notes per refund</text>
+<rect x="230" y="258" width="2.0" height="24" rx="3" fill="#3FB37F"/>
+<text x="240.0" y="275" fill="#ECEAE4" font-size="13" font-family="IBM Plex Mono, monospace">0.2%</text>
+</svg>

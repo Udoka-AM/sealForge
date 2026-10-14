@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use sealforge_core::{
     clearing::{AuctionMode, AuctionRules},
     merkle::{verify_proof, MerkleTree},
-    refunds::split_refund,
+    refunds::{refund_dust, split_refund},
     result::{compute_result, AuctionResult, ScannedBid},
     Zatoshi,
 };
@@ -91,7 +91,8 @@ fn check(name: &str, rules: AuctionRules, count: u32, seed: u64) {
     assert_eq!(paid + refunded, deposited);
     for o in &result.clearing.outcomes {
         assert_eq!(
-            split_refund(o.refund_due).iter().map(|n| n.0).sum::<u64>(),
+            split_refund(o.refund_due).iter().map(|n| n.0).sum::<u64>()
+                + refund_dust(o.refund_due).0,
             o.refund_due.0
         );
     }
