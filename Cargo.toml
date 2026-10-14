@@ -6,6 +6,7 @@ members = [
   "crates/sealforge-escrow",
   "crates/sealforge-auditor",
   "crates/sealforge-cli",
+  "crates/sealforge-api",
 ]
 
 [workspace.package]
@@ -20,6 +21,7 @@ authors = ["Udoka-AM"]
 sealforge-core = { path = "crates/sealforge-core" }
 sealforge-escrow = { path = "crates/sealforge-escrow" }
 sealforge-auditor = { path = "crates/sealforge-auditor" }
+sealforge-api = { path = "crates/sealforge-api" }
 
 anyhow = "1"
 thiserror = "2"
@@ -37,6 +39,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 wasm-bindgen = "0.2"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+sha2 = "0.10"
+base64 = "0.22"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
 
 # Zcash / FROST (task 1.2, verified 2026-10-14; see docs/VERSIONS.md).
 # Pre-releases are pinned exactly: they are the first with Ironwood (NU6.3) and NU7 support.

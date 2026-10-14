@@ -12,6 +12,19 @@ concurrency:
 jobs:
   rust:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sealforge
+          POSTGRES_PASSWORD: sealforge
+          POSTGRES_DB: sealforge
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sealforge" --health-interval 5s --health-retries 10
+    env:
+      # sqlx::test creates a fresh database per integration test on this server.
+      DATABASE_URL: postgres://sealforge:sealforge@localhost:5432/sealforge
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.89.0

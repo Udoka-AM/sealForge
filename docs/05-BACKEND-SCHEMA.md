@@ -217,7 +217,7 @@ PK `(batch_id, trustee_id)`.
 |---|---|
 | **Sign up (organiser)** | `sealforge init` generates an Ed25519 keypair locally → `POST /v1/organisers {display_name, pubkey, invite_code}` signed with the new key → row created. The hackathon instance is invite-only |
 | **Sign up (trustee)** | Organiser adds trustee slots with labels → one-time invite codes are shared out of band → `sealforge trustee join <code>` generates a keypair and registers `pubkey` on the slot |
-| **Sign in** | Stateless. Every request carries `SF-Sig keyId=<pubkey-b64>, ts=<unix>, nonce=<16B-b64>, sig=<ed25519(method‖path‖ts‖nonce‖sha256(body))>`. The server checks key, ±60 s window and nonce uniqueness |
+| **Sign in** | Stateless. Every request carries `Authorization: SF-Sig keyId=<b64 pubkey>, ts=<unix>, nonce=<b64 16 bytes>, sig=<b64 ed25519 sig>`. The signed message is `"SF-Sig-v1\n" + METHOD + "\n" + path_and_query + "\n" + ts + "\n" + nonce_b64 + "\n" + hex(sha256(body))` (implemented in `crates/sealforge-api/src/auth.rs`). The server checks the signature, a ±60 s window and nonce uniqueness. Unknown or other organisers' auctions return 404, so codes can't be probed |
 | **Reset / lost key** | Organiser: the operator re-binds a new pubkey after out-of-band verification (logged in `audit_log`). Trustee: losing one share doesn't block signing (2-of-3). The auction settles and a new DKG is run for future auctions |
 | **Session lifecycle** | No sessions or cookies on the API. The web console keeps the organiser key in memory only (loaded from file per visit). Optional: encrypted in IndexedDB with a passphrase |
 | **Bidders** | No authentication. Receipts are client-side |
@@ -274,7 +274,7 @@ Enforced in the coordinator handlers (role extractor + per-auction ownership che
 ## 5.9 Migration and seed data
 
 - **Tool:** `sqlx migrate` with timestamped files in `migrations/` (`YYYYMMDDHHMMSS_name.sql`). Forward-only. A fix is a new migration.
-- **Process:** write the migration → `sqlx migrate run` locally → `cargo sqlx prepare` (offline query data committed for CI) → PR review → applied on staging by the coordinator at startup (`sqlx::migrate!()`), then production on release.
+- **Process:** write the migration → run the coordinator or `cargo test -p sealforge-coordinator` locally (both apply it) → PR review → applied on staging by the coordinator at startup (`sqlx::migrate!()`), then production on release. Queries are runtime-checked (`sqlx::query_as`, no compile-time macros), and the integration tests in `crates/sealforge-coordinator/tests/` run every query against a real Postgres in CI.
 - **Initial migration:** `20261007000000_init.sql` creates the enums, all tables and indexes above, and the `refund_total_matches` check.
 - **Seed data (`seed/dev.sql`, local and staging only):**
   - 1 organiser ("Demo Organiser", known test pubkey).

@@ -24,4 +24,28 @@ pub struct Config {
     /// Pause the refund scheduler (rollback lever).
     #[arg(long, env = "SF_REFUNDS_PAUSED", default_value_t = false)]
     pub refunds_paused: bool,
+
+    /// Comma-separated organiser invite codes.
+    #[arg(
+        long,
+        env = "SF_INVITE_CODES",
+        default_value = "",
+        hide_env_values = true
+    )]
+    pub invite_codes: String,
+
+    /// Development only: pretend the chain tip is at this height until the scanner exists.
+    #[arg(long, env = "SF_DEV_CHAIN_HEIGHT")]
+    pub dev_chain_height: Option<u32>,
+}
+
+impl Config {
+    pub fn invite_codes(&self) -> Vec<String> {
+        self.invite_codes
+            .split(',')
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
 }

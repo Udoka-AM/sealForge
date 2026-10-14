@@ -31,7 +31,7 @@ services:
 
   zaino:
     profiles: ["node"]
-    image: ${ZAINO_IMAGE:?set ZAINO_IMAGE to a pinned Zaino image (task 1.3)}
+    image: ${ZAINO_IMAGE:-zaino-image-not-pinned} # set ZAINO_IMAGE in .env (task 1.3)
     depends_on: [zebra]
     # Exposes the lightwallet gRPC API on 8137 to the coordinator and Envoy.
     expose: ["8137"]

@@ -1,0 +1,53 @@
+mod auctions;
+mod organisers;
+
+use axum::{
+    extract::State,
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
+};
+use serde_json::{json, Value};
+use tower_http::trace::TraceLayer;
+
+use crate::AppState;
+
+pub fn router(state: AppState) -> Router {
+    Router::new()
+        .route("/healthz", get(healthz))
+        .route("/readyz", get(readyz))
+        .route("/v1/organisers", post(organisers::register))
+        .route("/v1/organisers/me", get(organisers::me))
+        .route(
+            "/v1/auctions",
+            post(auctions::create).get(auctions::list_public),
+        )
+        .route(
+            "/v1/auctions/{code}",
+            get(auctions::get_public)
+                .patch(auctions::update)
+                .delete(auctions::delete_draft),
+        )
+        .route("/v1/auctions/{code}/open", post(auctions::open))
+        .route("/v1/auctions/{code}/cancel", post(auctions::cancel))
+        .route("/v1/console/auctions", get(auctions::list_own))
+        .route("/v1/console/auctions/{code}", get(auctions::get_own))
+        // TODO(2.4): /v1/auctions/{code}/dkg/*
+        // TODO(3.3): /v1/auctions/{code}/publish, /result
+        // TODO(3.9): /v1/batches/*
+        .layer(TraceLayer::new_for_http())
+        .with_state(state)
+}
+
+async fn healthz() -> Json<Value> {
+    Json(json!({ "status": "ok", "version": env!("CARGO_PKG_VERSION") }))
+}
+
+async fn readyz(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
+    sqlx::query("SELECT 1")
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    // TODO(2.5): include Zaino reachability and scanner lag.
+    Ok(Json(json!({ "db": "ok", "chain_tip": state.chain_tip() })))
+}

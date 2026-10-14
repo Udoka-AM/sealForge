@@ -1,14 +1,7 @@
-//! sealForge coordinator: REST API, escrow scanner, refund scheduler.
-//! See docs/02-TRD.md §2.3 and §2.6.
-
-mod config;
-mod routes;
-
 use anyhow::Context;
 use clap::Parser;
+use sealforge_coordinator::{auth, config::Config, routes, AppState, Settings};
 use tracing_subscriber::EnvFilter;
-
-use crate::config::Config;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -29,10 +22,25 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("running migrations")?;
 
-    // TODO(2.5): spawn the escrow scanner task.
+    let state = AppState::new(
+        db,
+        Settings {
+            invite_codes: config.invite_codes(),
+        },
+    );
+    if let Some(height) = config.dev_chain_height {
+        tracing::warn!(
+            height,
+            "using SF_DEV_CHAIN_HEIGHT; the scanner will replace this (task 2.5)"
+        );
+        state.set_chain_tip(height);
+    }
+
+    tokio::spawn(auth::purge_nonces(state.db.clone()));
+    // TODO(2.5): spawn the escrow scanner task (also keeps chain_tip current).
     // TODO(3.9): spawn the refund scheduler task (respect SF_REFUNDS_PAUSED).
 
-    let app = routes::router(routes::AppState { db });
+    let app = routes::router(state);
     let listener = tokio::net::TcpListener::bind(&config.listen_addr).await?;
     tracing::info!(addr = %config.listen_addr, network = %config.network, "coordinator listening");
     axum::serve(listener, app)
