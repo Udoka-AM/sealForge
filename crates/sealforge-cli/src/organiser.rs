@@ -84,3 +84,13 @@ pub async fn auction_cancel(
         .post_empty(&format!("/v1/auctions/{code}/cancel"))
         .await
 }
+
+pub async fn auction_publish(
+    store: &Keystore,
+    coordinator: &str,
+    code: &str,
+) -> anyhow::Result<AuctionView> {
+    client(store, coordinator)?
+        .post_empty(&format!("/v1/auctions/{code}/publish"))
+        .await
+}

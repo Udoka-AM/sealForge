@@ -212,3 +212,43 @@ pub struct CompleteDkg {
     /// Serialized FROST public key package (hex).
     pub public_key_package: String,
 }
+
+// ---------------------------------------------------------------------------
+// Results (task 3.3). Public once an auction is published.
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResultRules {
+    pub mode: AuctionMode,
+    pub quantity: u32,
+    pub reserve_zat: u64,
+}
+
+/// One bid in the published result. Amounts are visible to anyone with the
+/// published viewing key anyway; bidder addresses are not included.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResultBid {
+    pub leaf_hash: String,
+    pub is_winner: bool,
+    pub price_paid_zat: u64,
+    pub refund_due_zat: u64,
+}
+
+/// `GET /v1/auctions/{code}/result`: everything an independent auditor needs.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublishedResult {
+    pub auction_code: String,
+    pub network: Network,
+    pub rules: ResultRules,
+    /// Scan exactly this range with the UIVK to recompute the result.
+    pub scan_from_height: u32,
+    pub scan_to_height: u32,
+    /// Unified incoming viewing key of the escrow.
+    pub uivk: String,
+    pub algorithm_version: String,
+    pub clearing_price_zat: Option<u64>,
+    pub total_volume_zat: u64,
+    pub valid_bid_count: u32,
+    pub winner_count: u32,
+    pub merkle_root: String,
+    pub bids: Vec<ResultBid>,
+}

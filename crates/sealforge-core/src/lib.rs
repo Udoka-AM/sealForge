@@ -12,6 +12,7 @@ pub mod merkle;
 pub mod receipt;
 pub mod refunds;
 pub mod result;
+pub mod selection;
 pub mod zip321;
 
 pub use amount::Zatoshi;
