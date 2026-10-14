@@ -12,4 +12,12 @@ authors.workspace = true
 sealforge-core.workspace = true
 serde.workspace = true
 thiserror.workspace = true
-# frost-core, reddsa (RedPallas), pczt: added in Milestone 1, task 1.5.
+hex.workspace = true
+orchard.workspace = true
+pasta_curves.workspace = true
+rand.workspace = true
+reddsa.workspace = true
+reddsa-frost.workspace = true
+frost-rerandomized.workspace = true
+zcash_keys.workspace = true
+zcash_protocol.workspace = true

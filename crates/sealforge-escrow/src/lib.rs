@@ -1,13 +1,26 @@
-//! FROST threshold escrow (Milestone 1, task 1.5, critical path).
+//! FROST 2-of-3 threshold escrow (Milestone 1, task 1.5, critical path).
 //!
-//! Responsibilities:
-//! - Relay DKG round packages between trustees. Secrets never touch the coordinator.
-//! - Derive the escrow Ironwood UA and UFVK from the group verifying key.
-//! - Build refund / payout PCZTs, collect 2-of-3 signature shares, aggregate, finalise.
+//! - [`dkg`]: the three DKG rounds each trustee runs locally. The coordinator
+//!   only relays packages, and signing shares never leave a trustee's machine.
+//! - [`address`]: derives the escrow's Orchard/Ironwood full viewing key from
+//!   the FROST group key (`ak`), plus its Unified Address, UFVK and the UIVK
+//!   that is published at close.
+//! - [`signing`]: rerandomized FROST signing of a PCZT action's spend
+//!   authorization (sighash + α), producing a standard RedPallas `SpendAuth`
+//!   signature for `pczt::roles::signer::Signer::apply_ironwood_signature`.
 //!
-//! See docs/02-TRD.md §2.3 and docs/06-IMPLEMENTATION-PLAN.md task 1.5.
+//! Ironwood (NU6.3) reuses Orchard keys and receivers, so the escrow is an
+//! Orchard-key wallet whose notes live in the Ironwood pool.
+
+pub mod address;
+pub mod dkg;
+pub mod signing;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+/// FROST(Pallas, BLAKE2b-512) with Orchard's even-Y group key normalisation.
+pub use reddsa_frost::frost::redpallas as frost;
 
 /// FROST threshold parameters. v1 is fixed at 2-of-3.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,6 +38,16 @@ impl Default for Threshold {
     }
 }
 
-// TODO(1.5): DKG round 1/2 types wrapping frost-core packages.
-// TODO(1.5): escrow address derivation from the group verifying key.
-// TODO(3.9): PCZT batch builder + signature aggregation.
+#[derive(Debug, Error)]
+pub enum EscrowError {
+    #[error("FROST error: {0}")]
+    Frost(#[from] frost::Error),
+    #[error("could not derive a valid escrow viewing key")]
+    KeyDerivation,
+    #[error("invalid randomizer (alpha)")]
+    InvalidRandomizer,
+    #[error("unified encoding error: {0}")]
+    Encoding(String),
+    #[error("signature does not verify against the randomized spend key")]
+    BadSignature,
+}
