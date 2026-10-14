@@ -1,0 +1,132 @@
+{
+  "algorithm_version": "sealforge-core/0.0.1/clearing-v1",
+  "clearing": {
+    "clearing_price": 295847153,
+    "total_volume": 5606266561,
+    "valid_bid_count": 20,
+    "winner_count": 10,
+    "outcomes": [
+      {
+        "leaf_hash": "04f87954e3fc1157810c468eee9a030836cc9b1a4b9ad2e1b6e4ba1372d7fb61",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 199772470
+      },
+      {
+        "leaf_hash": "196c77d41cf5cf284981036a0795a4c2cb82b797818a322bf3cf5b3b9e709220",
+        "is_winner": true,
+        "price_paid": 295847153,
+        "refund_due": 78020001
+      },
+      {
+        "leaf_hash": "2555ce1be1eb8a46d6c1384d2e42742970375f069872801404496dc4927a0100",
+        "is_winner": true,
+        "price_paid": 295847153,
+        "refund_due": 186485419
+      },
+      {
+        "leaf_hash": "39f468c6cf5d8ffec8c1a7a8b9aa28b7f298e03cfb479dab8f8388dd6bc4c482",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 222863195
+      },
+      {
+        "leaf_hash": "453ae8a594aeee0b578c482c967ef2ea1a532db667c331e619446062b715eb87",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 46736950
+      },
+      {
+        "leaf_hash": "492e71064d3b90c4ffaa8f8c6ba89049efe59519505fc1b780d12719e01ed6ec",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 213505192
+      },
+      {
+        "leaf_hash": "62180a66b3466b4bb70fcc71875bc7d9535e02c4c4f26e79575adb42b7177337",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 98133746
+      },
+      {
+        "leaf_hash": "74125a89f2c0bd228f7011557a0b356807e1aaaffd5b555acb900b63faf498cc",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 233453280
+      },
+      {
+        "leaf_hash": "81b23ebee8b8d9e30f6915ba0645fb51daefa54ffc52d5e1acb25c9532d2a221",
+        "is_winner": true,
+        "price_paid": 295847153,
+        "refund_due": 108631914
+      },
+      {
+        "leaf_hash": "86e26df670f8c0f394bcec7b7b82f5776fcc34bab11ed83f13b7e91f4795988c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 206598954
+      },
+      {
+        "leaf_hash": "8baa5879cf780269e4d09af7d1466d4a445e164a4173171417147bb87296a05c",
+        "is_winner": true,
+        "price_paid": 295847153,
+        "refund_due": 104331818
+      },
+      {
+        "leaf_hash": "923a1f1ccf5bf03cb537d18d0ee99252f58f702a77ba7925fd4b3d5538e944bb",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 273867716
+      },
+      {
+        "leaf_hash": "966cfc3b6afac6a5785cbc766fe743aa8da8a89a5545164849c09d6c0d80e167",
+        "is_winner": true,
+        "price_paid": 295847153,
+        "refund_due": 50106700
+      },
+      {
+        "leaf_hash": "a634d0638d1fc9cb763d5f1bf86a5d47d3ec0253e98134a7a53489826e8c18e7",
+        "is_winner": true,
+        "price_paid": 295847153,
+        "refund_due": 178661611
+      },
+      {
+        "leaf_hash": "ba5c752e289d7bad3bee5de355b226b264d5e77e55f3f4c285dbe669968455f2",
+        "is_winner": true,
+        "price_paid": 295847153,
+        "refund_due": 184321065
+      },
+      {
+        "leaf_hash": "c854686913223a35203d9db88227fd2ec7109bca5224201f836150fed1676e17",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 158550240
+      },
+      {
+        "leaf_hash": "c88263204b99d270f1d6dfb64478fabd4f035a6693a0e4ea1586d16222e13e80",
+        "is_winner": true,
+        "price_paid": 295847153,
+        "refund_due": 21339303
+      },
+      {
+        "leaf_hash": "e1e9f67a414a08407c487e5836d16feb2f22e2db31126d2e3ba82f2308d4c315",
+        "is_winner": true,
+        "price_paid": 295847153,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "e8fcc73478aa0a06e1f7562d0499568c5bb604a98312f6abdd5d51c65e47e217",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 7967997
+      },
+      {
+        "leaf_hash": "f525aff2e110d1700e2a14262f54ab755bc2a06343716992dc98f89a59e7def1",
+        "is_winner": true,
+        "price_paid": 295847153,
+        "refund_due": 74447460
+      }
+    ]
+  },
+  "merkle_root": "92cd8722fe266d6b35d3b8145ac101e26389218a1ccfafe8d1db0f559fbfe475"
+}

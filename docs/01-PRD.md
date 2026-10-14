@@ -112,7 +112,7 @@
 | AC2 | An auction is `open` | a bidder pays the ZIP-321 URI from a shielded wallet | within 2 blocks of confirmation the coordinator records the bid as `valid`, and the bid count on the page increments |
 | AC3 | An auction is `open` | a payment arrives with a malformed memo, below the reserve, or for another auction ID | the bid is stored as `invalid` with a reason code, excluded from clearing, and marked for a full refund |
 | AC4 | An auction is `open` and the close height is reached | the coordinator closes the book | no later payment is counted (`late` status, full refund), and the clearing result is computed deterministically |
-| AC5 | A uniform-price auction with N units and M > N valid bids | clearing runs | the top N bids win, every winner pays the N-th highest bid, and ties are broken by (earlier block height, then lower leaf hash) |
+| AC5 | A uniform-price auction with N units and M > N valid bids | clearing runs | the top N bids win, every winner pays the N-th highest bid, and ties are broken by (earlier block height, then lower leaf hash). With M ≤ N valid bids, every bidder wins and pays the lowest bid |
 | AC6 | An auction is `closed` | the organiser publishes | the IVK, auction params, block range and Merkle root are public, and the audit page shows them |
 | AC7 | A published auction | anyone runs the auditor CLI or WASM page with the IVK | the recomputed clearing price, volume, winners and Merkle root equal the published values byte-for-byte |
 | AC8 | A bidder holds a receipt | they open Verify and load the receipt | the page shows a valid Merkle inclusion proof against the published root |

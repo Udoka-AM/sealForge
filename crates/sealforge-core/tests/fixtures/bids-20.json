@@ -1,0 +1,149 @@
+{
+  "rules": {
+    "mode": "uniform_price",
+    "quantity": 10,
+    "reserve": 1000000
+  },
+  "bids": [
+    {
+      "txid": "c15c0289ec2d0a9167ec8e65a18debbe5e5532fbeea293f80bc942ee9086c171",
+      "output_index": 0,
+      "block_height": 3400020,
+      "amount": 46736950,
+      "commitment": "b9b501d1d854bb7180021590ff0b4dc3a53c36d76cec99e0758527120fbbe785"
+    },
+    {
+      "txid": "614f560177dc7567fe8bcf144dd4fc9ac05daa4b8acf76748aa2d790d641b387",
+      "output_index": 1,
+      "block_height": 3400014,
+      "amount": 213505192,
+      "commitment": "a8574c6fae6d9b6f3b4a79a517cec22a630bfdb7a6a634a5f1aa2b57dad0bad0"
+    },
+    {
+      "txid": "4687e96568c4e2109c442a5c3c97d714cd8f54d10efdf17eac06f33e6310841f",
+      "output_index": 2,
+      "block_height": 3400231,
+      "amount": 206598954,
+      "commitment": "9fb9aad1c5057349f7b677c17d40430c35714a86a71cf983abf72d0defaeb9b6"
+    },
+    {
+      "txid": "84d0c5120bd70c99ba8907c967192b966d2c075a68e2ac651ce0dc482f6f6170",
+      "output_index": 0,
+      "block_height": 3400188,
+      "amount": 474508764,
+      "commitment": "17fcf32e4e82d6400cfffe56222e9e87f5e04b5e44022e8bc1533500bb598cbf"
+    },
+    {
+      "txid": "862c7e6049c7a0dc07291e88403c4bb563811059bf1f823cb2ff8786380dffa7",
+      "output_index": 1,
+      "block_height": 3400319,
+      "amount": 480168218,
+      "commitment": "8160c69f01d170de387ec812cd6aded65e68e918610e0e53969f4d30eaf9bf28"
+    },
+    {
+      "txid": "7405ba77ef73464de5be4c4cfd8caf21f8e86abdf40060539017ca29e43caff0",
+      "output_index": 2,
+      "block_height": 3400498,
+      "amount": 98133746,
+      "commitment": "8f4a5b0c0b0bc764afec512727877516af7acd9a859c679bcc94c6c89e5fcd27"
+    },
+    {
+      "txid": "14cee25cb0d1c5867fb775103ab28011bcff1479811a9ac05bd21e40e194b888",
+      "output_index": 0,
+      "block_height": 3400365,
+      "amount": 404479067,
+      "commitment": "620b9e35989a6cb8ac5f323967dca947f3e073cab44595096b93c34189e1a205"
+    },
+    {
+      "txid": "6125eca09e3e66298711a227eb1ec6d275d528a35a1502f973cf1d6f4e09ebb0",
+      "output_index": 1,
+      "block_height": 3400173,
+      "amount": 345953853,
+      "commitment": "0e33d26ca0b6cc90438766684783787853aa54953596bd9fbe63ca97bb2033dc"
+    },
+    {
+      "txid": "397fc52cc2314ba6e16cb01e06958438d7491e937a53386cf2834b68e05c1de3",
+      "output_index": 2,
+      "block_height": 3400444,
+      "amount": 233453280,
+      "commitment": "09615769aeba60afb10e602e27d8daf079c31138407e25c06ef281fe6db27220"
+    },
+    {
+      "txid": "a851a9de2d57c9c73ec8f0747e0b5b63c21028765e0ac8184b29d172b1a4f0f3",
+      "output_index": 0,
+      "block_height": 3400090,
+      "amount": 295847153,
+      "commitment": "ae8673e143ffd098f8013d34d62b0a18814a3ec10a2920db90130db3ff9103d8"
+    },
+    {
+      "txid": "011d1450400173bc53ec5151405dbf965baee4bd3fe53daa92cb2a78822ec47b",
+      "output_index": 1,
+      "block_height": 3400260,
+      "amount": 400178971,
+      "commitment": "254bcfc9e37641760b2dce00f35e84fd6f3ec4f6bbbfe9a3d6e5530f7a578107"
+    },
+    {
+      "txid": "5a7c48a89c17db622644d19da64633265e23721f84fee4a2a2ec975ff40af398",
+      "output_index": 2,
+      "block_height": 3400078,
+      "amount": 222863195,
+      "commitment": "179f9acb5266592f123a768490c5a3192f694adf901f0dfdc44c9e6665e4ca67"
+    },
+    {
+      "txid": "2242ff50fd9298b1de78ff3cf2e87dbd9f7bc4b67b585af8707465dab9992d7a",
+      "output_index": 0,
+      "block_height": 3400325,
+      "amount": 317186456,
+      "commitment": "706bd2dc08f68237d36e5b72037064329d4ddbc07c12051844cb73fe1fe52465"
+    },
+    {
+      "txid": "ede67459ced9f93d966af94f937e2c8570aa255d70783596406b4215e3320214",
+      "output_index": 1,
+      "block_height": 3400324,
+      "amount": 373867154,
+      "commitment": "951a0337bc51bc75d6e2ddcbe69ff90bd229d16e075074a913a37f169f624209"
+    },
+    {
+      "txid": "eaa153c355fbfea6b3f32aa8621308bd23c6664d0ae92f9615b59ffd21a17c8c",
+      "output_index": 2,
+      "block_height": 3400096,
+      "amount": 199772470,
+      "commitment": "8d9608f6b6e316e8e469b0b93eb7fd3fbd9f9eaed8a4c7d27f6253940dbb6b8b"
+    },
+    {
+      "txid": "9f032157b580d13eb14e55af4d189082c6fcd674a0b48137ec2bf12e9a94edce",
+      "output_index": 0,
+      "block_height": 3400172,
+      "amount": 273867716,
+      "commitment": "68ffc423ca82263b964d5c95f92ce9494d11b4b4e17f3ee2a9db2d6a43dacc4b"
+    },
+    {
+      "txid": "d05311d06dc3b8004053db442b451929ab513b9a0d45e5b8cf2d60b43eee55c6",
+      "output_index": 1,
+      "block_height": 3400261,
+      "amount": 370294613,
+      "commitment": "5a61faa016271d4aa7b540d4d321685a25503df60f86a5dbf38f81e469831c70"
+    },
+    {
+      "txid": "f90caa534f10866d9cdf0584cac45c6cb651891b6a1630064fc40a462a3a71e1",
+      "output_index": 2,
+      "block_height": 3400494,
+      "amount": 482332572,
+      "commitment": "e69237ecc1827c53dbc07da6ea748b095b4148ce73db541d63c9344ddaa0e256"
+    },
+    {
+      "txid": "5b23e03c239e924e6d4103e328d13b72a93e57ebc78fc21d56d55b5232b9f66d",
+      "output_index": 0,
+      "block_height": 3400281,
+      "amount": 158550240,
+      "commitment": "85b9f8c1908048aee20fb7589dd4485239cf591ae27f7bd4d728a7b31448ebea"
+    },
+    {
+      "txid": "ee5ec865e8db3a4e70061c9591d0bcbaa61252b20a0ae0de82e51de44e583767",
+      "output_index": 1,
+      "block_height": 3400386,
+      "amount": 7967997,
+      "commitment": "3867bb65d95a45279039acf0973b47fb450b19b33e9ea31885cca4c5330c694d"
+    }
+  ]
+}

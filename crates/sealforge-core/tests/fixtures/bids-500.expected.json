@@ -1,0 +1,3012 @@
+{
+  "algorithm_version": "sealforge-core/0.0.1/clearing-v1",
+  "clearing": {
+    "clearing_price": 422104945,
+    "total_volume": 128954737954,
+    "valid_bid_count": 491,
+    "winner_count": 100,
+    "outcomes": [
+      {
+        "leaf_hash": "0011ecc0357b769112c8e712f3ad3aa0e379a96059bd86b8f87f4ddfe06dba41",
+        "is_winner": true,
+        "price_paid": 490944715,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "0149cc60d5267a0e159275f881cd210d2227dd01057b9727a88e76b893c28eda",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 313382175
+      },
+      {
+        "leaf_hash": "0181f885f0874345128fa49ab6afcd389ae5cd827de905599d6f25c1245723bf",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 355225233
+      },
+      {
+        "leaf_hash": "0197fc29a9ce6b083cae6e13e74f56f4706d634675bcd02a181455415b27f2b0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 38375345
+      },
+      {
+        "leaf_hash": "019ed65066825c5358e9e7c208be131080a3720b594e1fe9d631c5d860a9d0f0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 3142420
+      },
+      {
+        "leaf_hash": "01f51db20a906c521323b2b5e70f3ba73bc6a2f1dd4e474c723188c9e33d90d9",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 206768948
+      },
+      {
+        "leaf_hash": "02256f3e8e162cf49d6a920a89a804b214376200e5ed8ce2133910646debcc94",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 45150445
+      },
+      {
+        "leaf_hash": "03cad83b9be2952b4e6f7bbc8f97703272d746fd65c020add5e604f869a29168",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 223999018
+      },
+      {
+        "leaf_hash": "043f5a63714fbf77e7d9c6409551ea2e9b78b38a7c0dc384ffd04d753050dd45",
+        "is_winner": true,
+        "price_paid": 492890561,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "0520a217161dbe62593a6ece4389b97a48cb9d63cec16e59a9a96eb0abcd46a5",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 61246332
+      },
+      {
+        "leaf_hash": "059ba1203f17c5efaefb8929724442c482821c53ff5ed4e8191014549ed0f1b6",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 337353400
+      },
+      {
+        "leaf_hash": "060f173aa6bec33473a036562aa29ab7fe8fb1c1113fe88b168d6e2bd128926b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 355529188
+      },
+      {
+        "leaf_hash": "076119cb11c68a7622d2e3e52933cd16e9034ad086a93415ea5377c0e5c27e7d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 51111968
+      },
+      {
+        "leaf_hash": "07c28e5adb5d84441ccafced91ffeb01dd1e83ed61f3bd71fe83f6c87f54f401",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 217900590
+      },
+      {
+        "leaf_hash": "07c572a6e3950d7bde83eb1931863d5df83f839a2968b811a1bad353a120a939",
+        "is_winner": true,
+        "price_paid": 449288198,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "07c8176757c75ab769d2e9b55b47965f017ed2bb421dcb40bae99c193ab0dab2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 302792451
+      },
+      {
+        "leaf_hash": "08cac327a6cb50f8324f14a0d85b883780e7a97c598a45127fb5635032401c34",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 100201088
+      },
+      {
+        "leaf_hash": "09128d405a430018fa2807e4e28948682387f01507d2bc5c71b2921bed9d4855",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 149349873
+      },
+      {
+        "leaf_hash": "0916afff249d097723b5ed223571f6c62de016d10efbb8046616df890f4d2eff",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 255707975
+      },
+      {
+        "leaf_hash": "098380d0382725c76071dfc6fadeec6e69d92b29bd8240af88a52033353e9edd",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 177594060
+      },
+      {
+        "leaf_hash": "09b26e69176362b451ffbd0e6ad0b4319c1b5b0343fa70d235002a5a213c2679",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 412268345
+      },
+      {
+        "leaf_hash": "0ab0d8aa11dc47cf9398d181c81644f00a0c01d61fcfc635c74e01fd3bc1d1bc",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 60228175
+      },
+      {
+        "leaf_hash": "0aedb696c89f9f9b1a15c7fa0225e5ef91fa6ac73b595586aa1c7ed238c91ef0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 124433932
+      },
+      {
+        "leaf_hash": "0bfcd2491ffa405914a8190afa7ab51689b28ae30a4c8aab98600b096a7fcdd0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 88405200
+      },
+      {
+        "leaf_hash": "0c3eda718936b0abcbd3e2c4ac417d2b31ce01014198ce3d69423123f2a1de31",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 115898920
+      },
+      {
+        "leaf_hash": "0cd5ff3d5bbbb0e88071b2696be97453d0afbfe6126d3e87a8d4362f6103ab9f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 182531267
+      },
+      {
+        "leaf_hash": "0d5b34f580627f4e772bdcd057bd672a771a35cd464e0be55c72bf316551da10",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 258260245
+      },
+      {
+        "leaf_hash": "0db1a473374896e5a903c8f379a5eb37964a4a954e46df108986b5a1153cb340",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 182241947
+      },
+      {
+        "leaf_hash": "0e44924879a9932352e6aa738349a8d80ade6b216bfc63e9f16b291c5fabde5c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 144972312
+      },
+      {
+        "leaf_hash": "0f271d9a1522e2561e9d3da57da93e117dd91258cd8a7bec8409e595efd7ae2e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 359985125
+      },
+      {
+        "leaf_hash": "0ffcedf4ecfb23479e987adf94d599d753f71b45e0a3378da9da249a399e81be",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 364109352
+      },
+      {
+        "leaf_hash": "10b95577392cfd2acfd9c7a3f0c8c97bfd994d4a6786819bb29ddb5fd7fc5129",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 65840273
+      },
+      {
+        "leaf_hash": "10cee102310f62517af466f7b2599fd9b72d1cef75f8b392ee7af1c0a37b1114",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 307694077
+      },
+      {
+        "leaf_hash": "112789a893bfd292835f27d3cab775d2972a936a24b3a300cc00c635ac865158",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 27834804
+      },
+      {
+        "leaf_hash": "1140fa5b89d7276005ba223e9a39457a55efa71f557c7b03558ca6b5d9e3107a",
+        "is_winner": true,
+        "price_paid": 488614167,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "1204067cab8406841f9b147c89067ee516987bdb427d79d4572479eae9cd3b8a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 357336102
+      },
+      {
+        "leaf_hash": "1414c3d599e81c613e6a9a0b8202af4775dcc8d9bb4d9ff7c29fc206e50f4757",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 213787141
+      },
+      {
+        "leaf_hash": "1449cb61c8d3d3780b82f8f53772a2594842d63e90e53b3cb68c814f2e00dc36",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 340208124
+      },
+      {
+        "leaf_hash": "1491caf8b93de39395f8584799e04229e84945a6ec26229df63fd40fa49cdf57",
+        "is_winner": true,
+        "price_paid": 425186825,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "15f1c1c07db5f7284d702c8245e97935dcc7d5bc5cfb85fb5899499e3ce28ad2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 408014195
+      },
+      {
+        "leaf_hash": "176eb413ab2c939b060d652ebe6bb66ea32f747487b3250297fa0720acec7195",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 21267391
+      },
+      {
+        "leaf_hash": "17cd6da1dc4fa2ef41f4b23803bb7f813691303d7b4fd6f29c957643cbf737d2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 90125764
+      },
+      {
+        "leaf_hash": "1850b66b40804d5f5b74824fff88a89f83d8972c9854db9168daec7ad2f6ddd6",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 34053979
+      },
+      {
+        "leaf_hash": "191b2ea91d649f5f40cd8750931b923bc5f4723141cae512626e545fc290259e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 34833624
+      },
+      {
+        "leaf_hash": "19390e8fdecafd7ec6380e234cd83b6362d7053e93ab4e14a199c2b12d54176e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 62400179
+      },
+      {
+        "leaf_hash": "1944b1046e931bce7d3e622dd9c0e9845b7ed8ae87ba996cfbfe2f51e383d89e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 92758598
+      },
+      {
+        "leaf_hash": "19b7d4e59d3827f148f2597ef36a973a58faf5b2ecb6f6cdc9fcce7470bfee4f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 254866426
+      },
+      {
+        "leaf_hash": "19e13f81efeecc2593231d9b6f9baced446aa5789ac1b9894d6164eb03a19d3a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 150537798
+      },
+      {
+        "leaf_hash": "19f325051a5efc77b31307056cadb687f21562e21c6cf8d11a44ba5136a08b17",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 39298220
+      },
+      {
+        "leaf_hash": "1a258bd097b4831b35c796634e66a3751414fd562944cae7ad56a7f9f9c9a567",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 74117131
+      },
+      {
+        "leaf_hash": "1a63efe8384c1ccd4c3acdea7e1530c9c3322ea141e61c3442a9322ea9ce3a5e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 222486136
+      },
+      {
+        "leaf_hash": "1a7f494e835bca9298c0de0207638d4f13ea182073f0fee4b4e1b31bf8a39156",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 158398811
+      },
+      {
+        "leaf_hash": "1aa0ec50138f10103aa47274e2d23abf4700662467d74737c923dee816d943b5",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 56353810
+      },
+      {
+        "leaf_hash": "1aa1ac9392273a6e565e0529619f7cb29c0168056ec2e6e54b4f79c422f474f2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 194891325
+      },
+      {
+        "leaf_hash": "1bc15a2e4cbeada7ef5298db072e110b72362504f63fee76dde5584d7bae9bce",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 307267951
+      },
+      {
+        "leaf_hash": "1c94fe11da9497bb78fe6b468208dc8ac09f3b2d135ea7736ef35f3893160bbf",
+        "is_winner": true,
+        "price_paid": 453373761,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "1cb6cf7f35cf3b8f013c4366dfde3fc91f69e95a01a3d5ffba5f81f83d762231",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 363630625
+      },
+      {
+        "leaf_hash": "1d8a233cccdf56c14a8c5b91fa4417adf7bfcecee9a301efe645d6036f0936b6",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 252432526
+      },
+      {
+        "leaf_hash": "1e58b7908937f09187d237b66d074a8ed5e5eb85f09847c49148b52075f49ff4",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 340760248
+      },
+      {
+        "leaf_hash": "1edb01f404be8d2a9d52dc34f130bbdf10d76d505606f5b7308685369f3917d0",
+        "is_winner": true,
+        "price_paid": 450761972,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "1f089b107623a9731757c2656c951c581331eb84a926bae3b673e74f309c8701",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 330181915
+      },
+      {
+        "leaf_hash": "1f6eacde527e6e5d83633a5666237c57238c10d8e239a1b523b88d5eaf9d2fac",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 214177390
+      },
+      {
+        "leaf_hash": "1f83fbc18088b986e7868384e054bc827e4d3e293f7363406c22933e856c5ea3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 51945949
+      },
+      {
+        "leaf_hash": "1f8589f9d75e41448a36e637f84a379f0261672d95eedf8266800cfa180a47cd",
+        "is_winner": true,
+        "price_paid": 455853757,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "213eceb3de3aa1760e216cf2169a0ffebc75ab243bf8e982e4e78049b03c5807",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 61603128
+      },
+      {
+        "leaf_hash": "222faa1f1083dc794b466ad02f10803cb2e1c59aaf7f1314d37b22cd1a5ba96e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 373482080
+      },
+      {
+        "leaf_hash": "224eee81c3b6454680fbf19ba44bfd35422d270aa05e652ced311e5ff54f8331",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 147922544
+      },
+      {
+        "leaf_hash": "22fc0cf832af81a6312ebdf6f24576ab7d16e6ba64a295be050cf74f5c853d8f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 289551304
+      },
+      {
+        "leaf_hash": "2324a90d3a233c49229a65d01e4f0f5ef6885e85ee33666486da5fcba8c0ddb3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 264369710
+      },
+      {
+        "leaf_hash": "2381f81735836fadab6d1016b2bfdf4efb7f4622c809ebb30cd74a6d67f71329",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 347250674
+      },
+      {
+        "leaf_hash": "242a23877c9a5007b6a10b5b565b9d9ccc7fdd4969abea0ea70bce56c6b96224",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 325631432
+      },
+      {
+        "leaf_hash": "24b03b6fb82091a582a263c6f6383d84f7aa2c0f005a22dbe9a7074568c3677a",
+        "is_winner": true,
+        "price_paid": 466141212,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "24d784b967e5600e25516b44aa182a4d74574a45ad5e2748c8f33162b881ea7a",
+        "is_winner": true,
+        "price_paid": 441218892,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "24f645f8ba85f88f4afd27459d410653f8727310d6bad039d3f465ce10598233",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 386364404
+      },
+      {
+        "leaf_hash": "24fd7be45320143df69ee57fe0eb9812893cef085b6a3271061d6478f25f0e42",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 164962278
+      },
+      {
+        "leaf_hash": "25866ba1c8f2f424fda8f70c574772ea1d89e8a3cbaee22e5618a693544d6ad1",
+        "is_winner": true,
+        "price_paid": 456710830,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "25c6cb2f9328a7e421aa1ea6f2cec78249f4adf91353d95addc4c6d5d8f7d6fd",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 194291610
+      },
+      {
+        "leaf_hash": "25f9d77ddb7a9368b2aaa0656930e5100d681b45f35f2f444a0dc1f253ab26da",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 109981069
+      },
+      {
+        "leaf_hash": "2679811f09448d692de3c527030c56f21d53a698af7e707614f6110e857b70f8",
+        "is_winner": true,
+        "price_paid": 488475209,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "27a76503093cfeb4fa3339f46957de94ce5008c70444474ed596e412a8aab18a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 93049209
+      },
+      {
+        "leaf_hash": "284671e703118af6ad6de1e6e5b90efaa7a331b0f0c5f444d66290554040bf36",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 120622822
+      },
+      {
+        "leaf_hash": "2947f5537e0dbdd9fbd4e08ceb466fe2dc9625dc02550bac910443d6e2d151be",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 22563515
+      },
+      {
+        "leaf_hash": "29d176f22cac2a5c9794ce3a7febaeb7c4faccf94352a6129360e114fbf962be",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 387211143
+      },
+      {
+        "leaf_hash": "2a448dd0694af21477936172a1e23d160b33212f2480f8270defc426760c1b99",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 87597517
+      },
+      {
+        "leaf_hash": "2a78955c65955606b98719c2c8000fe9e82cb0c9558212de308de16dc923c516",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 359437939
+      },
+      {
+        "leaf_hash": "2ab2dce1a607d705a5cc40fa36bc8985e5a83cc0d700969b2ea86c68a1fe40c4",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 12729585
+      },
+      {
+        "leaf_hash": "2acb5a68017ab5f03bc76ca396958cc4c24990d69b34e3f9e05eefe79a5c39c7",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 238306457
+      },
+      {
+        "leaf_hash": "2ad1eafaf9532a95af80375f6d49d934c8c06e4a693c5fe2dfb5cafd02f9b301",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 357479592
+      },
+      {
+        "leaf_hash": "2ade4b3fc9d8f5eac5093298ea21d759224a2d0468dd09278a6233ec47fbf795",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 416806106
+      },
+      {
+        "leaf_hash": "2b010986b2212bde54e8374e9e7048c6eff7e51b27dd3202acf42889b3c7fb51",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 243738254
+      },
+      {
+        "leaf_hash": "2bd403cbb8256755b2484931a9c9c6069f24e3edf2b9083af657e8a6a265b45f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 396262505
+      },
+      {
+        "leaf_hash": "2c532af60ed2b71a10c2f1ae22fa2fefa18c5dd09c1e08e3490c767f7ff7044e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 280532277
+      },
+      {
+        "leaf_hash": "2c6fc061ab8f3a0acdadf7e0ee1585ef8c77270249108c2c317e0ded8340d27c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 60658334
+      },
+      {
+        "leaf_hash": "2c720b3d74b8f5160af4692c7678121a5a150a3e5ebac93a5e67a050ae10d9df",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 175886944
+      },
+      {
+        "leaf_hash": "2c738e5b8af53aa4f72927dd95a03246265ea5ea7524d72510db14d05a5e44e0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 136750381
+      },
+      {
+        "leaf_hash": "2de391b7f3970fbf50c3b0c834756de435414186fb0585511fc92c2f062f239e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 31050147
+      },
+      {
+        "leaf_hash": "2dee63a7b3be5fe6bdd8f31177a33675cc7a7c732b3f4710c07cb46503329e51",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 390801925
+      },
+      {
+        "leaf_hash": "2df7021175ff7cd9ccefa52be4897c4931f8c02cac11e32e1c8e6091ad6939be",
+        "is_winner": true,
+        "price_paid": 461595753,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "2e7fd8c6b104545eec4d9e2ab094d0e5f15f4546459e8b508c46151f4afc5522",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 165939805
+      },
+      {
+        "leaf_hash": "3147b22d38eddb4790ff771f4978b3fe7647fb8a7eed0ce2e355b8563fc75171",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 49291973
+      },
+      {
+        "leaf_hash": "32033a0529d2e49e7c555a3d96d82e8807e63eddba716868143b3353903aa7c8",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 408039788
+      },
+      {
+        "leaf_hash": "322e770d9816c37bccdc8254099b55c7ac7e6bb5fdff99af02ad274ccb80df07",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 257743927
+      },
+      {
+        "leaf_hash": "32cf32cc7e6a4fba92403d91105e87d18b4071eba9f18e31784aec45e24ed0ed",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 351063668
+      },
+      {
+        "leaf_hash": "32fe45f9971bd2297e73ae7afce9764a8550210d0cbcc2dea05ece17a88f7915",
+        "is_winner": true,
+        "price_paid": 472828054,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "341437e1cf46e1f2c13c51f81447c1ab2c013744c90c658cd9499eb87759c600",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 215143013
+      },
+      {
+        "leaf_hash": "3437f16ca21641d400bd199c370192762a20fbb48474e30ac8f474b181f9767d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 108833132
+      },
+      {
+        "leaf_hash": "351fc86eda9134012b6e61ba55f6342fa0d03ef696bc839d6e62991507bc97ed",
+        "is_winner": true,
+        "price_paid": 475905409,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "354ceeeb95e0d5f467178cd48dd870bbbcd5f815ad8c237cdb62a3298977e55c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 74798389
+      },
+      {
+        "leaf_hash": "377211bf847009a5e09facc22b89faa8323c1164d8d957093945d5d2fcb556d5",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 166190035
+      },
+      {
+        "leaf_hash": "37e91ff3693528c7645d400d988f7104c732bb9f16d984e361032d977af81ba1",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 265105631
+      },
+      {
+        "leaf_hash": "380757429e9b1d1eb37e745ef25f989fe310302fe3da9aeace6eb34192538883",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 384752768
+      },
+      {
+        "leaf_hash": "385ba75cdba9507bda871ae662058cf2bd1a7a3e5b2971a8141252bf532ca87a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 195904496
+      },
+      {
+        "leaf_hash": "39d1cef19401514bef337ece303edcd5aec8086ad2026b807144a3dd2805dc53",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 412572808
+      },
+      {
+        "leaf_hash": "39f69282cbb63c7fa48d9cdea16d04761315432db97a77239b361c2deb99ca0b",
+        "is_winner": true,
+        "price_paid": 456131040,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "3a4d2571f7c671145e4de09cd6ddf77722866ba61552bb8bf15ab26ff71163c0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 331074889
+      },
+      {
+        "leaf_hash": "3a833de48d82ca3be2d1cbef5dd8214926d2cd90a7d46cc6cf1bf41e03ccf17e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 175582195
+      },
+      {
+        "leaf_hash": "3aa40acd05c193eefcfd45b74c4a4739654f7eac482ef4ea84aac5f1bf289e77",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 179224115
+      },
+      {
+        "leaf_hash": "3ab88586ff71b7aee30f1f1874b0c161dc695bc0e70450cf13bdab1279daf422",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 364279776
+      },
+      {
+        "leaf_hash": "3af960c5c1cabf1892fbbd51613f1bd3ccb6331baf1afc57de316ce1aee858aa",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 264581705
+      },
+      {
+        "leaf_hash": "3b4affffb590a72da54dc5fdc16c47c58f898ba721cd0e3afe8aa38091661e22",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 85313418
+      },
+      {
+        "leaf_hash": "3be843320f17d439a66aae29f1ab05f7a7bc99b95bd0f9d015e9b0e7cfec82d5",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 115925798
+      },
+      {
+        "leaf_hash": "3c1ef076de5206f8ab91517ed8f56b9749d8313a0fbee64100c6e7ce07a99191",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 9997041
+      },
+      {
+        "leaf_hash": "3d378e6ebc163fc43ec930d5a00bbb832839bf110a22aea7ee2b69b1800a4d34",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 311701382
+      },
+      {
+        "leaf_hash": "3da3db7ea5553bbdf5e407e360ab9ca7dad244bb704a98800a4990aef1409951",
+        "is_winner": true,
+        "price_paid": 483563769,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "3e977e7f71c5603a0e7c994b55ff1f8a475d94e9d3492c7c66516072f5a68b45",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 320226711
+      },
+      {
+        "leaf_hash": "3ee39986419c37c9393c135a39c879f1a3ae1e68adaf21c8aa85ba40e40a7f2c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 215503810
+      },
+      {
+        "leaf_hash": "3fbcc3e2e5834d89f21da15db601ef831aa0ae7df49981b3bd233e79dfd94f6a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 336391840
+      },
+      {
+        "leaf_hash": "406820e304a5155fa62a4b153e9d0aaec183400165e1e97ff9eebc2e12349de7",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 103948522
+      },
+      {
+        "leaf_hash": "413a47ad980ed91e104b6a0b6fa4882ff07420593f9734d2438a6deacbfcfc57",
+        "is_winner": true,
+        "price_paid": 448038999,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "4176435f9bdcdf57f5b280eec80bafc86a3452fa5d7792b5bba956fc9a525ace",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 184008017
+      },
+      {
+        "leaf_hash": "42577be3a401dde85ba761468dd51df8e05681cb43a5fe3ae9725e94550d3959",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 265653834
+      },
+      {
+        "leaf_hash": "433561318697511c28af182f40ab70210b12aa80dd2694d280a5ef78c8f957f3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 76311718
+      },
+      {
+        "leaf_hash": "435b31735aad7ac537870101c9273e95dec118fc8d591b855c6189a1c9cfe187",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 104134114
+      },
+      {
+        "leaf_hash": "438fe4f6da5d36c19fdd9e39b75e86d3de2a8f13713dec1b9ea94315da3661cf",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 418989325
+      },
+      {
+        "leaf_hash": "449826009eb557bee14bf6d5eca85071970ab2adf87d558ee5db0d0094260c4d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 77539551
+      },
+      {
+        "leaf_hash": "455be11fbed676f5b6b995edb929c59d93f5af31af292532a94b124b62a929a5",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 380107826
+      },
+      {
+        "leaf_hash": "45b35bcc98f3ae1359dc4115ec77ce95674d6c6795ee74665afdd63d00ce1f6e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 1470036
+      },
+      {
+        "leaf_hash": "45de019ad8317115e21360f86bb405398e6e116edfa6f594ecd4661afb41d220",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 5324010
+      },
+      {
+        "leaf_hash": "4612ae1b052afdeda4a2e9cb51ef3db3620380943fc8ce79563491745aa90a50",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 35196363
+      },
+      {
+        "leaf_hash": "46996823e62b59b6a6c167cb769f47599c30c5563e7ebe2092a61740ba127c82",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 402567886
+      },
+      {
+        "leaf_hash": "46b6f946a775c14beb22583e611b61233da3dc831fa3533819808197e04ebd91",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 1672173
+      },
+      {
+        "leaf_hash": "473a055d04978b8855ee1bd3992ed3fae6572c9031e79288ac2b7ddbd1803a94",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 136522141
+      },
+      {
+        "leaf_hash": "47a8ff3fe3841dbd6bec57c8149ddec11ee5b534c8dba4a4db552a49a6798936",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 223977939
+      },
+      {
+        "leaf_hash": "481a124539af47fe8cdf2c090042b10055e94844d66a9b8bdab6736da692bd1b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 355286527
+      },
+      {
+        "leaf_hash": "48c12cd201f55c96bdea12a6c3b86768a08a42e8fa6af22b342bd4ad34181229",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 37544260
+      },
+      {
+        "leaf_hash": "493ad849a6cd2f4b03b51b8284c66148d0ef3afe56bcac9037ab4fe4801bf198",
+        "is_winner": true,
+        "price_paid": 455841518,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "4a9f6be4a39e3431d664a7b24fefbb4297c937f269dc3eb44a8703a609e15c40",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 171961943
+      },
+      {
+        "leaf_hash": "4b46b32d71b4f726536c5636dd268cb81f8f3faad7d972ed0fd099e234236c0c",
+        "is_winner": true,
+        "price_paid": 495438662,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "4c175d340cfa24d967117f51ab772f0bf2a23884d642a137a12f005823aa4005",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 392842709
+      },
+      {
+        "leaf_hash": "4c3c2c7aec56726a3b36aa632870bec05ca1ab32d8e000372239eb670aaf73e2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 199046299
+      },
+      {
+        "leaf_hash": "4c51802da973da40829bc5b021422d9329520f2bde7691f37f502aeab622e91d",
+        "is_winner": true,
+        "price_paid": 427289371,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "4d3426f5da87cbe6d57124f154a3b397a4952268c832407eb8cdbfe6acf9936b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 343944629
+      },
+      {
+        "leaf_hash": "4d8e562f2b6328d04cdc0c544e5498ec2ee054daf4c16db027f4a25c7cdebe32",
+        "is_winner": true,
+        "price_paid": 438171410,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "4dfc3b890a144b391d6e781d8e1dc9eca41fc63385eeccf6f3d6d5fb35a2dbec",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 332549389
+      },
+      {
+        "leaf_hash": "4e23a7d2e1d10bbb3bc2f1269466d4ce7107ab6aa8fc5f8c70f0e92e40f9654c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 177563682
+      },
+      {
+        "leaf_hash": "4e51fb14e7af9ccb230f6c280ef9a76e2cd8ffc689d37ddb94d167c06ab6e08c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 321348116
+      },
+      {
+        "leaf_hash": "4ec4f94bf799bddc2fa5c897155c37a26bfbcde8b0445befb6125d0d758b05c2",
+        "is_winner": true,
+        "price_paid": 472283700,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "501a7b12508f39e69dac28fada27f8ec2fa11c6c58c97b99fc7ec11ee7fbd221",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 97741735
+      },
+      {
+        "leaf_hash": "50240f1cde6aab27da1731cb116360b1c422b4816940e4b8cbd14eba2626d32a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 131686625
+      },
+      {
+        "leaf_hash": "53932f48b8670369f049352df8b775d7ee09afb49f36ab2c5a6b43a8850cb877",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 314948167
+      },
+      {
+        "leaf_hash": "5488e2510844ae885ce1d08823951f1ca70b4c4259432e9bd940b3e191d20584",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 140295680
+      },
+      {
+        "leaf_hash": "54cf043f9e8a6e095e4aed44d6642ff4f380c3d3902a2bc20a53026467cbba03",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 6579681
+      },
+      {
+        "leaf_hash": "553d48778d9eec42ccd8c1b35c8315b8eb2f49b1050f4636910dfbdb36a76d55",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 314798556
+      },
+      {
+        "leaf_hash": "5565b73e078b77c20af64850b70776f0d01deba70227208fcab84daa6eeef281",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 397336347
+      },
+      {
+        "leaf_hash": "56a6e88811386580317de3611f052973823ad5f27761e642bf6aff42fdf3164e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 117772630
+      },
+      {
+        "leaf_hash": "577eb401533f50180dd48601a5ecc1c273c9ee2f0024a20d2085022442b723b3",
+        "is_winner": true,
+        "price_paid": 486423040,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "579684f66a0a47a8a6412d9afd286037ed4c0a1cc1144dae5dee451c887588fd",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 141281532
+      },
+      {
+        "leaf_hash": "57ba9f83367608691c360c6534dff1a511910d392f5b1d957c823c05dbaeffc9",
+        "is_winner": true,
+        "price_paid": 499707706,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "59545ce84e58187e090c1a4844129f9045b169d01740b5bca303d5acbed318b9",
+        "is_winner": true,
+        "price_paid": 460824396,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "59a8398739860ae39403c8ce5839c997f9abe0e71e8dfbcfc5baa05efac54693",
+        "is_winner": true,
+        "price_paid": 465258173,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "59ed8b0f0eacc2eff41561bc996784a0f75399372a52e558e7d452cae7175632",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 145232569
+      },
+      {
+        "leaf_hash": "5b294769b46bf2563be3ef113d653529144818099ae61f071099f10d0d0966f0",
+        "is_winner": true,
+        "price_paid": 425914786,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "5b2b52b026f164d0ee7e6bdd980182f41c96506f7c1801d949a04efb6c299d56",
+        "is_winner": true,
+        "price_paid": 485817791,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "5bca5d35367637fb6b81c1297379a396f1b328b0e112f830ede19175ecafa9c3",
+        "is_winner": true,
+        "price_paid": 482394481,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "5bcfcd67e65f018ad59cd83ac4f2e219ae2005fd5e00dba84b370a01d0e40aff",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 60522547
+      },
+      {
+        "leaf_hash": "5c09ef02114a7b78d1048d5790e13957831dd283abc07a98895acbb495fc376c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 60356786
+      },
+      {
+        "leaf_hash": "5c346e4e935dceaadd5adacf98c7cf7e0ae6d94dddef143234254fa0a5a5f562",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 234759013
+      },
+      {
+        "leaf_hash": "5cb7e495971021125d1a39f20f4dab0b6d58f874cb5e274c07425b0cd8bf5e8c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 11493729
+      },
+      {
+        "leaf_hash": "5cbcb4ed363bdb2091f9d9dda30346971075be5c09a6a8ef1fd20ffdba384137",
+        "is_winner": true,
+        "price_paid": 447753801,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "5d97f9587596e7ee0540a1baee6ed3e6338a50d91a0b5eeff5565b09a4121e59",
+        "is_winner": true,
+        "price_paid": 496927355,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "5f0d8f72796d3625af98e67d93937debb01fee321fc197e4134f8fab50c242ed",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 316748242
+      },
+      {
+        "leaf_hash": "5f162ebc1cdb2523aa347af90f87497dbf16f29c2a3c208d7259adc4e92b716b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 11698731
+      },
+      {
+        "leaf_hash": "61218246f71de9476f74fbd2fc2fa072965b603ef9bc4e730f58d4bd3e33542f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 395923413
+      },
+      {
+        "leaf_hash": "6167b876f57a953111d4b3dab715e7b395471e33b91e3ef4063e17d3ed467f01",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 257826068
+      },
+      {
+        "leaf_hash": "616f2b1f8260df0618c88a85f5997689dd271aa64dd1aacc976b173af35b7033",
+        "is_winner": true,
+        "price_paid": 455680792,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "61aa3109dfe0fb292ca99e8f38c893a4965dcca621ff85e7eb0e3c3515b6650d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 95932752
+      },
+      {
+        "leaf_hash": "61c0fe82a7276cad38a23f8dc58e402d914aba80f3ac13274e516fd15b62c451",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 204273488
+      },
+      {
+        "leaf_hash": "627a4b2a34e3c0972eeba223dbbf35570321bceeebdba9bfa4b8beea926b3315",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 98753929
+      },
+      {
+        "leaf_hash": "63282a0f938d9d3e6038909707012158078cbd05eae9dc656570de3e2a1e2321",
+        "is_winner": true,
+        "price_paid": 431674586,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "63b1eaa1e39b9927e2fb14521f27dae56875b364073260617126dbc01e94177e",
+        "is_winner": true,
+        "price_paid": 451724401,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "646695bc3650e7ac24089a5ae435b78eeea5052ba709e2c0d762b3036bbd573c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 228091846
+      },
+      {
+        "leaf_hash": "649afe10d864b0cd18f26eb3204f3877abb5cbf8124d89609c08a6c86479edb3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 342227250
+      },
+      {
+        "leaf_hash": "655fc57bb6419064c92cb8d2db109924cb37a9841c6f145d346dbd88cf68adfc",
+        "is_winner": true,
+        "price_paid": 435656816,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "65d2804ad71550066d942b3fa5e762bfaf0ca79f26046fa82da9897d36330e2d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 275088880
+      },
+      {
+        "leaf_hash": "67310dca5a820ff8ab8b5741d9afbb9a5a38d7fbea7b32d6d51a3ff5c57488bd",
+        "is_winner": true,
+        "price_paid": 459701781,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "675cb2316022df80ee8ba13d826ef3edfd4685daa81168dbaf5d207bb6a14bd0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 249730392
+      },
+      {
+        "leaf_hash": "679ad99f052ac41f409fafd6e051260edc28551221310bbaa443d335379e4f6d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 220739476
+      },
+      {
+        "leaf_hash": "68d4502253721316a91c2441433387d6ddbb7ce7a1465439d0c9d084b6f09340",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 41938644
+      },
+      {
+        "leaf_hash": "690b4e8dc03d4a7619192f1f57e9d2cd14176c90350a6de44f109348a8d2a774",
+        "is_winner": true,
+        "price_paid": 449732070,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "693c07e328efaa0a363b06f9bbdff9f9077f548d42113c94b92c70e52fba46a2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 283906450
+      },
+      {
+        "leaf_hash": "6a1afb21a8ee5f8ae979f85f886f0b4548ae0aea23b743ade87524a602a2fb9b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 52548571
+      },
+      {
+        "leaf_hash": "6b7cab95cb5348caa5757ebc468e6c0d71c1c5c091dac9ec9830107fedc2b237",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 336454342
+      },
+      {
+        "leaf_hash": "6b97ab69a32fba5da2215a479a9c0015b0a6dffd1cd87b9584c6b3b514ffd297",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 315714799
+      },
+      {
+        "leaf_hash": "6c9fa632e8356ac901158d29543dbda7bacce434a9c6989da593112d018a64fd",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 268412271
+      },
+      {
+        "leaf_hash": "6d020c2ca4fc8e614310414ef99ade1edd7750800a7d70e0cad2fc10e12c6af8",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 31764921
+      },
+      {
+        "leaf_hash": "6d452f21b7c78a916edde899b466c33a1e95cae4d660c1ccfd7ddedff60dae48",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 79801235
+      },
+      {
+        "leaf_hash": "6d4b7e6269f21f1a941cb2b7e736e51c95e9bc8e536050afe065fcc6d7a37e0c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 309607658
+      },
+      {
+        "leaf_hash": "6f2c9e6063bd89cde5286432734a983d7e5e3fb77ce9c8c7e62489c63cd78d94",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 154599012
+      },
+      {
+        "leaf_hash": "70002787a6a84735fa2fce5e73055830390998e6519af1979d4ecdecc36c9892",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 133246988
+      },
+      {
+        "leaf_hash": "7089289db5ff185461671aea107c9703684de6dd8308db3caa2f5bc22d954993",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 224476249
+      },
+      {
+        "leaf_hash": "709998ce4abe41bd46cf0a778cc8298985ea775c9a713072a482f63e79c8420f",
+        "is_winner": true,
+        "price_paid": 448298073,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "70b95080c53979fda27e6cd50020554c46e0357815180860a649f1dbf59125e0",
+        "is_winner": true,
+        "price_paid": 428930137,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "71059c5107d45c268b0e1b24def8e7f1e86666ec1107aa517cdace7d27bc571b",
+        "is_winner": true,
+        "price_paid": 488130711,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "72325d70d1ed7a0f3a05db5fa97bdbf3fe977a51283e3c102d24c433f33f8d60",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 87406787
+      },
+      {
+        "leaf_hash": "7248963c479a30c1e976f4d9b2275f8f8b3ca2cf80e613ec52d8a5dbab9656b3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 122080038
+      },
+      {
+        "leaf_hash": "73354f5ebaa21e913eaa0a41468a1bca61a3952215120857032711d900a0f7a7",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 287162352
+      },
+      {
+        "leaf_hash": "740c942474c46ffe2b547b208ed8bb54b0445c6dd1d95d29f08d216b48ba0d39",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 162012397
+      },
+      {
+        "leaf_hash": "7489964d48ff8d7be6eb235c3c772966242a627ddd6b0cb0d2ee22ad0cc88fc3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 341599604
+      },
+      {
+        "leaf_hash": "748e710f6c86d655ae0386487802ab12cb5051d1c0c9c43e993b80a91dbc15c0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 87266019
+      },
+      {
+        "leaf_hash": "755a504cfb083cbfe348cade8d66a150c96c14d69e8ef4897e60939e280da2f5",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 301327511
+      },
+      {
+        "leaf_hash": "75f6230268588fd2dc07f7b2cc6623f78479821f96bbb5cbe815d822fd553912",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 131822113
+      },
+      {
+        "leaf_hash": "75fd61c2751346025fa253b12a0d04bfbc87fa2e037f20c5c06369e6b6159ecb",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 396136402
+      },
+      {
+        "leaf_hash": "760441da82ccd3c47b3d8ff3ec84b062b24481fe24b4f4d32888bca5071381c0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 145171906
+      },
+      {
+        "leaf_hash": "76d8a2d2d0748ee247f5401a43e2bfcd2d9c681d259c324e591e54068927abc7",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 239940633
+      },
+      {
+        "leaf_hash": "776cdd762c602060e43b9e918ccf364df80c035b4a301235dbf9e6e59a953035",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 198198586
+      },
+      {
+        "leaf_hash": "79004528ab007b1c21b0fab771b13c3c50a143ca4b442f98694533047227d3ee",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 88720524
+      },
+      {
+        "leaf_hash": "795185b63ef0c215f6a989656b6b3c5b0b4fda99c4245583766b3b321495ec45",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 209842736
+      },
+      {
+        "leaf_hash": "79591b49e5e9efa62c2b3cb635710c758a9a15e0da99169bc1abec33bbf0029c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 322044817
+      },
+      {
+        "leaf_hash": "79ad30c6bd01416c5c3a34292e6e96ebdca15113c7d00fb22c07d7786cc144a3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 75602044
+      },
+      {
+        "leaf_hash": "79c445661aaf8bb5cd451d7dce441317f2f5aed894694bc3ba30f2e6cff51d5e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 362164687
+      },
+      {
+        "leaf_hash": "7a41e686bcef06b42259100b58c2e2f3248d83e68fdd12d9cb9008a7f63c2d32",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 120328931
+      },
+      {
+        "leaf_hash": "7a9f64462e451d3ef7164d6e0116a359d0bddf11ef68374943ef4a689a6e8000",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 97332419
+      },
+      {
+        "leaf_hash": "7b9beebf701cb4df334b3320927481fec7f573aabc60a0484e2c912651c05558",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 140186933
+      },
+      {
+        "leaf_hash": "7cc7ee80110a8f88c1a9f48454a95602acdf04e1862a52eaf4a6137db830632b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 268770263
+      },
+      {
+        "leaf_hash": "7d8dc9319b9f158c1fbcab6bca43017ab49ae9d9389ac702f34624998d00a187",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 274202349
+      },
+      {
+        "leaf_hash": "7de3da9218657610a45d4eaa9e1c7e0255d7de7c634fe3eba897772042024ee6",
+        "is_winner": true,
+        "price_paid": 496202585,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "7e1509effd64261b75ffbb9fa81659a4cf9cf53cb807fde8f48df8171b8d7af7",
+        "is_winner": true,
+        "price_paid": 482460031,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "7e3d47679675b0e292847af0bef52be0c9b6d207314897564664d6fe01e0a3b0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 73672816
+      },
+      {
+        "leaf_hash": "7f87f5061165625cbfc97ccba791aa076d9ba886b8069b69d6671a4d5ddcab1a",
+        "is_winner": true,
+        "price_paid": 478676230,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "8034db24b21f6791635139c80109dd807c9620e3a2976d9046265c066911ad7f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 349534402
+      },
+      {
+        "leaf_hash": "80d7c68a6576560a5028ea1913ac9781789993b11e877f1ef04a9c7b63839779",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 335435130
+      },
+      {
+        "leaf_hash": "80f97817ca3b0cbaec35edbfeeb17b9d38208a3f0e4641c51f3766ef754b7c15",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 77614894
+      },
+      {
+        "leaf_hash": "81855e04a8b182107bc45d4d49f2875f694a9297411467184e13dfab5ec85885",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 99833326
+      },
+      {
+        "leaf_hash": "81e7e73315131ddaececad5f65bc4aca6c6d244d1d82c798646a2553e5d81dc0",
+        "is_winner": true,
+        "price_paid": 472320992,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "82022a0b82695d6753f1c6b1e2e22775a18213e73db8000b69bc22f28716cd9c",
+        "is_winner": true,
+        "price_paid": 428260223,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "821831b965ba39c8ec895e68766ca9df7c6fdb29493f28b87d69e694778602eb",
+        "is_winner": true,
+        "price_paid": 476619562,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "82c52aa6a02abbeb7d114a2f77ad4f182154f19ff59c37ee93759604f780d112",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 277634436
+      },
+      {
+        "leaf_hash": "82f618dc8ac74854c55c6b018cb5ce2c3a37a838f8c51579e476b77d0e59684c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 357978213
+      },
+      {
+        "leaf_hash": "83bc1d29a3931dc3984b839379030288f345688ddead8c2f98478654e3d9e081",
+        "is_winner": true,
+        "price_paid": 483682714,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "83c0815527f7d9fc38a73424c79c411681e81f5a10b4ce13ef646186fbf7efe3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 388893693
+      },
+      {
+        "leaf_hash": "84b9a494e49b13eb0361e1214cd059ac146d904323ea9868442e3d2d3765c7c1",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 128435339
+      },
+      {
+        "leaf_hash": "8517dc1ae5271c63f56ea7b760b9f775475ab0afebf03670b65a9eaa44a98f2d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 334991012
+      },
+      {
+        "leaf_hash": "854022e0a56d9ccde3ee6096733d57241f1a5bff5fa16bdec3062189ad1a8603",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 266146306
+      },
+      {
+        "leaf_hash": "854184938026c8d346b81930669c4d48477bba86015ac0a80edb14e924edda85",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 362226213
+      },
+      {
+        "leaf_hash": "862ac6121a09b4301973922b584b905c845c1f6979ce9678f7862401dd531c3c",
+        "is_winner": true,
+        "price_paid": 447070624,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "866e82790852165ffc3a5152c042073d19c1e1ace1a6eab684f5c28dd7a27b00",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 412609153
+      },
+      {
+        "leaf_hash": "866ec5df90529d239cccefccd8adbda2951f6b7b172782a9424647b1f7a93002",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 259533491
+      },
+      {
+        "leaf_hash": "8755e75f100b990a1a22da1ce2710624ca56891b87eec9fe9acceb12d0029ccd",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 236486624
+      },
+      {
+        "leaf_hash": "876a65b58f416ac41475a2b89dbdf3d91d40f124e9a97a5a573e184e6ceb2888",
+        "is_winner": true,
+        "price_paid": 433275517,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "876bf3142ec7652c47bd2024b8090497cef1dd6574cb994e842cf83d4a0b23c2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 145577815
+      },
+      {
+        "leaf_hash": "880db0d3694443a847f1e3213c2fa340d999641ccb0e2356eb892d734758eb5b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 408795556
+      },
+      {
+        "leaf_hash": "889ad0c68d9ea701aa7907e3afbad713544b85b6792f86075aae628bf079f46a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 339223252
+      },
+      {
+        "leaf_hash": "88c914601c53712657cf00c2ec3ad53b218343ed3874c349b90e1346a134f745",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 399476110
+      },
+      {
+        "leaf_hash": "89327e8987757faf1e9176c2a301ab456b511192d442ab2c5cba238681330421",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 196133709
+      },
+      {
+        "leaf_hash": "8a1374d52f11058919e604215d07bc8e1b430d9739f79dcae6facdf4bc362406",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 159225673
+      },
+      {
+        "leaf_hash": "8a3ab4c41fa7388c09be321f67894814e850c90ffde4c790c391ecb2a1a250cc",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 356597635
+      },
+      {
+        "leaf_hash": "8a4a2ccab7f3b792a2efbc2718401fc60f95430e448c9f788bf72866cdb358ab",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 267790648
+      },
+      {
+        "leaf_hash": "8a8a8912e39b88358544787ada0b3dbad7ca230d7daff6f4dba93ba8a98ec736",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 258348014
+      },
+      {
+        "leaf_hash": "8b612c6538299a4760f4e9123b6678d382276c7108d8c74c2829bcbc51497dce",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 417913861
+      },
+      {
+        "leaf_hash": "8be4f8f741363be07457ed9ec09504f4b0632a377abf773531b4e5d7406aaf11",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 409676645
+      },
+      {
+        "leaf_hash": "8c24a1f28123010cd6460bd025b9c778ce256fa8168a7b7db29ef7257c51dcea",
+        "is_winner": true,
+        "price_paid": 493893335,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "8c9867f955b2d8d6e4c1dfc9fc75de891ca2068c3d9a426403e440bf9750200b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 22227485
+      },
+      {
+        "leaf_hash": "8ca35182ee2b58fe8ff2759ea7c11c81b06efb3215d946c230355467162dd12a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 295883447
+      },
+      {
+        "leaf_hash": "8cbf2cc2428a242b1fd26e83306608d5fd2b650926b8bc897d8117da4827c1fa",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 97868552
+      },
+      {
+        "leaf_hash": "8ddb72f1c14d003ef2be34df4ae759569539de23619de2f0fbdda1e2258fd75d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 106865624
+      },
+      {
+        "leaf_hash": "8e102ad75bfc73fefb7eb592cbe7780ac4ff9c5c7bf5598fea6025aab64185bd",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 250943774
+      },
+      {
+        "leaf_hash": "8e447d19811b7537b72c4f35f23202b57f2ea2c77d010f0d60132fe51c15dfd8",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 249228155
+      },
+      {
+        "leaf_hash": "8e799c1a07ec95d8bb4d87a56004e7c70e356a3a11928044b10f2371e50b7fdc",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 165600857
+      },
+      {
+        "leaf_hash": "900b11d3aead2af2e9fdccb0e16422bf94a7877750a41d7e40a3981465b0d38d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 10352535
+      },
+      {
+        "leaf_hash": "90bafb49b72f62016139c3303013133a64d1b6a675ff8c8c2f768b61b20290fb",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 53480950
+      },
+      {
+        "leaf_hash": "916ba8df6f1a1b523f5d876d361fa1d53f9b1313c40b646e25ebfa5434ff04c3",
+        "is_winner": true,
+        "price_paid": 437995028,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "91d4675b1609dda8af2a99943265bdaa8d6005449ef33690a7c7d5a4787d2016",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 398152425
+      },
+      {
+        "leaf_hash": "9210784afdbe8db631f06505e24c104716fe19ce7a01c99576a4c5c1d82b3dca",
+        "is_winner": true,
+        "price_paid": 474762045,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "93a6faefbd805948887b8f16587cc0e455961f91152112404b51073faf43b758",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 416584284
+      },
+      {
+        "leaf_hash": "940812b7815535ebf904f8b7871ec0ae8ba63aa40b2c338eb70e03ef147b1ff1",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 140893321
+      },
+      {
+        "leaf_hash": "943695f661c3adf96b8096355166231f6dc17a273e983b10ed3021f18dc05a7b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 125876482
+      },
+      {
+        "leaf_hash": "943a8df921a9c85fe20136c1fe236ff27aa93185f0fa7083b39d33643cf22c10",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 216238265
+      },
+      {
+        "leaf_hash": "94574546c65d5760d3c76db4b1a66636645ec1f2600da0dad0a281387febdcc2",
+        "is_winner": true,
+        "price_paid": 488474419,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "9483944f1d4f482fc4354924045e012ecad4f1b8963e0797b8fc6f668c1edd4f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 366364975
+      },
+      {
+        "leaf_hash": "94cddbb16fa452a4aa3859aee71937a9a1971019569c86c55a35d128e502482d",
+        "is_winner": true,
+        "price_paid": 475954853,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "95d7fe789579953ebbe4d6b7dfc7457baacb6d073159c9cb5e7939f3ca371621",
+        "is_winner": true,
+        "price_paid": 446825412,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "95e0226f96e1c7259a6aeb0ca86d6638d44d4fe47a65a8a344a9121f608219b3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 29916744
+      },
+      {
+        "leaf_hash": "9695c76ec409ecd1e3cc4160b921ff7d4b48386e0a5fee41e525608c2b4f5fa4",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 17971975
+      },
+      {
+        "leaf_hash": "96a044563013814bb82311729318a8b1559fa3eca01cf839b3d67c8f99f5d523",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 58975837
+      },
+      {
+        "leaf_hash": "978ded2f39a09a4e9ec6e6d2f9383b44ea62c84c50b0988919868b87f00cd91e",
+        "is_winner": true,
+        "price_paid": 497063660,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "980e1808c7de522685c55682858c89f5296964d5916756171e1de9569a83197f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 232210939
+      },
+      {
+        "leaf_hash": "9817a55461b4a4e779538af8b453682f3bfa18a15edabc06e0421a32bedae0da",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 226730332
+      },
+      {
+        "leaf_hash": "983fbb857b75459fc4cf3e653fdc045afae68adc4cf3a83982d119cb9abd6f8d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 295340436
+      },
+      {
+        "leaf_hash": "9853d23f47d2ba091e625205238ff92b9bb7bf1ef403960251aea4db3b2af030",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 302650589
+      },
+      {
+        "leaf_hash": "9899f3316e163f97e3fe32ce5c43c0208cc4569cd0b3837ae0a25e4ad3fbd828",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 113385999
+      },
+      {
+        "leaf_hash": "98b0323a66998a9e4974a93d4b487efd6e4f557e6020a6f1220c629465912632",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 372329319
+      },
+      {
+        "leaf_hash": "994668e3db3762339c06b0bf3caeca0f8632b37c9dd06ebd30b4fe760fbc6dad",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 201709375
+      },
+      {
+        "leaf_hash": "9993db22aef410da5d36de60dce29962945245676704f1bac371f1cca6a57aa4",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 333437283
+      },
+      {
+        "leaf_hash": "99fa26f367cc39183de2d335e695302565d63cb84491bc3a80f288c086b67bf3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 16254331
+      },
+      {
+        "leaf_hash": "9a9fb684045b12bab8e287d2178c7556d9ab1a52ec0da52ff234505b6056ef19",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 224822646
+      },
+      {
+        "leaf_hash": "9ab64444229ff0477b82365a308ea648e0c6f82a4903e35f67bbf33774f75bd2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 12687238
+      },
+      {
+        "leaf_hash": "9ac4b8d30b6f240608fadbeba0fc3e40cf6b727f6daf702a0433406772152aaf",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 403601421
+      },
+      {
+        "leaf_hash": "9ad6dea48b388d437b60a18625417197b5e81ff945b6a53f809ba5b85ba8d422",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 388169873
+      },
+      {
+        "leaf_hash": "9ae4c61bea1c54112e31538b59818d40cba5046a55988a87471d6b680c2d2dc0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 394804936
+      },
+      {
+        "leaf_hash": "9ae66cdf6867818a26858ab5f69e0f5fd8c1db57aa62f727797577af07738964",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 385505778
+      },
+      {
+        "leaf_hash": "9b03d495d6e11d32ee8c84abaf281a17de4fc69be4ae985e537ad204b1f0e793",
+        "is_winner": true,
+        "price_paid": 425405883,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "9b9ad0c3c3768805d748ad3e1c8b4fd8df37e1d12cb7cbe554969c7bb38a6ab9",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 343868032
+      },
+      {
+        "leaf_hash": "9d3170573d982e4495a5a7ea3c2d6b7ee6dbaa4fe2ba75d1ab1f6b8651e07929",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 285108270
+      },
+      {
+        "leaf_hash": "9db14f8420a5e0fb69fcc23bbc1419241f4fa56ea0344ec2f3f895d0efeeffab",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 78273497
+      },
+      {
+        "leaf_hash": "9e2eca029a9aa40a18cd3048adeb5bdd7a3f49456fc2286ed4f38b664c85c7b8",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 33601487
+      },
+      {
+        "leaf_hash": "9f626bb44b3d632c65ca4f938ed9defe84847226e56308dc2e6b0e7b313fc0af",
+        "is_winner": true,
+        "price_paid": 480507079,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "9fff994e1e1f13bcda701bdadb322d7017f4238173960a08705c457c37ca4bb8",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 143722991
+      },
+      {
+        "leaf_hash": "a0331239cd2a6b635b2cb93a2677f552cd4a15ae57726be36c60152f81236f2f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 39970890
+      },
+      {
+        "leaf_hash": "a19a111375d201b439a5a46f806c9cb7b6896143a916f4a84604b40e490ddcf4",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 360836481
+      },
+      {
+        "leaf_hash": "a1b2995b432ebc04810940fd6887a9ba94dd73ebda0bbd0eccb547dfe6df95f0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 387700401
+      },
+      {
+        "leaf_hash": "a1c7231e97c78f78db6f98a375998f0b22125fd6192e1118e9a4df50e451323d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 231269629
+      },
+      {
+        "leaf_hash": "a2252213e2119e4d1c3d9e3d57ba94e5ae427797195cbfb0623bfee3fd1f8ede",
+        "is_winner": true,
+        "price_paid": 422864018,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "a22d5063b4c827c916e8730e24f55db4a4477a3472143ee232a8ce712db8f953",
+        "is_winner": true,
+        "price_paid": 466828932,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "a33851e493d672c57b8f0b8bbd9ceb963cf97b7c25838674945c4da16a4399d0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 138287296
+      },
+      {
+        "leaf_hash": "a3bedfa04f92787a5c466a693e442afa595751b5f5da602a1621c3713d650fc3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 122530096
+      },
+      {
+        "leaf_hash": "a3c604fb68d8a30e7f2d244061c6c3707973de7a90967663eabc3a936c8a541a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 75425965
+      },
+      {
+        "leaf_hash": "a481534053e02eb1a59464fea588abcd9170a3297a2099f29fe2c946dab1a07e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 288956
+      },
+      {
+        "leaf_hash": "a5475331ede35c692b56c4a3336ece00cb393a22fca4617d3862eb677104947c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 251075364
+      },
+      {
+        "leaf_hash": "a581c648bd8ba5cbe2619e45af1b6492dccbec81143833d44c8c73a62c226f61",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 269518415
+      },
+      {
+        "leaf_hash": "a5ef1a2ab9b8eae3f7e304ff44095a0c01d2093fbab64a5f9b4e0921a959bbe7",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 212915354
+      },
+      {
+        "leaf_hash": "a7f63ce41610d9905452bd68bb258323a818217f53fdef820283eb32a1180bf6",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 103521166
+      },
+      {
+        "leaf_hash": "a80edc9151ec47ab1ec0693f3191d9ba635b08bd66a496bc8f30eba8941b2cc0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 103459969
+      },
+      {
+        "leaf_hash": "a899f02309761e1595ec51d8abaca79178ba11219b6a741088bfcc50d8764c8e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 235941004
+      },
+      {
+        "leaf_hash": "a9447d1815da464dd0a25b1fcf0d9d0b850504f7922c7ad0513622683c5c7bb4",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 277723548
+      },
+      {
+        "leaf_hash": "a96bbb33dbc31e38d16b9b2b850c250baf9397a8008967782b6b6ef0167adc90",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 187773618
+      },
+      {
+        "leaf_hash": "a9751832957754bb0d89642548213e8e5709a643bf11ef9c830a2219c9488b72",
+        "is_winner": true,
+        "price_paid": 422104945,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "aa993045a6b9ef19aca54661d647f7dfffc9e7a44235fe752b69b6f4777dc294",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 32114869
+      },
+      {
+        "leaf_hash": "ac6fa258ed98425fd9feecb34247ae3f7c6828996bbd7e4c6eecb1eb5ec72ccf",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 74766853
+      },
+      {
+        "leaf_hash": "acd769d0a8393180af32f08435d22add83602152c682c9210374b9d9d74186ae",
+        "is_winner": true,
+        "price_paid": 423355083,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "ad091b933d54e672f34960ca50ddcb3083e9c1fea75b9336db0635554845a02f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 124844006
+      },
+      {
+        "leaf_hash": "ad0bd12064f8f704d7fc9e10cc4011a559b6ef86bd41fd232181a4fb33900f8d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 178761073
+      },
+      {
+        "leaf_hash": "ad4709d1ae85c9945760cae8501889cf2c4a15a7062bddc302eb671449093193",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 340738952
+      },
+      {
+        "leaf_hash": "adc87c5cb5675828cca1ec5d07a18bad654eb3dcbce55f9e8f6261eed99e6855",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 395117023
+      },
+      {
+        "leaf_hash": "aeae2c09a74929b908f8e3071fca75f16c9af7eaaf7026378fb1280472573999",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 29935560
+      },
+      {
+        "leaf_hash": "affdd17ac23553f06e4730e893298ae493705d89332e03b2457efee4acec0bb7",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 4973758
+      },
+      {
+        "leaf_hash": "b0888c4110775a1d5988e83cf8a142fd666d4dfc7dcb6f31816c011508b767f2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 150608653
+      },
+      {
+        "leaf_hash": "b1071e4a7ab4a655b77492a08a45f952cce9552b1fac3d0bbe35fd16b952bc8f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 127432017
+      },
+      {
+        "leaf_hash": "b1134c645cc898bcc60f257832b7b703637d86c2080b375642516daf85419001",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 145715143
+      },
+      {
+        "leaf_hash": "b13b10c6c4da6a2d62cac2c8a2df389537facb087ebf16d5be57e1b28ee779ca",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 292388872
+      },
+      {
+        "leaf_hash": "b182ab72309928fa25924128ac4a67b0dc1ef94f5e170160d51d96619a75a8d1",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 216073502
+      },
+      {
+        "leaf_hash": "b1bdfe7882134e39863a5bdb6f9061383cb289b466fee261c6a3a4f14e33db40",
+        "is_winner": true,
+        "price_paid": 453746739,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "b1e1de7335451b35f0153bc21b846c5ecbd4585f1b915e92f8c5045973c7ad09",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 164159950
+      },
+      {
+        "leaf_hash": "b1ee78950298a49737e4bf6a04a3f5b57ddf0b9b07a27a7e00d0d805c2d15a74",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 330895412
+      },
+      {
+        "leaf_hash": "b2016e3c02e49f0f14b9d7b2dea678dac3cc5f76af49b2a906712c79b31c2455",
+        "is_winner": true,
+        "price_paid": 469953055,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "b261221a7573ca01611cb1ba595bff2c58615fcec520b364d1229ad42d0d654e",
+        "is_winner": true,
+        "price_paid": 499598103,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "b292d0a37b1e2689ae8140c5742f22a461d0ce4e450fb0d8b8fc3978bf42a385",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 137105323
+      },
+      {
+        "leaf_hash": "b292d8fe1a84fc9e30a4c166636f2e711d17f51f7011bde2af5bc6bdeff1f781",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 62094609
+      },
+      {
+        "leaf_hash": "b3303824d2a11352e04b3cc2ce451df63fe250b21e0c0f19cdf9cb96d9f4e64a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 117031938
+      },
+      {
+        "leaf_hash": "b33f1a306bce1e45fc4dabd6e84fe075aabd55bb212a6a70f0d8b3c6fceaf664",
+        "is_winner": true,
+        "price_paid": 473539859,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "b383db056bcf09461e597564c6cd6b7ce666718f64da699022b58253c7259fd1",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 393819880
+      },
+      {
+        "leaf_hash": "b44da73adbd91690ea40cd1d518af3ed2eeda507b8ce630e466d6ca62a717fa2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 22746862
+      },
+      {
+        "leaf_hash": "b458e792048ffd6598b5b1fcc84f559375852098af3117363e6886cea03ee94f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 200597555
+      },
+      {
+        "leaf_hash": "b4a54108f34b86eea4cbc25976fce22048b3aa5c95301ab28f23a53d6b35c904",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 398555139
+      },
+      {
+        "leaf_hash": "b4b50b4ca8d7deade309de447a3871fe99cabf748a2a79c3eaf217db2f69e340",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 366313431
+      },
+      {
+        "leaf_hash": "b53326b618a8a55e03c93a1c445191fa12895603d28192d12023931831b9fe51",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 272326323
+      },
+      {
+        "leaf_hash": "b5edffd4a35d591668599163aa4f1907705349d9e169240d9e3d7a78af82bb59",
+        "is_winner": true,
+        "price_paid": 442191076,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "b6abc16e8aa0a2715990d488917b3f7ec2d79e3b9e1627f5aca8135424a4599c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 217880816
+      },
+      {
+        "leaf_hash": "b8ed22f9e28461014718227e43b04f0a47d14b6acec18888b2438afa4f433df9",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 236481178
+      },
+      {
+        "leaf_hash": "b930c9ef83602d33c6388265e1ed0ac3c15b7d7804ad4c3d89e1d06922274639",
+        "is_winner": true,
+        "price_paid": 462315789,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "b9c62ce31d7bb409dc84de2bca05325c00d1def40fdda8f49f598c1d80b060d2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 332311338
+      },
+      {
+        "leaf_hash": "ba59a7279f3a8bd01583ce64a91803044c998376407eeb2d681af11a1310b874",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 147388331
+      },
+      {
+        "leaf_hash": "baa28e6cbafbc8bee360bee1b01fb659bdcf7f28a75e7d5cc979d2435fdaae92",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 403064376
+      },
+      {
+        "leaf_hash": "babd0bbc97f3945b35930cd30ae87a7ff969dbc342454aedb4aad28e26b66bf9",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 42315393
+      },
+      {
+        "leaf_hash": "bae9cbe14f8a9e31fa761c7c1106fa50b84f165abfd03187149326e40e8b3fb6",
+        "is_winner": true,
+        "price_paid": 441752164,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "bb37486e9ea6bb0db3ed4c97575be0c4d1fdca4ce59f6a6470e1df0f14c77164",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 417166530
+      },
+      {
+        "leaf_hash": "bbd4fa1238b682c54f1d17cb64911e7b9f069288ff501a0a36399fc305b4ec93",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 132057058
+      },
+      {
+        "leaf_hash": "bc133ee8356c5bd20e19ed3162b3b117b3dac9aa4a060d1f383a9f839b726c55",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 362195102
+      },
+      {
+        "leaf_hash": "bcb9ae8c7c3911502f67e45e6366c3407c9febbeb25068b149f64654449ecc18",
+        "is_winner": true,
+        "price_paid": 427386067,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "bd6c6c029536d5d6e948011618b611dd6ffb2e1b8d0ff5d8c6bbcdd00ec2e8fb",
+        "is_winner": true,
+        "price_paid": 450050934,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "bdecaf5ea675fa9817d527fd98b002ecdbffa9b141b49d4ad3f9dfc137e66596",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 316013794
+      },
+      {
+        "leaf_hash": "be26a48826f3d6ee05f6f720435da657b04fc8aec6ab54fd2c1c2d8b96415253",
+        "is_winner": true,
+        "price_paid": 466811345,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "bf287309867a63dd12946b4521ce77d4ea3c9ae6bc0c4d2cbc2b609ffa9ec844",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 233589775
+      },
+      {
+        "leaf_hash": "c00938511d40df621282a2dbfd0b7f172a44a67ed12a28badbf1a1c2eadc5b01",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 362753377
+      },
+      {
+        "leaf_hash": "c017c37da7725a5c0426255db2d3ef317e9d7015f1eed043caee218b36864425",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 80655680
+      },
+      {
+        "leaf_hash": "c0978b39294a5ade6b009764edf1e858ce0a51592d0dbf485f48c51a09aa227d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 293062897
+      },
+      {
+        "leaf_hash": "c0da14f74f53981a14a8bfbf6ae3853d5519dba416b9214c6de8031af121e048",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 175805651
+      },
+      {
+        "leaf_hash": "c19e8d2271496cf3f7eb374390e6aee4c54cece5eb574cc000d1a130f3a4a81f",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 224077524
+      },
+      {
+        "leaf_hash": "c1a8b657761d775b2a3404855a517d282692b3e4546c6786b20c30100e949b0b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 21213562
+      },
+      {
+        "leaf_hash": "c1bc6067105e91c2ea51e2d3cbf05c8df192fe0d1bda265ae786de9ca5c912f7",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 409145615
+      },
+      {
+        "leaf_hash": "c1f45fcfac1b74ee85692905fa7bf5e1af57c93ba5e0d63da121a1a15541be51",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 100402807
+      },
+      {
+        "leaf_hash": "c24fa4c89026dc14ac64013c86705ac2d076c92bf41acbe2c09267c3894008b0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 163476190
+      },
+      {
+        "leaf_hash": "c2a9d14f0846940a3c6c217a8a484d5bf43e9e228d42b66e5d4d098d3f080115",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 197499114
+      },
+      {
+        "leaf_hash": "c49f0a361388405f72992665da5243c43d46c389e26327f830e50314db84cadc",
+        "is_winner": true,
+        "price_paid": 497331641,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "c4fdb7c8f6149ff2811da450011981e8e76a12a077f27ec164292d68fcad8dd6",
+        "is_winner": true,
+        "price_paid": 471224256,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "c54764cffcfa4545651f393d08ca1e6bcb7094a0364b90582affd365c8edc311",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 275339675
+      },
+      {
+        "leaf_hash": "c61e0787f178763745fdf79d4a021f0c359a3cc93599379340cd0472bb1eb7eb",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 43957684
+      },
+      {
+        "leaf_hash": "c6dfc9b286f5ada8ea0efb5a0050dc778171e3f8c8b6a5474680514ed7e451a2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 184628374
+      },
+      {
+        "leaf_hash": "c72e67fba862a27993df0f33dc2c2d40830d95752ecbe3c37cc5afeaa1b7726b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 83015732
+      },
+      {
+        "leaf_hash": "c780c0175a5eaf9745eb306124513efca618e90a6dc3c742ca97ed252d1db282",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 213685461
+      },
+      {
+        "leaf_hash": "c7ee9b0887b1fe4c512b1b1a9e4a9420368d31b66f12b9946f8356844d469155",
+        "is_winner": true,
+        "price_paid": 475843740,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "c89fbd777190dea20cec2d8613ab1f8fe4929da194d6369bbc0de8d226beff64",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 57439033
+      },
+      {
+        "leaf_hash": "c8ae08846188be1cc1a58113db2c730f5331d0c77d9e4deddfee24133d4a8517",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 87765442
+      },
+      {
+        "leaf_hash": "c91882ab84b230e4b9b2614346266eb511756e734b945e8f6ab2ef990a283b54",
+        "is_winner": true,
+        "price_paid": 496811261,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "ca17ca193be5bfb592e1e22cdea45dff47974c59e9969a46fe2b37c78a7ce66c",
+        "is_winner": true,
+        "price_paid": 428219619,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "ca3a403ba11535c6ced01885786ae7f7c1e2947f56598df55fa613b879921c86",
+        "is_winner": true,
+        "price_paid": 452828186,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "ca4c0fd6df298a313920313a15972cb537a6abd65566f2434a38a244be9b138c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 380901477
+      },
+      {
+        "leaf_hash": "cbbd897c69ec6efe830eb29ee3c4d935e2cf9afc703122bd8770a035c9c52e86",
+        "is_winner": true,
+        "price_paid": 496948799,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "cbf624dc4bff7a905ead082dec7bf01186611843335403331f2454f753cb25d1",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 99401814
+      },
+      {
+        "leaf_hash": "cc097e63cc32fb179ca11373bbe02644549f2c9133d50b5371ac57cbbb719c51",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 15034250
+      },
+      {
+        "leaf_hash": "cc6d42771c14f69fb8e60839f48dfb4d7d7966dc2ca3585f35e9b1d5fc7b012d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 131590087
+      },
+      {
+        "leaf_hash": "ccfe803b32829bc1cdacfa09d5e2e5d72f8765edf80d7e0a1d9705934d05eeef",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 256164139
+      },
+      {
+        "leaf_hash": "cd4931c4e69fb1d5ca1b8e9bed136eb2eeb845582391dacd5be71de987e6e417",
+        "is_winner": true,
+        "price_paid": 449337249,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "cd54d679eefabd02798b571e72d5176f0255534400dcd2c941c066ad063bf038",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 192821157
+      },
+      {
+        "leaf_hash": "cd9bca0b280569fb696c6347c09b47e6196feca8d4ee16e3a710d2b238caa3cc",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 149404617
+      },
+      {
+        "leaf_hash": "ce3dac1efc729ce254bf4e4adf5f2a854bc96a3311bc7920288ecdf199629212",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 339772443
+      },
+      {
+        "leaf_hash": "ce8db8be481525d2cf8e53fe41b2025b85be4c226b1abe56c888b94fc37b4f14",
+        "is_winner": true,
+        "price_paid": 426272610,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "cea27b94fdaccb2fdc3ed731be5d849d4bfebe3d8d014b4bb8ef9451e20179a8",
+        "is_winner": true,
+        "price_paid": 447825785,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "ced5f4b207f1562417fa321bcbfaa1e5aceaf60b71d693659fad305c0d342431",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 247253358
+      },
+      {
+        "leaf_hash": "d0b7c8f9128c49053d9ba0ce82335084a45fa2d1fd0442976a084a4eca03a941",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 360802160
+      },
+      {
+        "leaf_hash": "d0c3f94cc6ede0cec86a2092ad8ba4cf1272c19b7a3531a34b2030323fab7b55",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 70223733
+      },
+      {
+        "leaf_hash": "d0d53558295255274c68261a676fe61cefda4ef587b87f754fc509040923fe47",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 202955053
+      },
+      {
+        "leaf_hash": "d1663330e070918e2ab4c29f431bc07a44c6d9b7224d5c61ca148aa1cb1311cc",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 267828435
+      },
+      {
+        "leaf_hash": "d21d7ad1b37eb4c7a795d3681e943e6a4383c86b2312953da9646736b97ba52e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 148817462
+      },
+      {
+        "leaf_hash": "d25077aab2cffd474a6b36af5c0635d02bca56a6560261d2e22771230ebd2026",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 365574549
+      },
+      {
+        "leaf_hash": "d3740c2ec719b8c2058247d8ed409a3e591a9e0d45c8f52c73871b3d7907dada",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 289992208
+      },
+      {
+        "leaf_hash": "d3d923a2f56d696c102ecf8f1ae9315045b262952626b4113e73886447bd2fe5",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 312298662
+      },
+      {
+        "leaf_hash": "d3eb68d894540233777c4cb9b7a00f985db742811d0ff3f848b264cb158eb219",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 278973523
+      },
+      {
+        "leaf_hash": "d412be92a01688c9fbcd94a32b2de389fdd9ed1a8b358d1d34b992c00ac5d2a9",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 396859701
+      },
+      {
+        "leaf_hash": "d592c6cc939e39cd1caa6e446b4382ec93bd3dbf97a36a6f19645423feb63df4",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 310018543
+      },
+      {
+        "leaf_hash": "d72a95efd71fabb83d453451dd9f8b584d254d16bf53d4c98f472bf27f088040",
+        "is_winner": true,
+        "price_paid": 428345800,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "d7a15553fba54591af2d4437409d60f9b54b7684b7a1fe421447d648e2334928",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 87473404
+      },
+      {
+        "leaf_hash": "d7f4f522672ccc9955a1798a3511a73b814a0490ac875218fbdb1b27dfa8bd44",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 190868258
+      },
+      {
+        "leaf_hash": "d9108d64d868a52d69a9403f0204e9f80b3076000a4b282973dfd719ca773310",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 280443445
+      },
+      {
+        "leaf_hash": "d9bb42bea82282d3ac85e9e1f3090564907f9c5fecf073d3bb5763ec110cfde7",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 29269946
+      },
+      {
+        "leaf_hash": "da2347bce7b536707390e93fa6f731c57f2c215380715bd5ee835889c4b5f4ff",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 377856621
+      },
+      {
+        "leaf_hash": "da9987c60fdc0321eda714e21fbde3ec085ff199e87856a4f864fa7892b34fb5",
+        "is_winner": true,
+        "price_paid": 449823889,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "daece067bced7a26a611fffbbaa78f487de9d5431d32380317d63687c597ba05",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 192336750
+      },
+      {
+        "leaf_hash": "db5e76b5ed20960a1d5af70199cdbc9adf3018d1b9a5a1cea78d7a084c8f9f24",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 261222491
+      },
+      {
+        "leaf_hash": "db626b98d8c16faa086a14884be89cec8154be5f961ddd055cb6540eab140b29",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 266068551
+      },
+      {
+        "leaf_hash": "dbeebf606a54ad6bdf700fb25bf83c84528c02c9863122cbc7b0e480319cdaf3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 329297947
+      },
+      {
+        "leaf_hash": "dcf0e1cb419f7a0b161d6113365ae3a37194ec200ac03904b34b1a3a4ce01b78",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 58616905
+      },
+      {
+        "leaf_hash": "deba1ef70ddea04fd853108a6ed2a7340d03fc0c73aa3b7391976c092218a0f7",
+        "is_winner": true,
+        "price_paid": 425829284,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "deff3274ab9f9d4d6e8e055e2572acbec2b0228de9ede53c358b80857c958e71",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 309916221
+      },
+      {
+        "leaf_hash": "dff0108a6c8bb7c5d90bdc66803cfc2492adf11b829d3ef86d90fca95f617605",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 411862337
+      },
+      {
+        "leaf_hash": "e00d9102d83d89b7e16468ae9ade77379d50c1a0bda311957777f471d5fe8d63",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 123509286
+      },
+      {
+        "leaf_hash": "e016acef286c8406859e5c3a4862c145a282478bc94b5f7a44e52fe650043108",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 209647625
+      },
+      {
+        "leaf_hash": "e01ce1bbfd2cf467354b47439abc06dd40cb29ea739f0c57d7a07e1d7d8f92a8",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 27068116
+      },
+      {
+        "leaf_hash": "e01e76a6134b8c8dd940de8cefab0783c37caad99df2af6560bdc1f0a13d4f4b",
+        "is_winner": true,
+        "price_paid": 480978392,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "e02d699732745033983bc832146943d0df3a5e1ebfdcaaccdf1b6717a5e0a8fd",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 183531899
+      },
+      {
+        "leaf_hash": "e032250cc24bc86816c8a4b2e72b694bd43ae5bf8372dae3b3fd0943e77abb49",
+        "is_winner": true,
+        "price_paid": 493573374,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "e04f5b3a2c2ae656a9f3cce6366c83b2fc1b0e0c8a07381f00cb26cd2ef0b67d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 32468352
+      },
+      {
+        "leaf_hash": "e05ac89539e57d48764e9fbf80895dcf5de976adb7e04e6c183021552be82b9b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 238333331
+      },
+      {
+        "leaf_hash": "e098b91ee8191778f79de90bd58470b663071bf5f67ed34439af9da22d35125c",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 59156323
+      },
+      {
+        "leaf_hash": "e18ce74916e0eb91d1753a0d137b2261d68fa7a6ff720657d8834767798a9d7b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 172339907
+      },
+      {
+        "leaf_hash": "e256e0adfc7500e136755b9fc30d2c25dfa514b1ae921afadb51c0063ba8e879",
+        "is_winner": true,
+        "price_paid": 475391838,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "e2fc4e9abcb48bba81bf365249c1f89e86cb4db9f121eb673b13040b330e8cd5",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 129230713
+      },
+      {
+        "leaf_hash": "e4093cb1b1876bfa18e2bfec747c55568ed2b8b7b1a3b6b7f09e7f764c07db91",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 239846873
+      },
+      {
+        "leaf_hash": "e643ae69a423974c9853c8aa37d47728828b12828f94f239418ec851ad5dad7a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 160273217
+      },
+      {
+        "leaf_hash": "e65f36067d04a64ec14505f2c2e4e558e3cb7f8191e888cd98b99ac05824ab15",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 64153107
+      },
+      {
+        "leaf_hash": "e7307a35f70572bda2eb2261637f39cbae208362c6ffbf97550aee3d89b0a519",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 121566005
+      },
+      {
+        "leaf_hash": "e7a4b5b29758e5a3481a9ec22c33190221abd5f2e1e11369402e04cc72b1a987",
+        "is_winner": true,
+        "price_paid": 459599401,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "e7cd3b59c201630260213563a8a425ec6f09fd28df4afae44273e810310176df",
+        "is_winner": true,
+        "price_paid": 448890940,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "e7d32b51856328697fa794cb676b0db4d44c5c8ed699846f9e081ec0a27cbf12",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 338197931
+      },
+      {
+        "leaf_hash": "e7e19827b52c9c3fb48de3eac4a728f3994a4839af1b94911dc1cb5d8cd51d0d",
+        "is_winner": true,
+        "price_paid": 458116331,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "e81d167dd2997334171b6606f8ef3fbcd897669a24c0d96b67f9e4fd91903723",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 221072174
+      },
+      {
+        "leaf_hash": "e8323326a0e1c016342f2e4fba3e66e5084ab844fa2793f37fce95d8541dbf5b",
+        "is_winner": true,
+        "price_paid": 484554882,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "e87a0dce63f03a18ad23717299a7f3bd090236e02601dd02efd4c6da720c674e",
+        "is_winner": true,
+        "price_paid": 439395367,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "e891934560c26e5438bbcc648dba53d0e00a8efb3eaf5fda667007cb3a8ca3be",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 354148108
+      },
+      {
+        "leaf_hash": "e8f2745bf11dfc30c2ed79c34ed6e081e8a89e9904a13d45b6778ee43999c636",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 267715999
+      },
+      {
+        "leaf_hash": "e90bf8487e83d519ddb3c01c6a8a2a441c35688a499e6cc1efa75346439ebd2e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 418333588
+      },
+      {
+        "leaf_hash": "e98ce97b81a78bbc368099c9b59e0749e266129e55448c7f581fa96826336016",
+        "is_winner": true,
+        "price_paid": 499607153,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "ec1c3efe382da61487f341eb6af3eb65bf4ebabfe372f81505074d83fec654e0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 177268325
+      },
+      {
+        "leaf_hash": "eca4d69dd2ce8ae86f6239eb8012e142725721ce746ee1fbbffe65bc8c92247e",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 318634638
+      },
+      {
+        "leaf_hash": "ecb91baef924f688852f6aec6f3e8c17a41f1f346ad05c70fb6a9e6c214de3c0",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 315724780
+      },
+      {
+        "leaf_hash": "ecec9afd9178a6840311b4cb9ec248db019f57a5b056f490bc34caf3204409a9",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 226891328
+      },
+      {
+        "leaf_hash": "ee81cad69bf528e6864ecea36a95639d3a22a095424b64fd778386401cf011ca",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 36989036
+      },
+      {
+        "leaf_hash": "ee8dd0bd2f50adde53c6d127569e058389431b78b71328af144c76215c69be80",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 70823969
+      },
+      {
+        "leaf_hash": "ee966ef46ac9b2130b85bdcf7e2b6bfc1039b41a28fcdf5cb4e80d1766decba4",
+        "is_winner": true,
+        "price_paid": 442878409,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "ef641a20b3e8c80881753d6bd78cfffa86f3f79a9c0e5c98c8ec5c7c0b36f959",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 321393714
+      },
+      {
+        "leaf_hash": "f09f243c4e4e22811db14a546f4f981174cb0e08add0a50268cef7706fbe88ce",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 207720944
+      },
+      {
+        "leaf_hash": "f214da26910663a388eac9334265b54f978e4f091086fea97b0eda5db06023fd",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 216689775
+      },
+      {
+        "leaf_hash": "f2910eac51d1277cbcac4507493c63585a542a3d66f67d348b8336303d1ab8a2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 369313974
+      },
+      {
+        "leaf_hash": "f3b949526866828dc121ed436d2d9e8e6db8ec55f90d038b1ea79bca30d9912b",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 33757873
+      },
+      {
+        "leaf_hash": "f3f43832b209f47dbd2c5d7c5756ac4b6a4e3ee1f645df7dc91111fe88297325",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 11922745
+      },
+      {
+        "leaf_hash": "f43292c27f4950e48399febabd8e1074f43906a9560dc437afa8435d546e4d44",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 282004109
+      },
+      {
+        "leaf_hash": "f5adbd8a74b35e6dbc8f65e867a3568e16549e1a78e3f039eb77fe9bd3d8ca08",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 92647257
+      },
+      {
+        "leaf_hash": "f6872ec13899d0237256b790ab4b6d0db00bfecc048a9a778be5b682c574e4f3",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 39488137
+      },
+      {
+        "leaf_hash": "f72cd8a2bda80de832d773f717ffd572daad5de5dc8099d41769559744b68d2d",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 375393099
+      },
+      {
+        "leaf_hash": "f73f6340796db61d704634ed7de76fb26819c4e6aa892855de71968c11a353ce",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 219153159
+      },
+      {
+        "leaf_hash": "f78ced0be4575f94ed7d0ae1830f32b1399105d1424c56cabc31f6701ef9a956",
+        "is_winner": true,
+        "price_paid": 499913936,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "f7b1e285b8acb0fbb12a89e3a69fe22fa4acb533d126fd93c2987f376e6727a8",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 15205846
+      },
+      {
+        "leaf_hash": "f81b3a1d04c3b8e4bf97d48b233a8cb47d1699fca42428e4d985f9897fd0dc4f",
+        "is_winner": true,
+        "price_paid": 454907609,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "f8c4c32b69ca76a82cefbccde28f2e9c01eb4974e3ea9810dd8dabcead9ef0f5",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 638814
+      },
+      {
+        "leaf_hash": "f9d18e2d897f86be9d92eea651fe72618bd6a4a359125bfdb9ab47e623cb5949",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 104894531
+      },
+      {
+        "leaf_hash": "fa4f53bac1d2241c0e92a7c0dbfbb5b525007ce8b4e9f424545a3e301f5e2154",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 316538940
+      },
+      {
+        "leaf_hash": "faf8ecd96519ce3d284f55e13bbd1c5999169dbbd665ad14f9194915a01e2660",
+        "is_winner": true,
+        "price_paid": 462931444,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "fb3c9ec22c4d7ba6e46ad146a26b82210d98b8a9f417c5c574a654c552678c45",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 162151670
+      },
+      {
+        "leaf_hash": "fc06513321b4ad4d05e32df6f6db95197b821204563caae825f3cda1920a730a",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 129554454
+      },
+      {
+        "leaf_hash": "fc1a478e0ddb87b54167e100953f1ed2c620a750a59d4840e8f188978658ae38",
+        "is_winner": true,
+        "price_paid": 468389480,
+        "refund_due": 0
+      },
+      {
+        "leaf_hash": "ffd050f990b29e7a9fb2228ee28d417e8cba6d8e3875bba22e6eb1893935d4f2",
+        "is_winner": false,
+        "price_paid": 0,
+        "refund_due": 132641377
+      }
+    ]
+  },
+  "merkle_root": "357a9a038c8435133335c3095d8d1ba44c4477a43431d08d614d2d0d8e4611c2"
+}

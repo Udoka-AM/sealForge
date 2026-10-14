@@ -1,0 +1,234 @@
+//! Refund planner (Milestone 3, task 3.8). ZIP 318-style refund privacy.
+//!
+//! - Each refund is split into canonical notes ({1, 2, 5} × 10^k zat).
+//!   Any remainder below the smallest denomination joins the smallest note
+//!   (PRD open question Q7), so a bid has at most one non-canonical note.
+//! - Each note gets its own random delay in `[min_delay, max_delay]`.
+//! - Due notes are grouped into batches that interleave bidders, so a single
+//!   transaction rarely carries one bidder's whole refund.
+//!
+//! This module stays pure: randomness is injected by the caller (the
+//! coordinator uses a CSPRNG), which keeps the logic testable and lets the
+//! splitting rule be checked publicly.
+
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Serialize};
+
+use crate::{denominations, Zatoshi};
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RefundPolicy {
+    /// Shortest delay before a note may be sent, in seconds.
+    pub min_delay_secs: u64,
+    /// Longest delay before a note may be sent, in seconds.
+    pub max_delay_secs: u64,
+    /// Maximum outputs per escrow transaction.
+    pub max_outputs_per_batch: usize,
+}
+
+impl Default for RefundPolicy {
+    /// PRD AC9 default: delays of 10–240 minutes.
+    fn default() -> Self {
+        Self {
+            min_delay_secs: 10 * 60,
+            max_delay_secs: 240 * 60,
+            max_outputs_per_batch: 20,
+        }
+    }
+}
+
+/// One planned refund output.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlannedNote {
+    pub value: Zatoshi,
+    /// Seconds after the plan time before this note may be sent.
+    pub delay_secs: u64,
+}
+
+/// Split a refund into notes: canonical denominations, largest first, with
+/// any sub-denomination remainder added to the smallest note.
+pub fn split_refund(due: Zatoshi) -> Vec<Zatoshi> {
+    let (mut notes, remainder) = denominations::split(due);
+    match (notes.last_mut(), remainder) {
+        (Some(smallest), Some(rem)) => smallest.0 += rem.0,
+        (None, Some(rem)) => notes.push(rem),
+        (_, None) => {}
+    }
+    notes
+}
+
+/// Plan the notes for one refund. `random` must return uniformly random `u64`s
+/// from a CSPRNG.
+pub fn plan_refund(
+    due: Zatoshi,
+    policy: &RefundPolicy,
+    random: &mut impl FnMut() -> u64,
+) -> Vec<PlannedNote> {
+    assert!(
+        policy.min_delay_secs <= policy.max_delay_secs,
+        "min delay must not exceed max delay"
+    );
+    let span = policy.max_delay_secs - policy.min_delay_secs + 1;
+    split_refund(due)
+        .into_iter()
+        .map(|value| PlannedNote {
+            value,
+            // Modulo bias is negligible for spans of hours against a u64.
+            delay_secs: policy.min_delay_secs + random() % span,
+        })
+        .collect()
+}
+
+/// A note that is due to be sent.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DueNote<Id> {
+    pub id: Id,
+    /// Identifies whose refund this note belongs to (e.g. the bid id).
+    pub owner: Id,
+    pub value: Zatoshi,
+}
+
+/// Group due notes into batches of at most `max_outputs`, interleaving owners
+/// round-robin so each batch mixes as many bidders as possible.
+///
+/// The caller shuffles `notes` with a CSPRNG first. Owner order follows the
+/// first appearance in that shuffled input, so the output is deterministic for
+/// a given input.
+pub fn batch_due_notes<Id: Clone + Ord>(
+    notes: &[DueNote<Id>],
+    max_outputs: usize,
+) -> Vec<Vec<DueNote<Id>>> {
+    assert!(max_outputs > 0, "max_outputs must be at least 1");
+
+    let mut owner_order: Vec<Id> = Vec::new();
+    let mut queues: BTreeMap<Id, Vec<&DueNote<Id>>> = BTreeMap::new();
+    for note in notes {
+        let queue = queues.entry(note.owner.clone()).or_default();
+        if queue.is_empty() {
+            owner_order.push(note.owner.clone());
+        }
+        queue.push(note);
+    }
+    for queue in queues.values_mut() {
+        queue.reverse(); // pop() takes notes in input order
+    }
+
+    let mut interleaved = Vec::with_capacity(notes.len());
+    while interleaved.len() < notes.len() {
+        for owner in &owner_order {
+            if let Some(note) = queues.get_mut(owner).and_then(Vec::pop) {
+                interleaved.push(note.clone());
+            }
+        }
+    }
+    interleaved.chunks(max_outputs).map(<[_]>::to_vec).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::denominations::{is_canonical, MIN_DENOMINATION};
+
+    /// Deterministic test RNG (splitmix64). Production code uses a CSPRNG.
+    fn rng(mut state: u64) -> impl FnMut() -> u64 {
+        move || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^ (z >> 31)
+        }
+    }
+
+    #[test]
+    fn notes_sum_to_due_with_at_most_one_non_canonical_note() {
+        for due in [
+            0,
+            1,
+            9_999,
+            10_000,
+            10_001,
+            37_000_000,
+            123_456_789,
+            98_765_432_101,
+        ] {
+            let notes = split_refund(Zatoshi(due));
+            assert_eq!(notes.iter().map(|n| n.0).sum::<u64>(), due, "due={due}");
+            assert!(
+                notes.iter().filter(|n| !is_canonical(**n)).count() <= 1,
+                "due={due}"
+            );
+        }
+    }
+
+    #[test]
+    fn remainder_joins_smallest_note() {
+        // 0.37000123 ZEC = 0.2 + 0.1 + 0.05 + (0.02 + 123 zat)
+        let notes = split_refund(Zatoshi(37_000_123));
+        assert_eq!(
+            notes,
+            vec![
+                Zatoshi(20_000_000),
+                Zatoshi(10_000_000),
+                Zatoshi(5_000_000),
+                Zatoshi(2_000_123)
+            ]
+        );
+        // Below the smallest denomination: one note for the whole amount.
+        assert_eq!(
+            split_refund(Zatoshi(MIN_DENOMINATION - 1)),
+            vec![Zatoshi(MIN_DENOMINATION - 1)]
+        );
+        assert!(split_refund(Zatoshi::ZERO).is_empty());
+    }
+
+    #[test]
+    fn delays_stay_within_policy() {
+        let policy = RefundPolicy::default();
+        let mut random = rng(7);
+        for _ in 0..200 {
+            for note in plan_refund(Zatoshi(987_654_321), &policy, &mut random) {
+                assert!((policy.min_delay_secs..=policy.max_delay_secs).contains(&note.delay_secs));
+            }
+        }
+    }
+
+    #[test]
+    fn batches_interleave_bidders() {
+        let notes: Vec<DueNote<u32>> = (0..3u32)
+            .flat_map(|owner| {
+                (0..4u32).map(move |i| DueNote {
+                    id: owner * 10 + i,
+                    owner,
+                    value: Zatoshi(10_000),
+                })
+            })
+            .collect();
+        let batches = batch_due_notes(&notes, 3);
+        assert_eq!(batches.len(), 4);
+        for batch in &batches {
+            let mut owners: Vec<u32> = batch.iter().map(|n| n.owner).collect();
+            owners.dedup();
+            assert_eq!(owners.len(), 3, "each batch mixes all three bidders");
+        }
+        let total: usize = batches.iter().map(Vec::len).sum();
+        assert_eq!(total, notes.len());
+    }
+
+    #[test]
+    fn batching_respects_max_outputs_and_keeps_every_note() {
+        let notes: Vec<DueNote<u32>> = (0..53u32)
+            .map(|i| DueNote {
+                id: i,
+                owner: i % 5,
+                value: Zatoshi(20_000),
+            })
+            .collect();
+        let batches = batch_due_notes(&notes, 20);
+        assert!(batches.iter().all(|b| b.len() <= 20));
+        let mut ids: Vec<u32> = batches.iter().flatten().map(|n| n.id).collect();
+        ids.sort_unstable();
+        assert_eq!(ids, (0..53).collect::<Vec<_>>());
+    }
+}
