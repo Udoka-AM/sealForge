@@ -1,5 +1,5 @@
 import "server-only";
-import type { AuctionView } from "./types";
+import type { AuctionView, PublishedResult } from "./types";
 
 /** Server-side base URL of the sealForge coordinator. */
 function baseUrl(): string {
@@ -31,4 +31,10 @@ export async function listAuctions(): Promise<AuctionView[]> {
 export async function getAuction(code: string): Promise<AuctionView | null> {
   if (!/^[0-9A-HJKMNP-TV-Z]{10}$/.test(code)) return null;
   return get<AuctionView>(`/v1/auctions/${code}`);
+}
+
+/** The published result, or null until the organiser publishes. */
+export async function getResult(code: string): Promise<PublishedResult | null> {
+  if (!/^[0-9A-HJKMNP-TV-Z]{10}$/.test(code)) return null;
+  return get<PublishedResult>(`/v1/auctions/${code}/result`);
 }

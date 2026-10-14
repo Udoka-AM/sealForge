@@ -223,10 +223,17 @@ pub struct ResultRules {
     pub reserve_zat: u64,
 }
 
-/// One bid in the published result. Amounts are visible to anyone with the
-/// published viewing key anyway; bidder addresses are not included.
+/// One bid in the published result. Everything here is already visible to
+/// anyone holding the published viewing key; refund addresses are not included.
+/// With txid, index, amount and commitment, a bidder can recompute their own
+/// leaf and Merkle proof from a receipt.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResultBid {
+    pub txid: String,
+    pub output_index: u32,
+    pub block_height: u32,
+    pub amount_zat: u64,
+    pub commitment: String,
     pub leaf_hash: String,
     pub is_winner: bool,
     pub price_paid_zat: u64,
