@@ -17,3 +17,7 @@ sealforge-core.workspace = true
 sealforge-escrow.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+hex.workspace = true
+rand.workspace = true
+serde_json.workspace = true
+zcash_protocol.workspace = true
