@@ -2532,6 +2532,8 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap",
+ "hex",
+ "sealforge-api",
  "sealforge-core",
  "serde",
  "serde_json",

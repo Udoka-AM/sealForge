@@ -2,6 +2,7 @@
 //! See docs/02-TRD.md §2.3 and §2.6.
 
 pub mod auth;
+pub mod closer;
 pub mod codes;
 pub mod config;
 pub mod db;

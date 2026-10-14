@@ -36,3 +36,6 @@ http-body-util.workspace = true
 tower.workspace = true
 rand.workspace = true
 sealforge-core.workspace = true
+uuid.workspace = true
+zcash_protocol.workspace = true
+sealforge-escrow.workspace = true

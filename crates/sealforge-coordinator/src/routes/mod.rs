@@ -1,6 +1,7 @@
 mod auctions;
 mod dkg;
 mod organisers;
+mod results;
 
 use axum::{
     extract::State,
@@ -38,7 +39,8 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/auctions/{code}/dkg/round1", post(dkg::round1))
         .route("/v1/auctions/{code}/dkg/round2", post(dkg::round2))
         .route("/v1/auctions/{code}/dkg/complete", post(dkg::complete))
-        // TODO(3.3): /v1/auctions/{code}/publish, /result
+        .route("/v1/auctions/{code}/publish", post(auctions::publish))
+        .route("/v1/auctions/{code}/result", get(results::result))
         // TODO(3.9): /v1/batches/*
         .layer(TraceLayer::new_for_http())
         .with_state(state)

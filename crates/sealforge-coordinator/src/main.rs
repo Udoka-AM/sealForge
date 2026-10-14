@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use sealforge_coordinator::{auth, config::Config, routes, AppState, Settings};
+use sealforge_coordinator::{auth, closer, config::Config, routes, AppState, Settings};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -38,6 +38,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     tokio::spawn(auth::purge_nonces(state.db.clone()));
+    tokio::spawn(closer::run(state.clone()));
     // TODO(2.5): spawn the escrow scanner task (also keeps chain_tip current).
     // TODO(3.9): spawn the refund scheduler task (respect SF_REFUNDS_PAUSED).
 

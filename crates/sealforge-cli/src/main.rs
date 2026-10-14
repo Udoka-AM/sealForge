@@ -65,6 +65,8 @@ enum AuctionCommand {
     Open { code: String },
     /// Cancel an auction (only before bids arrive).
     Cancel { code: String },
+    /// Publish a closed auction's result and viewing key so anyone can audit it.
+    Publish { code: String },
 }
 
 #[derive(Debug, Subcommand)]
@@ -171,6 +173,13 @@ async fn auction(store: &Keystore, url: &str, cmd: AuctionCommand) -> anyhow::Re
         }
         AuctionCommand::Cancel { code } => {
             print_json(&organiser::auction_cancel(store, url, &code).await?)
+        }
+        AuctionCommand::Publish { code } => {
+            let view = organiser::auction_publish(store, url, &code).await?;
+            println!(
+                "Published {}. Anyone can now audit it: {url}/v1/auctions/{}/result",
+                view.code, view.code
+            );
         }
     }
     Ok(())

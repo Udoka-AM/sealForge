@@ -404,3 +404,67 @@ pub async fn delete_draft(
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+/// `POST /v1/auctions/{code}/publish`: make the result public and reveal the
+/// escrow's incoming viewing key so anyone can recompute it (PRD AC6).
+pub async fn publish(
+    State(state): State<AppState>,
+    Path(code): Path<String>,
+    req: Signed,
+) -> Result<Json<AuctionView>, ApiError> {
+    let (organiser, row) = owned_auction(&state, &req, &code).await?;
+    if !can_transition(row.status, AuctionStatus::Published, Actor::Organiser) {
+        return Err(invalid_transition(row.status, AuctionStatus::Published));
+    }
+    let data_key = state
+        .settings
+        .data_key
+        .clone()
+        .ok_or_else(|| ApiError::Unavailable("SF_DATA_KEY is not configured".into()))?;
+    let ufvk: Option<String> = sqlx::query_scalar(
+        "SELECT pgp_sym_decrypt(escrow_ufvk_enc, $2) FROM auctions WHERE id = $1",
+    )
+    .bind(row.id)
+    .bind(&data_key)
+    .fetch_one(&state.db)
+    .await?;
+    let ufvk = ufvk
+        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("auction has no escrow viewing key")))?;
+    let params = validate::AddressParams::for_network(row.network);
+    let uivk = zcash_keys::keys::UnifiedFullViewingKey::decode(&params, &ufvk)
+        .map_err(|e| ApiError::Internal(anyhow::anyhow!("stored UFVK does not decode: {e}")))?
+        .to_unified_incoming_viewing_key()
+        .encode(&params)
+        .map_err(|e| ApiError::Internal(anyhow::anyhow!("UIVK encoding failed: {e:?}")))?;
+
+    let mut tx = state.db.begin().await?;
+    let moved = sqlx::query(
+        "UPDATE auctions SET status = 'published', escrow_ivk = $1, published_at = now(), updated_at = now() \
+         WHERE id = $2 AND status = 'closed'",
+    )
+    .bind(&uivk)
+    .bind(row.id)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    if moved == 0 {
+        return Err(ApiError::conflict(
+            "status_changed",
+            "the auction changed; reload and retry",
+        ));
+    }
+    db::audit(
+        &mut *tx,
+        Some(row.id),
+        "organiser",
+        Some(organiser),
+        "auction.transition",
+        json!({ "from": row.status, "to": AuctionStatus::Published }),
+    )
+    .await?;
+    tx.commit().await?;
+    let row = db::auction_by_code(&state.db, &code)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(db::auction_view(&state.db, &row, true).await?))
+}
