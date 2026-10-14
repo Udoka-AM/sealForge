@@ -13,11 +13,25 @@ name = "sealforge"
 path = "src/main.rs"
 
 [dependencies]
+sealforge-api.workspace = true
 sealforge-core.workspace = true
 sealforge-escrow.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+crypto_box.workspace = true
+ed25519-dalek.workspace = true
 hex.workspace = true
 rand.workspace = true
+reqwest.workspace = true
+serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+toml.workspace = true
 zcash_protocol.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+sealforge-coordinator.workspace = true
+sqlx.workspace = true
+pasta_curves.workspace = true

@@ -133,3 +133,82 @@ pub struct ApiErrorBody {
     pub code: String,
     pub error: String,
 }
+
+// ---------------------------------------------------------------------------
+// Trustees and DKG (task 2.4). Binary payloads are hex.
+
+/// `POST /v1/trustees/join`, signed with the trustee's new Ed25519 key.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JoinAsTrustee {
+    pub invite_code: String,
+    /// X25519 public key that round 2 packages are sealed to.
+    pub enc_pubkey: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TrusteeJoined {
+    pub auction_code: String,
+    pub slot: u16,
+    pub label: String,
+    pub min_signers: u16,
+    pub max_signers: u16,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DkgTrustee {
+    pub slot: u16,
+    pub label: String,
+    /// Ed25519 key that signs this trustee's packages (hex). `None` until joined.
+    pub pubkey: Option<String>,
+    pub enc_pubkey: Option<String>,
+    pub dkg_status: DkgStatus,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DkgPackage {
+    pub from_slot: u16,
+    /// `None` for broadcast (round 1) packages.
+    pub to_slot: Option<u16>,
+    /// Round 1: serialized package. Round 2: sealed box to the recipient.
+    pub payload: String,
+    pub signature: String,
+}
+
+/// `GET /v1/auctions/{code}/dkg`: everything the calling trustee needs next.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DkgState {
+    pub auction_code: String,
+    pub auction_status: AuctionStatus,
+    pub my_slot: u16,
+    pub min_signers: u16,
+    pub max_signers: u16,
+    pub trustees: Vec<DkgTrustee>,
+    pub round1: Vec<DkgPackage>,
+    /// Round 2 packages addressed to the caller.
+    pub round2_for_me: Vec<DkgPackage>,
+    pub escrow_ua: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PostRound1 {
+    pub payload: String,
+    pub signature: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Round2Out {
+    pub to_slot: u16,
+    pub payload: String,
+    pub signature: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PostRound2 {
+    pub packages: Vec<Round2Out>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CompleteDkg {
+    /// Serialized FROST public key package (hex).
+    pub public_key_package: String,
+}

@@ -127,6 +127,62 @@ pub fn verify_request(
         .map_err(|_| AuthError::BadSignature)
 }
 
+/// Bytes a trustee signs for each DKG package, so trustees can check that
+/// packages relayed by the coordinator really came from the sending trustee.
+pub fn dkg_package_message(
+    auction_code: &str,
+    round: u8,
+    from_slot: u16,
+    to_slot: Option<u16>,
+    payload: &[u8],
+) -> Vec<u8> {
+    format!(
+        "sealforge-dkg-v1\n{auction_code}\n{round}\n{from_slot}\n{}\n{}",
+        to_slot.map(|s| s.to_string()).unwrap_or_else(|| "*".into()),
+        hex::encode(Sha256::digest(payload)),
+    )
+    .into_bytes()
+}
+
+/// Verify a trustee's DKG package signature.
+pub fn verify_dkg_package(
+    pubkey: &[u8; 32],
+    signature: &[u8; 64],
+    auction_code: &str,
+    round: u8,
+    from_slot: u16,
+    to_slot: Option<u16>,
+    payload: &[u8],
+) -> bool {
+    VerifyingKey::from_bytes(pubkey)
+        .and_then(|key| {
+            key.verify(
+                &dkg_package_message(auction_code, round, from_slot, to_slot, payload),
+                &Signature::from_bytes(signature),
+            )
+        })
+        .is_ok()
+}
+
+/// Sign a DKG package as the sending trustee.
+pub fn sign_dkg_package(
+    key: &SigningKey,
+    auction_code: &str,
+    round: u8,
+    from_slot: u16,
+    to_slot: Option<u16>,
+    payload: &[u8],
+) -> [u8; 64] {
+    key.sign(&dkg_package_message(
+        auction_code,
+        round,
+        from_slot,
+        to_slot,
+        payload,
+    ))
+    .to_bytes()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

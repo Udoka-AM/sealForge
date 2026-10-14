@@ -32,6 +32,7 @@ impl Api {
             db,
             Settings {
                 invite_codes: vec![INVITE.into()],
+                data_key: Some("test-data-key".into()),
             },
         );
         Self {

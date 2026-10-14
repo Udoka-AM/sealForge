@@ -45,6 +45,9 @@ base64 = "0.22"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+crypto_box = { version = "0.9", features = ["seal"] }
+toml = "0.8"
+sealforge-coordinator = { path = "crates/sealforge-coordinator" }
 
 # Zcash / FROST (task 1.2, verified 2026-10-14; see docs/VERSIONS.md).
 # Pre-releases are pinned exactly: they are the first with Ironwood (NU6.3) and NU7 support.

@@ -26,6 +26,7 @@ async fn main() -> anyhow::Result<()> {
         db,
         Settings {
             invite_codes: config.invite_codes(),
+            data_key: config.data_key.clone().filter(|k| !k.is_empty()),
         },
     );
     if let Some(height) = config.dev_chain_height {
