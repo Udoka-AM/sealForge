@@ -1,10 +1,10 @@
 import Link from "next/link";
 
 const NAV = [
-  { href: "/", label: "Auctions" },
-  { href: "/verify", label: "Verify" },
-  { href: "/how-it-works", label: "How it works" },
-  { href: "/me", label: "My bids" },
+  { href: "/", label: "Auctions", mobile: true },
+  { href: "/verify", label: "Verify", mobile: false },
+  { href: "/how-it-works", label: "How it works", mobile: false },
+  { href: "/me", label: "My bids", mobile: true },
 ];
 
 export function SiteHeader() {
@@ -16,7 +16,11 @@ export function SiteHeader() {
         </Link>
         <nav aria-label="Main" className="flex gap-4 text-sm text-muted">
           {NAV.map((item) => (
-            <Link key={item.href} href={item.href} className="hover:text-text">
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`py-2 hover:text-text ${item.mobile ? "" : "hidden sm:inline"}`}
+            >
               {item.label}
             </Link>
           ))}

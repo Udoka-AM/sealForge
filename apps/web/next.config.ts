@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["@sealforge/shieldramp"],
+  transpilePackages: ["@sealforge/shieldramp", "@sealforge/bid"],
   poweredByHeader: false,
   async headers() {
     return [

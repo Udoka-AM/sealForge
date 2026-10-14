@@ -70,6 +70,22 @@ body {
   outline-offset: 2px;
 }
 
+/* Signature: the wax seal stamps once when a bid is sealed. */
+@keyframes seal-stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.18) rotate(-8deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+.seal-stamp {
+  animation: seal-stamp 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
 .num {
   font-family: var(--font-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;

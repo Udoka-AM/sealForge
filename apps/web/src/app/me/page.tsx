@@ -1,12 +1,18 @@
-import { Placeholder } from "@/components/placeholder";
+import type { Metadata } from "next";
+import { MyBids } from "@/components/my-bids";
 
-export const metadata = { title: "My bids" };
+export const metadata: Metadata = { title: "My bids" };
 
-export default function MybidsPage() {
+export default function MyBidsPage() {
   return (
-    <div className="space-y-4">
-      <h1 className="text-[28px] leading-[34px] font-semibold">My bids</h1>
-      <Placeholder screen="S9 My bids" task="3.7" />
+    <div className="mx-auto max-w-[640px] space-y-6">
+      <div className="space-y-2">
+        <h1 className="text-[28px] leading-[34px] font-semibold tracking-tight">My bids</h1>
+        <p className="text-muted">
+          Stored only in this browser. Download each receipt so you don&rsquo;t lose it.
+        </p>
+      </div>
+      <MyBids />
     </div>
   );
 }
