@@ -30,6 +30,8 @@ pub struct AppState {
 pub struct Settings {
     /// Invite codes accepted by `POST /v1/organisers` (the hackathon instance is invite-only).
     pub invite_codes: Vec<String>,
+    /// Key for pgcrypto-encrypted columns (escrow UFVK). DKG can't complete without it.
+    pub data_key: Option<String>,
 }
 
 impl AppState {

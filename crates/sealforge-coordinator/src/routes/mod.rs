@@ -1,4 +1,5 @@
 mod auctions;
+mod dkg;
 mod organisers;
 
 use axum::{
@@ -32,7 +33,11 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/auctions/{code}/cancel", post(auctions::cancel))
         .route("/v1/console/auctions", get(auctions::list_own))
         .route("/v1/console/auctions/{code}", get(auctions::get_own))
-        // TODO(2.4): /v1/auctions/{code}/dkg/*
+        .route("/v1/trustees/join", post(dkg::join))
+        .route("/v1/auctions/{code}/dkg", get(dkg::state))
+        .route("/v1/auctions/{code}/dkg/round1", post(dkg::round1))
+        .route("/v1/auctions/{code}/dkg/round2", post(dkg::round2))
+        .route("/v1/auctions/{code}/dkg/complete", post(dkg::complete))
         // TODO(3.3): /v1/auctions/{code}/publish, /result
         // TODO(3.9): /v1/batches/*
         .layer(TraceLayer::new_for_http())

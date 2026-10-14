@@ -1,0 +1,173 @@
+//! End to end: organiser + three trustees, each with their own keystore, run
+//! the DKG through a real coordinator over HTTP. Then two of the saved key
+//! shares produce a consensus-valid spend signature for the escrow.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use pasta_curves::group::ff::{FromUniformBytes, PrimeField};
+use rand::{rngs::OsRng, RngCore};
+use sealforge_api::types::{AuctionStatus, DkgState};
+use sealforge_cli::{
+    client::Client,
+    keystore::Keystore,
+    organiser,
+    trustee::{self, DkgProgress},
+};
+use sealforge_coordinator::{routes, AppState, Settings};
+use sealforge_escrow::{dkg, signing};
+use sqlx::PgPool;
+
+const TESTNET_UA: &str = "utest10wa7f6qs6jevt8pl9vezqtrnm9qdkcccdyjtsam4sqgyq4mwvnvxaen2nnsd0yu47qh6a6s0payftzz4h86c6caev4qguam3huf3z7yu";
+const DATA_KEY: &str = "e2e-data-key";
+
+async fn start_coordinator(db: PgPool) -> (String, AppState) {
+    let state = AppState::new(
+        db,
+        Settings {
+            invite_codes: vec!["org-invite".into()],
+            data_key: Some(DATA_KEY.into()),
+        },
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let app = routes::router(state.clone());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    (url, state)
+}
+
+fn random_alpha() -> [u8; 32] {
+    let mut wide = [0u8; 64];
+    OsRng.fill_bytes(&mut wide);
+    pasta_curves::Fq::from_uniform_bytes(&wide).to_repr()
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
+    let (url, state) = start_coordinator(db.clone()).await;
+    let root = std::env::temp_dir().join(format!("sealforge-e2e-{}", rand::random::<u64>()));
+    let org = Keystore::new(root.join("organiser"));
+    let trustees: Vec<Keystore> = (1..=3)
+        .map(|i| Keystore::new(root.join(format!("trustee-{i}"))))
+        .collect();
+
+    // Organiser registers and creates the auction from the example config.
+    organiser::init(&org, &url, "org-invite", "Demo Organiser")
+        .await
+        .unwrap();
+    let config = root.join("auction.toml");
+    let example = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../examples/auction.toml"
+    ))
+    .unwrap();
+    std::fs::write(&config, example.replace("utest1...", TESTNET_UA)).unwrap();
+    let created = organiser::auction_new(&org, &url, &config).await.unwrap();
+    let code = created.auction.code.clone();
+    assert_eq!(created.trustee_invites.len(), 3);
+
+    // Trustees join. An invite works once.
+    for (store, invite) in trustees.iter().zip(&created.trustee_invites) {
+        let joined = trustee::join(store, &url, &invite.invite_code)
+            .await
+            .unwrap();
+        assert_eq!(joined.slot, invite.slot);
+    }
+    let intruder = Keystore::new(root.join("intruder"));
+    let reuse = trustee::join(&intruder, &url, &created.trustee_invites[0].invite_code).await;
+    assert!(reuse.is_err(), "a used invite must not work twice");
+
+    // Outsiders can't read the DKG, and packages without a valid trustee signature are refused.
+    let outsider = Client::new(&url, Some(ed25519_dalek::SigningKey::generate(&mut OsRng)));
+    assert!(outsider
+        .get::<DkgState>(&format!("/v1/auctions/{code}/dkg"))
+        .await
+        .is_err());
+    let t1_key = trustees[0]
+        .trustee_identity(&code)
+        .unwrap()
+        .signing_key()
+        .unwrap();
+    let forged = Client::new(&url, Some(t1_key))
+        .post::<DkgState>(
+            &format!("/v1/auctions/{code}/dkg/round1"),
+            &serde_json::json!({ "payload": "00ff", "signature": hex::encode([0u8; 64]) }),
+        )
+        .await;
+    assert!(
+        forged.unwrap_err().to_string().contains("signature"),
+        "unsigned package must be rejected"
+    );
+
+    // Every trustee keeps stepping until key generation finishes.
+    let mut fingerprints = BTreeMap::new();
+    let mut escrow = None;
+    for _ in 0..10 {
+        for (i, store) in trustees.iter().enumerate() {
+            match trustee::dkg_step(store, &url, &code).await.unwrap() {
+                DkgProgress::Completed {
+                    fingerprint,
+                    escrow_ua,
+                } => {
+                    fingerprints.insert(i, fingerprint);
+                    escrow = escrow_ua.or(escrow);
+                }
+                DkgProgress::Ready { escrow_ua } => escrow = Some(escrow_ua),
+                _ => {}
+            }
+        }
+        if escrow.is_some() && fingerprints.len() == 3 {
+            break;
+        }
+    }
+    let escrow = escrow.expect("DKG finished");
+    assert!(escrow.starts_with("utest1"), "{escrow}");
+    assert_eq!(
+        fingerprints.values().collect::<BTreeSet<_>>().len(),
+        1,
+        "all trustees derive the same group key"
+    );
+
+    // The auction is ready, relay packages are gone, and the UFVK is encrypted at rest.
+    let (status, group_key, ufvk): (AuctionStatus, Vec<u8>, String) = sqlx::query_as(
+        "SELECT status, escrow_group_key, pgp_sym_decrypt(escrow_ufvk_enc, $2) FROM auctions WHERE code = $1",
+    )
+    .bind(&code)
+    .bind(DATA_KEY)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(status, AuctionStatus::Ready);
+    assert!(ufvk.starts_with("uviewtest1"));
+    let leftover: i64 = sqlx::query_scalar("SELECT count(*) FROM dkg_packages")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(leftover, 0);
+
+    // Two trustees' saved shares sign an escrow spend that passes Orchard's check.
+    let ak: [u8; 32] = group_key.try_into().unwrap();
+    let request = signing::SpendAuthRequest {
+        sighash: [42; 32],
+        alpha: random_alpha(),
+    };
+    let (kp1, pubkeys) = trustee::key_share(&trustees[0], &code).unwrap();
+    let (kp3, _) = trustee::key_share(&trustees[2], &code).unwrap();
+    let (id1, id3) = (dkg::identifier(1).unwrap(), dkg::identifier(3).unwrap());
+    let (n1, c1) = signing::commit(&kp1, &mut OsRng);
+    let (n3, c3) = signing::commit(&kp3, &mut OsRng);
+    let package = signing::signing_package(&request, BTreeMap::from([(id1, c1), (id3, c3)]));
+    let shares = BTreeMap::from([
+        (id1, signing::sign(&request, &package, &n1, &kp1).unwrap()),
+        (id3, signing::sign(&request, &package, &n3, &kp3).unwrap()),
+    ]);
+    let signature = signing::aggregate(&request, &package, &shares, &pubkeys).unwrap();
+    signing::verify_spend_auth(&ak, &request, &signature).unwrap();
+
+    // And the organiser can open it.
+    state.set_chain_tip(3_900_000);
+    let opened = organiser::auction_open(&org, &url, &code).await.unwrap();
+    assert_eq!(opened.status, AuctionStatus::Open);
+    assert_eq!(opened.escrow_ua.as_deref(), Some(escrow.as_str()));
+
+    std::fs::remove_dir_all(&root).ok();
+}

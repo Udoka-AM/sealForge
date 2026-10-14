@@ -1,0 +1,21 @@
+# sealforge auction new examples/auction.toml
+title = "sealForge Zcon7 Pass"
+description = "10 commemorative passes. Uniform price: every winner pays the 10th-highest bid."
+network = "testnet"          # regtest | testnet | mainnet
+mode = "uniform_price"       # uniform_price | first_price
+quantity = 10
+reserve_zat = 1_000_000      # 0.01 ZEC
+close_height = 4_000_000     # must be at least the chain tip + 144 when you open
+payout_ua = "utest1..."      # your Unified Address (shielded receiver required)
+
+[[trustees]]
+slot = 1
+label = "Organiser"
+
+[[trustees]]
+slot = 2
+label = "Independent auditor"
+
+[[trustees]]
+slot = 3
+label = "Community signer"

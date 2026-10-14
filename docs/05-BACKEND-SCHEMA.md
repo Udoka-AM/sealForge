@@ -62,6 +62,7 @@ Indexes: `UNIQUE (pubkey)`.
 | `escrow_ua` | `TEXT` | | `NULL` | Set after DKG |
 | `escrow_ufvk_enc` | `BYTEA` | | `NULL` | `pgp_sym_encrypt` with `SF_DATA_KEY` |
 | `escrow_ivk` | `TEXT` | | `NULL` | Plaintext **only after publish** (it is public then) |
+| `escrow_group_key` | `BYTEA` | | `NULL` | FROST group verifying key (Orchard `ak`), 32 bytes, set when DKG completes |
 | `payout_ua` | `TEXT` | ✓ | — | Organiser payout address (Ironwood UA) |
 | `fee_buffer_zat` | `BIGINT` | ✓ | `0` | Funded by the organiser for ZIP-317 fees |
 | `status` | `auction_status` | ✓ | `'draft'` | See lifecycle below |
@@ -82,6 +83,8 @@ Indexes: `UNIQUE (code)`, `(organiser_id)`, `(status)`, `(network, status)`.
 | `pubkey` | `BYTEA` | ✓ | — | Ed25519 API key, 32 bytes |
 | `dkg_status` | `dkg_status` | ✓ | `'invited'` | `invited` · `round1` · `round2` · `complete` |
 | `invite_code_hash` | `BYTEA` | ✓ | — | SHA-256 of the one-time invite |
+| `enc_pubkey` | `BYTEA` | | `NULL` | X25519 key registered at join. Round 2 packages are sealed to it |
+| `public_key_package` | `BYTEA` | | `NULL` | FROST public key package the trustee derived. All three must match |
 | `joined_at` | `TIMESTAMPTZ` | | `NULL` | |
 
 Indexes: `UNIQUE (auction_id, slot)`, `UNIQUE (auction_id, pubkey)`.
@@ -94,7 +97,8 @@ Indexes: `UNIQUE (auction_id, slot)`, `UNIQUE (auction_id, pubkey)`.
 | `round` | `SMALLINT` | ✓ | — | 1 or 2 |
 | `from_slot` | `SMALLINT` | ✓ | — | |
 | `to_slot` | `SMALLINT` | | `NULL` | `NULL` = broadcast (round 1) |
-| `payload` | `BYTEA` | ✓ | — | Round 2 is encrypted to the recipient's key, so the coordinator can't read it |
+| `payload` | `BYTEA` | ✓ | — | Round 2 is sealed (X25519 sealed box) to the recipient, so the coordinator can't read it |
+| `signature` | `BYTEA` | ✓ | — | Ed25519 signature by the sending trustee over `sealforge-dkg-v1 ‖ code ‖ round ‖ from ‖ to ‖ sha256(payload)`. Recipients verify it, so the coordinator can't forge packages |
 | `created_at` | `TIMESTAMPTZ` | ✓ | `now()` | |
 
 Indexes: `UNIQUE (auction_id, round, from_slot, to_slot)`.

@@ -12,9 +12,15 @@ use crate::error::ApiError;
 /// Minimum blocks between opening and closing (≈ 1 h at NU7's 25 s blocks).
 pub const MIN_OPEN_BLOCKS: u32 = 144;
 
-/// Address-decoding parameters: only the network type matters for encodings.
+/// Address-encoding parameters: only the network type matters for encodings.
 #[derive(Clone, Copy, Debug)]
-struct AddressParams(NetworkType);
+pub struct AddressParams(NetworkType);
+
+impl AddressParams {
+    pub fn for_network(network: Network) -> Self {
+        Self(network_type(network))
+    }
+}
 
 impl Parameters for AddressParams {
     fn network_type(&self) -> NetworkType {
