@@ -1,0 +1,29 @@
+# Local Zcash regtest chain for development (no peers, no proof of work).
+# Every network upgrade through Ironwood (NU6.3) is active from block 1. NU7 is left
+# off because Zaino 0.10.2 doesn't know its consensus branch ID yet (mainnet has no
+# NU7 height either).
+# Mine blocks with the `generate` RPC: scripts/regtest.sh mine <n>
+
+[network]
+network = "Regtest"
+listen_addr = "127.0.0.1:18344"
+
+[network.testnet_parameters.activation_heights]
+Canopy = 1
+NU5 = 1
+NU6 = 1
+"NU6.1" = 1
+"NU6.2" = 1
+"NU6.3" = 1
+
+[mining]
+# Coinbase recipient, set by scripts/regtest.sh (`ZEBRA_MINER_ADDRESS`).
+miner_address = "MINER_ADDRESS"
+
+[rpc]
+listen_addr = "0.0.0.0:18232"
+enable_cookie_auth = false
+
+[state]
+ephemeral = false
+cache_dir = "/home/zebra/.cache/zebra"

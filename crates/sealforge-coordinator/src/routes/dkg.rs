@@ -30,8 +30,7 @@ use crate::{
     db::{self, AuctionRow},
     error::ApiError,
     lifecycle::{can_transition, Actor},
-    validate::AddressParams,
-    AppState,
+    validate, AppState,
 };
 
 #[derive(Debug, FromRow)]
@@ -494,7 +493,7 @@ pub async fn complete(
             PublicKeyPackage::deserialize(&reported).map_err(|e| ApiError::Internal(e.into()))?;
         let ak = frost_dkg::group_key_bytes(&pubkeys).map_err(|e| ApiError::Internal(e.into()))?;
         let fvk = address::escrow_fvk(&ak, &mut OsRng).map_err(|e| ApiError::Internal(e.into()))?;
-        let params = AddressParams::for_network(auction.network);
+        let params = validate::params_for(auction.network);
         let escrow_ua =
             address::escrow_address(&fvk, &params).map_err(|e| ApiError::Internal(e.into()))?;
         let (ufvk, _uivk) =
