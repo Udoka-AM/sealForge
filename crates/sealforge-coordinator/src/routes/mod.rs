@@ -18,6 +18,7 @@ use crate::AppState;
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
+        .route("/v1/chain", get(chain))
         .route("/readyz", get(readyz))
         .route("/v1/organisers", post(organisers::register))
         .route("/v1/organisers/me", get(organisers::me))
@@ -35,6 +36,10 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/auctions/{code}/cancel", post(auctions::cancel))
         .route("/v1/console/auctions", get(auctions::list_own))
         .route("/v1/console/auctions/{code}", get(auctions::get_own))
+        .route(
+            "/v1/console/auctions/{code}/batches",
+            get(batches::list_for_organiser),
+        )
         .route("/v1/trustees/join", post(dkg::join))
         .route("/v1/auctions/{code}/dkg", get(dkg::state))
         .route("/v1/auctions/{code}/dkg/round1", post(dkg::round1))
@@ -48,6 +53,12 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/batches/{id}/shares", post(batches::share))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+async fn chain(State(state): State<AppState>) -> Json<sealforge_api::types::ChainView> {
+    Json(sealforge_api::types::ChainView {
+        tip: state.chain_tip(),
+    })
 }
 
 async fn healthz() -> Json<Value> {

@@ -11,7 +11,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use sealforge_api::types::{BatchView, PostCommitments, PostShares, SpendAuthView};
+use sealforge_api::types::{BatchView, ConsoleBatch, PostCommitments, PostShares, SpendAuthView};
 use sealforge_escrow::frost::{round1::SigningCommitments, round2::SignatureShare};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -242,4 +242,62 @@ pub async fn share(
     tx.commit().await?;
     let row = load(&state, &id).await?;
     Ok(Json(view(&state, &row, trustee_id).await?))
+}
+
+#[derive(Debug, FromRow)]
+struct ConsoleBatchRow {
+    id: Uuid,
+    kind: String,
+    status: String,
+    output_count: Option<i32>,
+    total_out_zat: Option<i64>,
+    committed: i64,
+    signed: i64,
+    txid: Option<Vec<u8>>,
+    confirmed_height: Option<i32>,
+}
+
+/// `GET /v1/console/auctions/{code}/batches`: escrow transactions for the
+/// auction's organiser, oldest first. Status and totals only.
+pub async fn list_for_organiser(
+    State(state): State<AppState>,
+    Path(code): Path<String>,
+    req: Signed,
+) -> Result<Json<Vec<ConsoleBatch>>, ApiError> {
+    let auction_id: Uuid = sqlx::query_scalar(
+        "SELECT a.id FROM auctions a JOIN organisers o ON o.id = a.organiser_id WHERE a.code = $1 AND o.pubkey = $2",
+    )
+    .bind(&code)
+    .bind(&req.pubkey[..])
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(ApiError::NotFound)?;
+    let rows: Vec<ConsoleBatchRow> = sqlx::query_as(
+        "SELECT b.id, b.kind::text AS kind, b.status::text AS status, b.output_count, b.total_out_zat, \
+         (SELECT count(*) FROM signature_shares s WHERE s.batch_id = b.id AND s.commitments_json IS NOT NULL) AS committed, \
+         (SELECT count(*) FROM signature_shares s WHERE s.batch_id = b.id AND s.shares_json IS NOT NULL) AS signed, \
+         b.txid, b.confirmed_height FROM tx_batches b WHERE b.auction_id = $1 ORDER BY b.created_at",
+    )
+    .bind(auction_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| ConsoleBatch {
+                id: r.id.to_string(),
+                kind: r.kind,
+                status: r.status,
+                output_count: r.output_count.map(|c| c as u32),
+                total_out_zat: r.total_out_zat.map(|t| t as u64),
+                committed: r.committed as u16,
+                signed: r.signed as u16,
+                // Stored in internal byte order; wallets and explorers show it reversed.
+                txid: r.txid.map(|mut t| {
+                    t.reverse();
+                    hex::encode(t)
+                }),
+                confirmed_height: r.confirmed_height.map(|h| h as u32),
+            })
+            .collect(),
+    ))
 }

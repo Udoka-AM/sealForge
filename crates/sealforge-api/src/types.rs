@@ -292,6 +292,32 @@ pub struct BatchView {
     pub i_shared: bool,
 }
 
+/// `GET /v1/console/auctions/{code}/batches`: the organiser's view of escrow
+/// transactions. No signing material.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConsoleBatch {
+    pub id: String,
+    /// `refund` or `payout`
+    pub kind: String,
+    /// `building`, `awaiting_signatures`, `signed`, `broadcast`, `confirmed`, `failed`
+    pub status: String,
+    pub output_count: Option<u32>,
+    pub total_out_zat: Option<u64>,
+    /// Trustees who have committed (round 1) and signed (round 2).
+    pub committed: u16,
+    pub signed: u16,
+    /// Transaction id in the usual display order, once broadcast.
+    pub txid: Option<String>,
+    pub confirmed_height: Option<u32>,
+}
+
+/// `GET /v1/chain`: the coordinator's view of the chain.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ChainView {
+    /// `None` until the scanner has reached the lightwallet server.
+    pub tip: Option<u32>,
+}
+
 /// Round 1: one FROST signing commitment per spend, in `spends` order.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PostCommitments {

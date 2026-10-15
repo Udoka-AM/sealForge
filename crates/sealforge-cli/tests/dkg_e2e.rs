@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use pasta_curves::group::ff::{FromUniformBytes, PrimeField};
 use rand::{rngs::OsRng, RngCore};
-use sealforge_api::types::{AuctionStatus, DkgState, SpendAuthView};
+use sealforge_api::types::{AuctionStatus, ConsoleBatch, DkgState, SpendAuthView};
 use sealforge_cli::{
     client::Client,
     keystore::Keystore,
@@ -91,7 +91,7 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .unwrap()
         .signing_key()
         .unwrap();
-    let forged = Client::new(&url, Some(t1_key))
+    let forged = Client::new(&url, Some(t1_key.clone()))
         .post::<DkgState>(
             &format!("/v1/auctions/{code}/dkg/round1"),
             &serde_json::json!({ "payload": "00ff", "signature": hex::encode([0u8; 64]) }),
@@ -232,6 +232,29 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .await
         .unwrap();
     assert_eq!(status, "signed");
+
+    // The organiser sees the batch's progress, but no signing material.
+    let org_client = Client::new(&url, Some(org.organiser_key().unwrap()));
+    let console: Vec<ConsoleBatch> = org_client
+        .get(&format!("/v1/console/auctions/{code}/batches"))
+        .await
+        .unwrap();
+    assert_eq!(console.len(), 1);
+    assert_eq!(
+        (
+            console[0].status.as_str(),
+            console[0].committed,
+            console[0].signed
+        ),
+        ("signed", 3, 2)
+    );
+    assert!(
+        Client::new(&url, Some(t1_key.clone()))
+            .get::<Vec<ConsoleBatch>>(&format!("/v1/console/auctions/{code}/batches"))
+            .await
+            .is_err(),
+        "trustees can't use the organiser view"
+    );
 
     // The coordinator aggregates the posted shares into valid spend signatures.
     let rows: Vec<(i16, serde_json::Value, serde_json::Value)> = sqlx::query_as(

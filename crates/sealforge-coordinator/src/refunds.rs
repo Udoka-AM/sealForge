@@ -267,7 +267,7 @@ pub struct RefundProgress {
 pub async fn progress(state: &AppState, auction_id: Uuid) -> Result<RefundProgress, ApiError> {
     let row: (i64, i64, i64, i64) = sqlx::query_as(
         "SELECT count(*), count(*) FILTER (WHERE status = 'planned'), count(*) FILTER (WHERE status = 'batched'), \
-         count(*) FILTER (WHERE status IN ('broadcast', 'confirmed')) FROM refund_notes WHERE auction_id = $1",
+         count(*) FILTER (WHERE status IN ('broadcast', 'confirmed')) FROM refund_notes WHERE auction_id = $1 AND kind = 'refund'",
     )
     .bind(auction_id)
     .fetch_one(&state.db)
