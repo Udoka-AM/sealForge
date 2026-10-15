@@ -433,3 +433,42 @@ async fn open_auction_with_bids_cannot_be_cancelled(db: PgPool) {
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(body["code"], "has_bids");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn readiness_reports_chain_and_scanner_lag(db: PgPool) {
+    let api = Api::new(db.clone());
+    let get = || {
+        Request::builder()
+            .uri("/readyz")
+            .body(Body::empty())
+            .unwrap()
+    };
+
+    // No chain tip yet: the lightwallet server hasn't been reached.
+    let (status, body) = api.send(get()).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["chain_tip"], Value::Null);
+
+    api.state.set_chain_tip(1_000);
+    let (status, body) = api.send(get()).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["scanner_lag_blocks"], Value::Null, "no live escrows");
+
+    // A live escrow scanned to 990 trails by 10 blocks.
+    sqlx::query("INSERT INTO organisers (display_name, pubkey) VALUES ('Org', $1)")
+        .bind(&[7u8; 32][..])
+        .execute(&db)
+        .await
+        .unwrap();
+    sqlx::query(
+        "WITH a AS (INSERT INTO auctions (code, organiser_id, title, network, close_height, payout_ua, status) \
+         SELECT 'ABCDEFGH12', id, 'T', 'testnet', 2000, 'utest1x', 'open' FROM organisers RETURNING id) \
+         INSERT INTO scanner_state (auction_id, last_height, last_hash) SELECT id, 990, '\\x00' FROM a",
+    )
+    .execute(&db)
+    .await
+    .unwrap();
+    let (status, body) = api.send(get()).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["scanner_lag_blocks"], 10);
+}
