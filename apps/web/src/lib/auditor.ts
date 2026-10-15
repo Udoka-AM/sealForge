@@ -44,3 +44,16 @@ export async function checkReceipt(
     (await load()).check_receipt(JSON.stringify(result), JSON.stringify(receipt)),
   ) as ReceiptCheck;
 }
+
+/** Full audit from payments decoded from the chain (lib/scanner.ts). */
+export async function auditWithPayments(
+  result: PublishedResult,
+  payments: unknown[],
+): Promise<AuditReport> {
+  const mod = (await load()) as AuditorModule & {
+    audit_with_payments: (published: string, payments: string) => string;
+  };
+  return JSON.parse(
+    mod.audit_with_payments(JSON.stringify(result), JSON.stringify(payments)),
+  ) as AuditReport;
+}

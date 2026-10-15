@@ -28,16 +28,7 @@ use crate::{cache::MemBlockCache, ChainParams, Client};
 type Rng = UnwrapErr<SysRng>;
 pub(crate) type Db = WalletDb<rusqlite::Connection, ChainParams, SystemClock, Rng>;
 
-/// A payment received by the escrow, as the scanner and auditor see it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReceivedPayment {
-    pub txid: [u8; 32],
-    pub output_index: u32,
-    pub block_height: u32,
-    pub amount_zat: u64,
-    /// Text memo, if the payment carried one.
-    pub memo: Option<String>,
-}
+pub use sealforge_scan::ReceivedPayment;
 
 pub struct EscrowWallet {
     db: Db,

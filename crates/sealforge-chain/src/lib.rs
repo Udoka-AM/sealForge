@@ -9,12 +9,11 @@ pub mod audit;
 pub mod cache;
 #[cfg(feature = "dev-wallet")]
 pub mod dev;
-pub mod params;
 pub mod spend;
 pub mod wallet;
 
-pub use params::ChainParams;
-pub use wallet::{EscrowWallet, ReceivedPayment};
+pub use sealforge_scan::{ChainParams, ReceivedPayment};
+pub use wallet::EscrowWallet;
 
 use zcash_client_backend::proto::service::compact_tx_streamer_client::CompactTxStreamerClient;
 

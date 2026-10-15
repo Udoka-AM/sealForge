@@ -55,60 +55,7 @@ export function AuditRunner({ result }: { result: PublishedResult }) {
         ) : null}
         {report ? (
           <>
-            <p
-              className={`inline-flex items-center gap-2 font-semibold ${report.matches ? "text-success" : "text-danger"}`}
-            >
-              {report.matches ? (
-                <CircleCheck size={20} aria-hidden="true" />
-              ) : (
-                <CircleAlert size={20} aria-hidden="true" />
-              )}
-              {report.matches
-                ? "Every published figure matches"
-                : "Mismatch: the published result doesn't add up"}
-            </p>
-            <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-surface-2 text-muted">
-                  <tr>
-                    <th scope="col" className="px-4 py-2 font-medium">
-                      Field
-                    </th>
-                    <th scope="col" className="px-4 py-2 font-medium">
-                      Published
-                    </th>
-                    <th scope="col" className="px-4 py-2 font-medium">
-                      Recomputed
-                    </th>
-                    <th scope="col" className="px-4 py-2 font-medium">
-                      <span className="sr-only">Match</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {report.fields.map((f) => (
-                    <tr key={f.field}>
-                      <th scope="row" className="px-4 py-2 font-normal">
-                        {FIELD_LABEL[f.field] ?? f.field}
-                      </th>
-                      <td className="num max-w-[200px] truncate px-4 py-2" title={f.published}>
-                        {f.published}
-                      </td>
-                      <td className="num max-w-[200px] truncate px-4 py-2" title={f.recomputed}>
-                        {f.recomputed}
-                      </td>
-                      <td className="px-4 py-2">
-                        {f.ok ? (
-                          <CircleCheck size={16} className="text-success" aria-label="matches" />
-                        ) : (
-                          <CircleAlert size={16} className="text-danger" aria-label="differs" />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ReportView report={report} />
             {build ? (
               <p className="text-[13px] text-muted">
                 sealforge-auditor {build.version} (WebAssembly)
@@ -123,5 +70,66 @@ export function AuditRunner({ result }: { result: PublishedResult }) {
         ) : null}
       </div>
     </div>
+  );
+}
+
+export function ReportView({ report }: { report: AuditReport }) {
+  return (
+    <>
+      <p
+        className={`inline-flex items-center gap-2 font-semibold ${report.matches ? "text-success" : "text-danger"}`}
+      >
+        {report.matches ? (
+          <CircleCheck size={20} aria-hidden="true" />
+        ) : (
+          <CircleAlert size={20} aria-hidden="true" />
+        )}
+        {report.matches
+          ? "Every published figure matches"
+          : "Mismatch: the published result doesn't add up"}
+      </p>
+      <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-surface-2 text-muted">
+            <tr>
+              <th scope="col" className="px-4 py-2 font-medium">
+                Field
+              </th>
+              <th scope="col" className="px-4 py-2 font-medium">
+                Published
+              </th>
+              <th scope="col" className="px-4 py-2 font-medium">
+                Recomputed
+              </th>
+              <th scope="col" className="px-4 py-2 font-medium">
+                <span className="sr-only">Match</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {report.fields.map((f) => (
+              <tr key={f.field}>
+                <th scope="row" className="px-4 py-2 font-normal">
+                  {FIELD_LABEL[f.field] ?? f.field}
+                </th>
+                <td className="num max-w-[200px] truncate px-4 py-2" title={f.published}>
+                  {f.published}
+                </td>
+                <td className="num max-w-[200px] truncate px-4 py-2" title={f.recomputed}>
+                  {f.recomputed}
+                </td>
+                <td className="px-4 py-2">
+                  {f.ok ? (
+                    <CircleCheck size={16} className="text-success" aria-label="matches" />
+                  ) : (
+                    <CircleAlert size={16} className="text-danger" aria-label="differs" />
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
