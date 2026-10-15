@@ -98,9 +98,15 @@ impl DevWallet {
                     .ok()
                     .flatten()
                     .and_then(|a| a.ufvk().cloned())
+                    // Match on the Orchard key: the full UFVK also carries a transparent
+                    // part that depends on which features the wallet was created with.
                     .is_some_and(|ufvk| {
-                        ufvk.encode(&self.params)
-                            == self.usk.to_unified_full_viewing_key().encode(&self.params)
+                        ufvk.orchard().map(|k| k.to_bytes())
+                            == self
+                                .usk
+                                .to_unified_full_viewing_key()
+                                .orchard()
+                                .map(|k| k.to_bytes())
                     })
             })
             .ok_or_else(|| anyhow!("dev account not found"))

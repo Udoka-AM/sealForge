@@ -4,6 +4,7 @@
 //!   regtest_bid address <dev.sqlite> <birthday>      print the dev wallet's UA (mine to it)
 //!   regtest_bid bid <dev.sqlite> <escrow-ua> <escrow-ufvk> <escrow.sqlite> <auction-code> <zat> [salt-byte]
 //!   (prints the bid receipt JSON, as the web app would save it)
+//!   regtest_bid send <dev.sqlite> <to-ua> <zat> <memo>   any payment, e.g. a fee buffer (`SF1FEE:<code>`)
 
 use sealforge_chain::{connect, dev::DevWallet, ChainParams, EscrowWallet};
 use sealforge_core::{memo::BidMemo, receipt::commitment};
@@ -50,6 +51,15 @@ async fn main() -> anyhow::Result<()> {
             // The caller mines a block, then re-runs `scan`.
             let _ = (escrow_ufvk, escrow_path);
         }
+        Some("send") => {
+            let (dev_path, to, memo) = (&args[2], &args[3], &args[5]);
+            let amount: u64 = args[4].parse()?;
+            let mut dev =
+                DevWallet::open_or_create(dev_path.as_ref(), params, SEED, 1, &mut client).await?;
+            dev.sync(&mut client).await?;
+            let txid = dev.send(&mut client, to, amount, Some(memo)).await?;
+            println!("sent: {txid}");
+        }
         Some("scan") => {
             let (escrow_ufvk, escrow_path) = (&args[2], std::path::PathBuf::from(&args[3]));
             let mut escrow = if escrow_path.exists() {
@@ -69,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
         }
-        _ => anyhow::bail!("usage: regtest_bid address|bid|scan ..."),
+        _ => anyhow::bail!("usage: regtest_bid address|bid|send|scan ..."),
     }
     Ok(())
 }

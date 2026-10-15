@@ -51,7 +51,7 @@ export function TrusteeSigning({ code }: { code: string }) {
       setError(e instanceof Error ? e.message : "Couldn't load batches.");
     }
   }, [code, signer]);
-  usePolling(load, 5_000, signer !== null);
+  usePolling(load, 5_000, signer !== null, true);
 
   // Round 2 runs on its own once this trustee approved and was chosen.
   useEffect(() => {

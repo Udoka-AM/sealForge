@@ -52,3 +52,27 @@ The same auction, continued with `sealforge trustee sign` on each trustee's keys
 Escrow arithmetic: 1.75 ZEC in, 1.15 ZEC refunded, 0.00035 ZEC refund fee (ZIP-317, 7 logical actions), 0.59955 ZEC payout, 0.0001 ZEC payout fee. Winners paid 0.6 ZEC, so the organiser bore 0.00045 ZEC of fees. There was no refund dust in this run.
 
 Caveat: all four test bids used the dev wallet's single refund address, so this run shows the mechanics, not unlinkability. The browser bid flow uses a fresh refund address per bid, and the linkability harness measures mixing (`docs/evidence/linkability.md`).
+
+## The whole lifecycle from the console (task 3.10)
+
+A second auction, `NKZNE8FM69`, run from the browser console against the same local chain. The coordinator ran with `SF_REFUND_DELAY_SECS=20,90` (regtest only) so refunds didn't wait hours.
+
+| Step | Where | Result |
+|---|---|---|
+| Load key | `/console`: `organiser.key` loaded as a non-extractable WebCrypto key | Signed requests accepted through the same-origin proxy |
+| Create | `/console/new`: 2 lots, uniform price, reserve 0.01 ZEC, 3-hour window | Draft created, close height 631 computed from the tip (439), three one-time invites shown |
+| DKG | Three CLI trustees, run **in parallel** | Exposed a deadlock in `dkg/complete` (fixed: DKG writes lock the auction row first). Resumed and completed, same fingerprint everywhere |
+| Open | `/console/NKZNE8FM69`: **Open for bids**, then confirm | `open` |
+| Fee buffer | Memo `SF1FEE:NKZNE8FM69`, 0.001 ZEC | Recorded as `fee_buffer`, not a bid |
+| Bids | 0.30, 0.12, 0.05, 0.02 ZEC at heights 446–449 | 4 valid bids |
+| Close | Mined to 644 | Closed automatically |
+| Publish | Console: **Publish result**, then confirm | Price 0.12 ZEC, 2 winners. Refunds planned |
+| Refund | 6 notes from 3 bidders, 0.25 ZEC. Trustee 2 signed **in the browser** (`/trustee/NKZNE8FM69`, FROST in WebAssembly), trustee 3 with the CLI. Both showed sighash `d9c16125…` | Confirmed at **645** |
+| Payout | 0.24045 ZEC = 0.24 proceeds + 0.001 buffer − 0.00055 fees. Trustee 2 in the browser, trustee 1 with the CLI | Confirmed at **646**, auction `settled` |
+
+The console's detail page then showed 6 of 6 notes sent, the refund transaction at block 645 ("2 of 2 signed"), and "Paid 0.24045 ZEC at block 646" with both txids.
+
+Found and fixed along the way:
+- The DKG deadlock above, now covered by a concurrent e2e test that fails 5 out of 5 runs without the fix.
+- The trustee page paused polling in a hidden tab, so round 2 waited until the tab was visible again. It now polls in the background.
+- Dev wallets created before `transparent-inputs` was enabled weren't recognised. They're now matched by their Orchard key.

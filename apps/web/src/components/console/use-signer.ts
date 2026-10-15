@@ -30,14 +30,23 @@ export function useSigner(role: Role) {
   return { state, reload, forget };
 }
 
-/** Poll `load` every `ms` while the tab is visible. */
-export function usePolling(load: () => Promise<void>, ms: number, enabled = true) {
+/**
+ * Poll `load` every `ms`. By default only while the tab is visible; pass
+ * `background` to keep going in a hidden tab (trustee signing must finish
+ * even if the trustee switches tabs while waiting for a second signer).
+ */
+export function usePolling(
+  load: () => Promise<void>,
+  ms: number,
+  enabled = true,
+  background = false,
+) {
   useEffect(() => {
     if (!enabled) return;
     load();
     const id = setInterval(() => {
-      if (document.visibilityState === "visible") load();
+      if (background || document.visibilityState === "visible") load();
     }, ms);
     return () => clearInterval(id);
-  }, [load, ms, enabled]);
+  }, [load, ms, enabled, background]);
 }
