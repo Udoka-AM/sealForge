@@ -259,3 +259,47 @@ pub struct PublishedResult {
     pub merkle_root: String,
     pub bids: Vec<ResultBid>,
 }
+
+// ---------------------------------------------------------------------------
+// Batch signing (task 3.9). Binary values are hex.
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpendAuthView {
+    pub action_index: u32,
+    /// Spend authorization randomizer the signature must use.
+    pub alpha: String,
+}
+
+/// An escrow transaction awaiting 2-of-3 trustee signatures.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BatchView {
+    pub id: String,
+    pub auction_code: String,
+    /// `refund` or `payout`
+    pub kind: String,
+    /// `awaiting_signatures`, `signed`, `broadcast`, `confirmed`
+    pub status: String,
+    pub sighash: String,
+    pub spends: Vec<SpendAuthView>,
+    /// Shown to trustees before they sign.
+    pub total_out_zat: u64,
+    pub output_count: u32,
+    /// The two trustees whose commitments were accepted (empty until two commit).
+    pub signer_slots: Vec<u16>,
+    /// Round 1 commitments of the chosen signers, per slot, one per spend.
+    pub signer_commitments: std::collections::BTreeMap<u16, Vec<String>>,
+    pub i_committed: bool,
+    pub i_shared: bool,
+}
+
+/// Round 1: one FROST signing commitment per spend, in `spends` order.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PostCommitments {
+    pub commitments: Vec<String>,
+}
+
+/// Round 2: one FROST signature share per spend, in `spends` order.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PostShares {
+    pub shares: Vec<String>,
+}
