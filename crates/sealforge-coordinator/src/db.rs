@@ -99,6 +99,13 @@ pub async fn auction_view(
     .bind(row.id)
     .fetch_all(db)
     .await?;
+    let bids: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM bids WHERE auction_id = $1 AND invalid_reason IS DISTINCT FROM 'fee_buffer'",
+    )
+    .bind(row.id)
+    .fetch_one(db)
+    .await?;
+    let bids = bids as u32;
     Ok(AuctionView {
         code: row.code.clone(),
         title: row.title.clone(),
@@ -121,6 +128,7 @@ pub async fn auction_view(
                 dkg_status: t.dkg_status,
             })
             .collect(),
+        bid_count: (owner || bids >= sealforge_api::types::MIN_PUBLIC_BID_COUNT).then_some(bids),
         owner: owner.then(|| OwnerFields {
             payout_ua: row.payout_ua.clone(),
             fee_buffer_zat: row.fee_buffer_zat as u64,

@@ -65,11 +65,44 @@ async fn healthz() -> Json<Value> {
     Json(json!({ "status": "ok", "version": env!("CARGO_PKG_VERSION") }))
 }
 
-async fn readyz(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
-    sqlx::query("SELECT 1")
-        .execute(&state.db)
+/// Readiness for the uptime monitor: database, lightwallet server (the
+/// scanner's tip), scanner lag on live escrows, and failed escrow batches.
+/// 503 when anything needs attention; the body says what.
+async fn readyz(State(state): State<AppState>) -> (StatusCode, Json<Value>) {
+    let db_ok = sqlx::query("SELECT 1").execute(&state.db).await.is_ok();
+    let tip = state.chain_tip();
+    let (lowest_scanned, failed): (Option<i32>, i64) = if db_ok {
+        sqlx::query_as(
+            "SELECT (SELECT min(s.last_height) FROM scanner_state s JOIN auctions a ON a.id = s.auction_id \
+                     WHERE a.status IN ('ready', 'open', 'closed', 'published', 'refunding')), \
+                    (SELECT count(*) FROM tx_batches WHERE status = 'failed')",
+        )
+        .fetch_one(&state.db)
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    // TODO(2.5): include Zaino reachability and scanner lag.
-    Ok(Json(json!({ "db": "ok", "chain_tip": state.chain_tip() })))
+        .unwrap_or((None, 0))
+    } else {
+        (None, 0)
+    };
+    let lag = match (tip, lowest_scanned) {
+        (Some(t), Some(h)) => Some(t.saturating_sub(h.max(0) as u32)),
+        _ => None,
+    };
+    let ok = db_ok && tip.is_some() && lag.is_none_or(|l| l <= MAX_SCANNER_LAG) && failed == 0;
+    let status = if ok {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    (
+        status,
+        Json(json!({
+            "db": if db_ok { "ok" } else { "down" },
+            "chain_tip": tip,
+            "scanner_lag_blocks": lag,
+            "failed_batches": failed,
+        })),
+    )
 }
+
+/// Blocks a live escrow's scan may trail the tip before readiness fails.
+const MAX_SCANNER_LAG: u32 = 4;

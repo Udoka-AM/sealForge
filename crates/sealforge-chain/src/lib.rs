@@ -5,6 +5,7 @@
 //! server (Zaino). The same wallet later provides note witnesses and PCZTs for
 //! refunds (task 3.9).
 
+pub mod audit;
 pub mod cache;
 #[cfg(feature = "dev-wallet")]
 pub mod dev;

@@ -108,9 +108,16 @@ pub struct AuctionView {
     pub status: AuctionStatus,
     pub escrow_ua: Option<String>,
     pub trustees: Vec<TrusteeView>,
+    /// Payments to the escrow so far. Hidden below [`MIN_PUBLIC_BID_COUNT`] so
+    /// early activity doesn't leak; the owner always sees it.
+    #[serde(default)]
+    pub bid_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner: Option<OwnerFields>,
 }
+
+/// The public bid count appears only from this many bids (docs/03-APP-FLOW.md §3.7).
+pub const MIN_PUBLIC_BID_COUNT: u32 = 5;
 
 /// One-time trustee invite, returned only in the create response.
 #[derive(Clone, Debug, Serialize, Deserialize)]

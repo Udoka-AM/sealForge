@@ -141,14 +141,14 @@ No analytics or third-party trackers ship in the bid or ShieldRamp flows. Server
 | Metric | Target |
 |---|---|
 | Coordinator API latency | p95 < 300 ms for reads, < 800 ms for writes |
-| Bid detection lag | ≤ 2 blocks after confirmation (~50 s at NU7's 25 s blocks) |
+| Bid detection lag | ≤ 2 blocks after confirmation (~2.5 min at 75 s blocks) |
 | Auditor rescan (browser, WASM) | < 60 s for a 3,500-block range (one day) on a mid-range laptop |
 | Auditor rescan (CLI) | < 15 s for the same range |
 | Clearing computation | < 1 s for 20,000 bids |
 | Page load (auction page) | LCP < 2.0 s on 4G, JS < 200 KB gzipped excluding WebZjs/WASM (lazy-loaded) |
 | Uptime during a live auction | 99.5% for coordinator + scanner. Bids are never lost during downtime, because the scanner resumes from `scanner_state.last_height` |
-| Backups | Postgres `pg_dump` nightly + WAL archiving to Hetzner Storage Box, 14-day retention. Restore drill once before the mainnet auction |
-| Recovery | RTO 2 h, RPO 15 min. Chain state can be rebuilt from Zebra. Auction state can be rebuilt from the chain via the IVK (the auditor path) |
+| Backups | Postgres `pg_dump` nightly to a Hetzner Storage Box, age-encrypted, 14-day retention (`scripts/backup.sh`). `SF_DATA_KEY` held offline. Restore drill before the mainnet auction (`scripts/restore-drill.sh`) |
+| Recovery | RTO 2 h, RPO 24 h for the database. Funds don't depend on newer rows: payments are rescanned from the chain, and unconfirmed batches are re-signed. Escrow UFVKs exist only in the database, so the backup plus `SF_DATA_KEY` are what keep escrows spendable |
 
 ## 2.9 Environments and delivery
 

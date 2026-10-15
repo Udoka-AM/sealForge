@@ -54,7 +54,9 @@ Each trustee ends with a key share on their own disk and a fingerprint like `f69
 ./target/release/sealforge auction open <AUCTION_CODE>
 ```
 
-The close height must be at least 144 blocks (about 1 hour) after the current height. Bidders now use the web app (`pnpm dev`, then open `/a/<AUCTION_CODE>`).
+The close height must be at least 144 blocks (about 3 hours at 75 s blocks) after the current height. Bidders now use the web app (`pnpm dev`, then open `/a/<AUCTION_CODE>`).
+
+Optional: `sealforge auction fund-fees <AUCTION_CODE>` prints a payment request for a small fee buffer. Fees are otherwise paid out of the escrow and reduce your payout. The buffer only matters if the auction might end with no winners.
 
 ## 6. After close
 
@@ -64,7 +66,23 @@ The coordinator closes the auction automatically once the chain is 10 blocks pas
 ./target/release/sealforge auction publish <AUCTION_CODE>
 ```
 
-Anyone can now audit at `/audit/<AUCTION_CODE>`, and bidders can check their receipts at `/verify`. Refunds are planned automatically. Trustees co-sign refund batches with `sealforge trustee sign` once on-chain signing lands (task 3.9).
+Anyone can now audit at `/audit/<AUCTION_CODE>`, or independently from the chain:
+
+```bash
+sealforge-audit --published <coordinator>/v1/auctions/<AUCTION_CODE>/result --endpoint <lightwalletd URL>
+```
+
+Bidders check their receipts at `/verify`. Refunds go out in batches after random delays, and each batch needs two trustees:
+
+```bash
+sealforge trustee sign <AUCTION_CODE> --wait     # or the browser page /trustee/<AUCTION_CODE>
+```
+
+After the last refund confirms, the rest of the escrow (winners' payments, minus fees) is paid to your payout address with the same 2-of-3 flow, and the auction is `settled`.
+
+## Or use the browser console
+
+Everything above except the trustees' key generation can be done at `/console`: load `~/.sealforge/organiser.key`, create the auction, open it, publish it, and follow refunds and the payout.
 
 ## Try it without a node
 

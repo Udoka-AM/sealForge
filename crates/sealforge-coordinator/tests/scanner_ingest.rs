@@ -30,11 +30,18 @@ fn payment(tx: u8, memo: Option<String>) -> ReceivedPayment {
     }
 }
 
+/// A real regtest Unified Address with an Orchard receiver.
+const REFUND_UA: &str = "uregtest1vx67p0383w4xq367fpfdpcztgll39hxyp3rmk67ggkhfldza0pqzmfscrddtnfccq20qu8x3pgrcjxd3n3gvx3smepwhy8prhcvpwq4y";
+
 fn bid_memo(code: &str) -> String {
+    memo_with_refund(code, REFUND_UA)
+}
+
+fn memo_with_refund(code: &str, refund_ua: &str) -> String {
     BidMemo {
         auction_code: code.into(),
-        commitment: commitment(code, "uregtest1refund", &[1; 32]),
-        refund_ua: "uregtest1refund".into(),
+        commitment: commitment(code, refund_ua, &[1; 32]),
+        refund_ua: refund_ua.into(),
     }
     .encode()
     .unwrap()
@@ -96,17 +103,66 @@ async fn records_payments_with_memo_level_checks(db: PgPool) {
     assert_eq!(
         summary,
         vec![
-            (1, "valid", None, true, Some("uregtest1refund")),
-            (
-                2,
-                "invalid",
-                Some("wrong_auction"),
-                true,
-                Some("uregtest1refund")
-            ),
+            (1, "valid", None, true, Some(REFUND_UA)),
+            (2, "invalid", Some("wrong_auction"), true, Some(REFUND_UA)),
             (3, "invalid", Some("bad_memo"), false, None),
             (4, "invalid", Some("bad_memo"), false, None),
         ]
+    );
+
+    // Refund addresses that can't be paid privately aren't stored: those bids go to
+    // manual review instead of breaking a refund batch.
+    let unusable = [
+        payment(7, Some(memo_with_refund(CODE, "uregtest1refund"))),
+        payment(8, Some(memo_with_refund(CODE, "tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd"))),
+        payment(
+            9,
+            Some(memo_with_refund(
+                CODE,
+                "utest10wa7f6qs6jevt8pl9vezqtrnm9qdkcccdyjtsam4sqgyq4mwvnvxaen2nnsd0yu47qh6a6s0payftzz4h86c6caev4qguam3huf3z7yu",
+            )),
+        ),
+    ];
+    assert_eq!(
+        scanner::ingest(&state, &auction, &unusable).await.unwrap(),
+        3
+    );
+    let stored: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM bids WHERE txid = ANY($1) AND status = 'valid' AND refund_ua_enc IS NULL",
+    )
+    .bind(unusable.iter().map(|p| p.txid.to_vec()).collect::<Vec<_>>())
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(stored, 3, "valid bids, no refund address");
+
+    // The public bid count appears only from 5 bids; the owner always sees it.
+    let auction = db::auction_by_code(&db, CODE).await.unwrap().unwrap();
+    assert_eq!(
+        db::auction_view(&db, &auction, false)
+            .await
+            .unwrap()
+            .bid_count,
+        Some(7)
+    );
+    sqlx::query("DELETE FROM bids WHERE txid = ANY($1)")
+        .bind(unusable.iter().map(|p| p.txid.to_vec()).collect::<Vec<_>>())
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        db::auction_view(&db, &auction, false)
+            .await
+            .unwrap()
+            .bid_count,
+        None
+    );
+    assert_eq!(
+        db::auction_view(&db, &auction, true)
+            .await
+            .unwrap()
+            .bid_count,
+        Some(4)
     );
 
     // After close the result is fixed: a new payment is late and refunded in full.

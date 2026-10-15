@@ -24,6 +24,7 @@ authors = ["Udoka-AM"]
 sealforge-core = { path = "crates/sealforge-core" }
 sealforge-escrow = { path = "crates/sealforge-escrow", default-features = false }
 sealforge-auditor = { path = "crates/sealforge-auditor" }
+sealforge-chain = { path = "crates/sealforge-chain" }
 sealforge-api = { path = "crates/sealforge-api" }
 
 anyhow = "1"
