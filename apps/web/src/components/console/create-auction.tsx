@@ -36,7 +36,6 @@ export function CreateAuctionForm({ defaultNetwork }: { defaultNetwork: Network 
   const [mode, setMode] = useState<AuctionMode>("uniform_price");
   const [sealed, setSealed] = useState(false);
   const [revealHours, setRevealHours] = useState("6");
-  const [revealHours, setRevealHours] = useState("6");
   const [hours, setHours] = useState("24");
   const [manualClose, setManualClose] = useState("");
   const [trustees, setTrustees] = useState(DEFAULT_TRUSTEES);

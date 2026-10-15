@@ -101,12 +101,7 @@ export function verifyReceipt(receipt: Receipt): boolean {
     const expected =
       receipt.price_zat === undefined
         ? bidCommitment(receipt.auction_code, receipt.refund_ua, salt)
-        : priceCommitment(
-            receipt.auction_code,
-            receipt.refund_ua,
-            BigInt(receipt.price_zat),
-            salt,
-          );
+        : priceCommitment(receipt.auction_code, receipt.refund_ua, BigInt(receipt.price_zat), salt);
     return bytesToHex(expected) === receipt.commitment;
   } catch {
     return false;
