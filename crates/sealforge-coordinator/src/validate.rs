@@ -30,9 +30,11 @@ fn network_type(network: Network) -> NetworkType {
 /// A Unified Address for `network` with at least one shielded receiver.
 pub fn shielded_ua(value: &str, network: Network) -> Result<(), ApiError> {
     match Address::decode(&params_for(network), value) {
-        Some(Address::Unified(ua)) if ua.has_orchard() || ua.has_sapling() => Ok(()),
+        // Escrow funds live in the Ironwood pool, which uses Orchard receivers. Paying a
+        // Sapling-only address would cross pools and reveal the amount on chain.
+        Some(Address::Unified(ua)) if ua.has_orchard() => Ok(()),
         Some(Address::Unified(_)) => Err(ApiError::Validation(
-            "address has no shielded receiver".into(),
+            "address needs an Orchard receiver (Ironwood uses Orchard receivers)".into(),
         )),
         Some(_) => Err(ApiError::Validation(
             "a Unified Address is required (transparent and legacy addresses are not accepted)"

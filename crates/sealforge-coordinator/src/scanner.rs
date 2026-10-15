@@ -104,6 +104,16 @@ pub async fn ingest(
             ),
             _ => ("invalid", Some("bad_memo"), None, None),
         };
+        // A refund address that can't be paid privately (wrong network, transparent,
+        // no Orchard receiver) is not stored: the bid still counts, but its refund goes
+        // to manual review instead of breaking every batch it would join.
+        let refund_ua = refund_ua.filter(|ua| {
+            let ok = crate::validate::shielded_ua(ua, auction.network).is_ok();
+            if !ok {
+                tracing::warn!(code = %auction.code, "bid refund address unusable; manual review");
+            }
+            ok
+        });
         // Once the result is computed (at close), anything new is late and refunded in full.
         let after_close = matches!(
             auction.status,

@@ -57,5 +57,8 @@ fn main() {
         assert_eq!(result.clearing.winner_count, 1_000);
         best = best.min(secs);
     }
-    println!("{N} bids: selection + clearing + Merkle root in {:.1} ms (best of 5)", best * 1e3);
+    println!(
+        "{N} bids: selection + clearing + Merkle root in {:.1} ms (best of 5)",
+        best * 1e3
+    );
 }
