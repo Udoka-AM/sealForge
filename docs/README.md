@@ -9,4 +9,8 @@
 | [04-UI-UX-BRIEF.md](04-UI-UX-BRIEF.md) | Visual direction: tone, palette, type, components, layout, accessibility |
 | [05-BACKEND-SCHEMA.md](05-BACKEND-SCHEMA.md) | Tables, relationships, auth flow, authorization, validation, retention, migrations |
 | [06-IMPLEMENTATION-PLAN.md](06-IMPLEMENTATION-PLAN.md) | Ordered milestones and tasks with owners, outputs and definitions of done |
-| [VERSIONS.md](VERSIONS.md) | Pinned dependency versions (filled in task 1.2) |
+| [VERSIONS.md](VERSIONS.md) | Pinned dependency versions |
+| [THREAT-MODEL.md](THREAT-MODEL.md) | Adversaries, protections, where each is enforced, known limits |
+| [QUICKSTART.md](QUICKSTART.md) | Run your own auction, from clone to open |
+| [evidence/linkability.md](evidence/linkability.md) | Measured refund privacy (0.1% vs 100% naive) |
+| [spikes/frost-pczt.md](spikes/frost-pczt.md) | FROST 2-of-3 escrow spike results |
