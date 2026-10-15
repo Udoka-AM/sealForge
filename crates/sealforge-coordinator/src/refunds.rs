@@ -19,7 +19,7 @@ use chrono::{DateTime, Utc};
 use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
 use sealforge_api::types::AuctionStatus;
 use sealforge_core::{
-    refunds::{batch_due_notes, plan_refund, DueNote, RefundPolicy},
+    refunds::{batch_due_notes, plan_refund, ready_to_batch, DueNote, RefundPolicy},
     Zatoshi,
 };
 use serde::Serialize;
@@ -105,11 +105,55 @@ pub async fn plan_published(
     Ok(planned)
 }
 
+/// Plan refunds for payments that reached the escrow after the result was
+/// computed (late bids). They are refunded in full, with the same delays.
+/// Returns the number of notes planned.
+pub async fn plan_late(state: &AppState, policy: &RefundPolicy) -> Result<usize, ApiError> {
+    let mut tx = state.db.begin().await?;
+    let bids: Vec<(Uuid, Uuid, i64)> = sqlx::query_as(
+        "SELECT b.id, b.auction_id, b.refund_due_zat FROM bids b JOIN auctions a ON a.id = b.auction_id \
+         WHERE a.status = 'refunding' AND b.refund_due_zat >= 10000 AND b.refund_ua_enc IS NOT NULL \
+         AND NOT EXISTS (SELECT 1 FROM refund_notes n WHERE n.bid_id = b.id) FOR UPDATE OF b SKIP LOCKED",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    let now = Utc::now();
+    let mut random = || OsRng.next_u64();
+    let mut notes = 0;
+    for (bid_id, auction_id, due) in &bids {
+        for note in plan_refund(Zatoshi(*due as u64), policy, &mut random) {
+            sqlx::query(
+                "INSERT INTO refund_notes (auction_id, bid_id, kind, denomination_zat, not_before) \
+                 VALUES ($1, $2, 'refund', $3, $4)",
+            )
+            .bind(auction_id)
+            .bind(bid_id)
+            .bind(note.value.0 as i64)
+            .bind(now + Duration::from_secs(note.delay_secs))
+            .execute(&mut *tx)
+            .await?;
+            notes += 1;
+        }
+        db::audit(
+            &mut *tx,
+            Some(*auction_id),
+            "system",
+            None,
+            "refunds.planned_late",
+            json!({ "bids": 1 }),
+        )
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(notes)
+}
+
 #[derive(Debug, FromRow)]
 struct DueRow {
     id: Uuid,
     auction_id: Uuid,
     bid_id: Option<Uuid>,
+    not_before: DateTime<Utc>,
 }
 
 /// Group notes that are due at `now` into refund batches. Returns batches created.
@@ -120,7 +164,7 @@ pub async fn batch_due(
 ) -> Result<usize, ApiError> {
     let mut tx = state.db.begin().await?;
     let mut due: Vec<DueRow> = sqlx::query_as(
-        "SELECT id, auction_id, bid_id FROM refund_notes \
+        "SELECT id, auction_id, bid_id, not_before FROM refund_notes \
          WHERE status = 'planned' AND kind = 'refund' AND not_before <= $1 FOR UPDATE SKIP LOCKED",
     )
     .bind(now)
@@ -134,9 +178,31 @@ pub async fn batch_due(
     auctions.sort();
     auctions.dedup();
     for auction_id in auctions {
-        let notes: Vec<DueNote<Uuid>> = due
+        let auction_due: Vec<&DueRow> = due.iter().filter(|d| d.auction_id == auction_id).collect();
+        let mut owners: Vec<Uuid> = auction_due
             .iter()
-            .filter(|d| d.auction_id == auction_id)
+            .map(|d| d.bid_id.unwrap_or(d.id))
+            .collect();
+        owners.sort();
+        owners.dedup();
+        let oldest = auction_due
+            .iter()
+            .map(|d| d.not_before)
+            .min()
+            .unwrap_or(now);
+        let not_yet_due: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM refund_notes WHERE auction_id = $1 AND status = 'planned' AND kind = 'refund' AND not_before > $2",
+        )
+        .bind(auction_id)
+        .bind(now)
+        .fetch_one(&mut *tx)
+        .await?;
+        let waited = (now - oldest).num_seconds().max(0) as u64;
+        if !ready_to_batch(owners.len(), waited, not_yet_due as usize, policy) {
+            continue; // hold so more bidders' notes can share the transaction
+        }
+        let notes: Vec<DueNote<Uuid>> = auction_due
+            .iter()
             .map(|d| DueNote {
                 id: d.id,
                 owner: d.bid_id.unwrap_or(d.id),
@@ -177,6 +243,9 @@ pub async fn run(state: AppState, paused: bool) {
         tick.tick().await;
         if let Err(err) = plan_published(&state, &policy).await {
             tracing::warn!(error = %err, "refund planning failed");
+        }
+        if let Err(err) = plan_late(&state, &policy).await {
+            tracing::warn!(error = %err, "late refund planning failed");
         }
         if let Err(err) = batch_due(&state, &policy, Utc::now()).await {
             tracing::warn!(error = %err, "refund batching failed");

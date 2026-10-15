@@ -76,11 +76,22 @@ pub async fn ingest(
             ),
             _ => ("invalid", Some("bad_memo"), None, None),
         };
+        // Once the result is computed (at close), anything new is late and refunded in full.
+        let after_close = matches!(
+            auction.status,
+            AuctionStatus::Closed | AuctionStatus::Published | AuctionStatus::Refunding
+        );
+        let (status, refund_due) = match (after_close, status) {
+            (true, "valid") => ("late", Some(p.amount_zat as i64)),
+            (true, s) => (s, Some(p.amount_zat as i64)),
+            (false, s) => (s, None),
+        };
         let rows = sqlx::query(
             "INSERT INTO bids (auction_id, txid, output_index, pool, block_height, block_time, amount_zat, \
-             memo_version, commitment, refund_ua_enc, status, invalid_reason) \
+             memo_version, commitment, refund_ua_enc, status, invalid_reason, refund_due_zat, is_winner) \
              VALUES ($1, $2, $3, 'ironwood', $4, now(), $5, $6, $7, \
-                     CASE WHEN $8::text IS NULL THEN NULL ELSE pgp_sym_encrypt($8, $9) END, $10::bid_status, $11) \
+                     CASE WHEN $8::text IS NULL THEN NULL ELSE pgp_sym_encrypt($8, $9) END, $10::bid_status, $11, \
+                     $12, CASE WHEN $12::bigint IS NULL THEN NULL ELSE false END) \
              ON CONFLICT (txid, output_index) DO NOTHING",
         )
         .bind(auction.id)
@@ -94,6 +105,7 @@ pub async fn ingest(
         .bind(&data_key)
         .bind(status)
         .bind(reason)
+        .bind(refund_due)
         .execute(&state.db)
         .await?
         .rows_affected();
@@ -431,7 +443,14 @@ pub async fn run(state: AppState, zaino_url: String, network: Network, wallet_di
         }
         let auctions = match db::auctions_where_status(
             &state.db,
-            &[AuctionStatus::Ready, AuctionStatus::Open],
+            // Keep syncing after close: refunds and the payout are spent from the escrow.
+            &[
+                AuctionStatus::Ready,
+                AuctionStatus::Open,
+                AuctionStatus::Closed,
+                AuctionStatus::Published,
+                AuctionStatus::Refunding,
+            ],
         )
         .await
         {

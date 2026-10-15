@@ -170,7 +170,7 @@ Indexes: `(auction_id, status)`, `UNIQUE (txid) WHERE txid IS NOT NULL`.
 
 Indexes: `(auction_id, status, not_before)`, `(bid_id)`, `(batch_id)`.
 
-Refund planning (task 3.9): when an auction is published, the coordinator plans `refund_notes` for every bid with a refund of at least 0.0001 ZEC and a stored refund address, each with a CSPRNG delay, and moves the auction to `refunding`. A batcher shuffles due notes and groups them into `tx_batches` (≤ 20 outputs, bidders interleaved). Bids whose memo was unreadable have no refund address and are counted as `needs_manual_review` in `GET /v1/auctions/{code}/refunds` (aggregates only).
+Refund planning (task 3.9): when an auction is published, the coordinator plans `refund_notes` for every bid with a refund of at least 0.0001 ZEC and a stored refund address, each with a CSPRNG delay, and moves the auction to `refunding`. A batcher shuffles due notes and groups them into `tx_batches` (≤ 20 outputs, bidders interleaved). Due notes are held until at least 3 bidders' notes can share a batch, the oldest due note has waited 30 minutes, or no more notes are coming (`sealforge_core::refunds::ready_to_batch`). Payments that reach the escrow after close are stored as `late` with `refund_due_zat = amount_zat` and planned for a full refund with the same delays. Bids whose memo was unreadable have no refund address and are counted as `needs_manual_review` in `GET /v1/auctions/{code}/refunds` (aggregates only).
 
 ### `signature_shares`
 | Field | Type | Required | Default | Notes |

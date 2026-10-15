@@ -440,6 +440,19 @@ async fn closes_at_close_height_and_publishes_an_auditable_result(db: PgPool) {
             .unwrap(),
         0
     );
+    // When the first note falls due, it is held for more bidders rather than sent alone.
+    let first: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT min(not_before) FROM refund_notes")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(
+        refunds::batch_due(&state, &policy, first + chrono::Duration::seconds(1))
+            .await
+            .unwrap(),
+        0,
+        "a lone bidder's note waits to share a batch"
+    );
     let later = chrono::Utc::now() + chrono::Duration::hours(5);
     assert!(refunds::batch_due(&state, &policy, later).await.unwrap() > 0);
     let unbatched: i64 =
@@ -455,4 +468,34 @@ async fn closes_at_close_height_and_publishes_an_auditable_result(db: PgPool) {
     .await
     .unwrap();
     assert!(largest <= policy.max_outputs_per_batch as i64);
+
+    // A payment that lands after the result is planned for a full refund.
+    let (auction_id,): (uuid::Uuid,) = sqlx::query_as("SELECT id FROM auctions WHERE code = $1")
+        .bind(&code)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO bids (auction_id, txid, output_index, pool, block_height, block_time, amount_zat, status, \
+         refund_due_zat, is_winner, refund_ua_enc) \
+         VALUES ($1, decode(repeat('ee', 32), 'hex'), 0, 'ironwood', 999999, now(), 25000000, 'late', 25000000, false, pgp_sym_encrypt('utest1late', $2))",
+    )
+    .bind(auction_id)
+    .bind(DATA_KEY)
+    .execute(&db)
+    .await
+    .unwrap();
+    assert!(refunds::plan_late(&state, &policy).await.unwrap() > 0);
+    assert_eq!(
+        refunds::plan_late(&state, &policy).await.unwrap(),
+        0,
+        "planned once"
+    );
+    let late_total: i64 = sqlx::query_scalar(
+        "SELECT sum(n.denomination_zat)::bigint FROM refund_notes n JOIN bids b ON b.id = n.bid_id WHERE b.txid = decode(repeat('ee', 32), 'hex')",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(late_total, 25_000_000);
 }

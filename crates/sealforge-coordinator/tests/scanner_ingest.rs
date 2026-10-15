@@ -108,4 +108,27 @@ async fn records_payments_with_memo_level_checks(db: PgPool) {
             (4, "invalid", Some("bad_memo"), false, None),
         ]
     );
+
+    // After close the result is fixed: a new payment is late and refunded in full.
+    sqlx::query("UPDATE auctions SET status = 'refunding'")
+        .execute(&db)
+        .await
+        .unwrap();
+    let auction = db::auction_by_code(&db, CODE).await.unwrap().unwrap();
+    assert_eq!(
+        scanner::ingest(&state, &auction, &[payment(5, Some(bid_memo(CODE)))])
+            .await
+            .unwrap(),
+        1
+    );
+    let late: (String, Option<i64>, i64, Option<bool>) = sqlx::query_as(
+        "SELECT status::text, refund_due_zat, amount_zat, is_winner FROM bids WHERE txid = $1",
+    )
+    .bind(&payment(5, None).txid[..])
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(late.0, "late");
+    assert_eq!(late.1, Some(late.2));
+    assert_eq!(late.3, Some(false));
 }
