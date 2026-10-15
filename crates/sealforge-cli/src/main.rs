@@ -224,8 +224,9 @@ fn describe(progress: &DkgProgress) -> String {
 
 fn local_dkg(out: &std::path::Path, network: &str) -> anyhow::Result<()> {
     use rand::rngs::OsRng;
+    use sealforge_escrow::address::EncodingParams;
     use sealforge_escrow::{address, dkg, Threshold};
-    use zcash_protocol::consensus::TEST_NETWORK;
+    use zcash_protocol::consensus::NetworkType;
 
     anyhow::ensure!(
         matches!(network, "testnet" | "regtest"),
@@ -243,9 +244,13 @@ fn local_dkg(out: &std::path::Path, network: &str) -> anyhow::Result<()> {
 
     let ak = dkg::group_key_bytes(&pubkeys)?;
     let fvk = address::escrow_fvk(&ak, &mut OsRng)?;
-    // Regtest shares the testnet address encoding.
-    let ua = address::escrow_address(&fvk, &TEST_NETWORK)?;
-    let (ufvk, uivk) = address::escrow_view_keys(&fvk, &TEST_NETWORK)?;
+    let params = EncodingParams(if network == "regtest" {
+        NetworkType::Regtest
+    } else {
+        NetworkType::Test
+    });
+    let ua = address::escrow_address(&fvk, &params)?;
+    let (ufvk, uivk) = address::escrow_view_keys(&fvk, &params)?;
     write_private(
         &out.join("escrow.fvk"),
         hex::encode(fvk.to_bytes()).as_bytes(),

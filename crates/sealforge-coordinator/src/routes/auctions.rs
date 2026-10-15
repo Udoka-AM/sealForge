@@ -430,7 +430,7 @@ pub async fn publish(
     .await?;
     let ufvk = ufvk
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("auction has no escrow viewing key")))?;
-    let params = validate::AddressParams::for_network(row.network);
+    let params = validate::params_for(row.network);
     let uivk = zcash_keys::keys::UnifiedFullViewingKey::decode(&params, &ufvk)
         .map_err(|e| ApiError::Internal(anyhow::anyhow!("stored UFVK does not decode: {e}")))?
         .to_unified_incoming_viewing_key()

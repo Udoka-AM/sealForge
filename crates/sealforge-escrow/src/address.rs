@@ -8,7 +8,22 @@
 use orchard::keys::{FullViewingKey, Scope};
 use rand::{CryptoRng, RngCore};
 use zcash_keys::{address::UnifiedAddress, keys::UnifiedFullViewingKey};
-use zcash_protocol::consensus::Parameters;
+use zcash_protocol::consensus::{BlockHeight, NetworkType, NetworkUpgrade, Parameters};
+
+/// Encoding parameters for a network. Address and key encodings depend only on
+/// the network type, so activation heights are not needed here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EncodingParams(pub NetworkType);
+
+impl Parameters for EncodingParams {
+    fn network_type(&self) -> NetworkType {
+        self.0
+    }
+
+    fn activation_height(&self, _nu: NetworkUpgrade) -> Option<BlockHeight> {
+        None
+    }
+}
 
 use crate::EscrowError;
 

@@ -7,8 +7,8 @@ Filled in during Milestone 1, task 1.2 (PRD open question Q1). Record each pin w
 | Rust toolchain | 1.89.0 | 2026-10-08 | `rust-toolchain.toml` |
 | Node | 22 LTS | 2026-10-08 | `.nvmrc` |
 | Next.js | 16.4.0 | 2026-10-08 | `apps/web` |
-| Zebra (`zebrad`) | TBD | | Must support NU7 testnet + Ironwood |
-| Zaino | TBD | | |
+| Zebra (`zebrad`) | 7.0.0-rc.0 (`zfnd/zebra`) | 2026-10-15 | NU7 on testnet. Local regtest chain: `scripts/regtest.sh` |
+| Zaino | 0.10.2 (`zingodevops/zaino:0.10.2-no-tls`, amd64) | 2026-10-15 | Knows Ironwood (NU6.3) but not NU7's branch ID yet, so regtest activates up to NU6.3 |
 | `zcash_client_backend` | =0.25.0-pre.2 (when scanning lands) | 2026-10-14 | First release with Ironwood pools |
 | `zcash_keys` / `zcash_protocol` | =0.17.0-pre.2 / =0.11.0-pre.1 | 2026-10-14 | `zcash_keys` with `orchard` + `unstable-frost`. `zcash_protocol` knows NU7 |
 | `pczt` | =0.10.0-pre.2 | 2026-10-14 | Has `shielded_sighash` and `apply_ironwood_signature` |
