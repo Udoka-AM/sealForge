@@ -172,6 +172,7 @@ pub async fn dkg_step(
             return Ok(DkgProgress::WaitingForTrustees { joined, total });
         }
         AuctionStatus::Dkg => {}
+        AuctionStatus::Cancelled => bail!("the organiser cancelled auction {code}"),
         _ => {
             ensure!(
                 store.read(code, KEY_PACKAGE)?.is_some(),
