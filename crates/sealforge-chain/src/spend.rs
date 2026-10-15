@@ -226,8 +226,8 @@ impl EscrowWallet {
         .map_err(|e| anyhow!("extracting transaction: {e:?}"))
     }
 
-    /// Broadcast a stored transaction.
-    pub async fn broadcast(&self, client: &mut Client, txid: TxId) -> anyhow::Result<()> {
+    /// The raw bytes of a stored transaction, ready to broadcast with [`send_raw`].
+    pub fn raw_transaction(&self, txid: TxId) -> anyhow::Result<RawTransaction> {
         let tx = self
             .db()
             .get_transaction(txid)
@@ -235,15 +235,7 @@ impl EscrowWallet {
             .context("transaction not in wallet")?;
         let mut raw = RawTransaction::default();
         tx.write(&mut raw.data)?;
-        let response = client.send_transaction(raw).await?.into_inner();
-        if response.error_code != 0 {
-            return Err(anyhow!(
-                "broadcast failed ({}): {}",
-                response.error_code,
-                response.error_message
-            ));
-        }
-        Ok(())
+        Ok(raw)
     }
 }
 
@@ -311,4 +303,18 @@ pub fn pczt_to_bytes(pczt: Pczt) -> anyhow::Result<Vec<u8>> {
 
 pub fn pczt_from_bytes(bytes: &[u8]) -> anyhow::Result<Pczt> {
     Pczt::parse(bytes).map_err(|e| anyhow!("bad PCZT: {e:?}"))
+}
+
+/// Broadcast a raw transaction. Kept separate from the wallet so no wallet
+/// borrow (and its SQLite connection) is held across the network call.
+pub async fn send_raw(client: &mut Client, raw: RawTransaction) -> anyhow::Result<()> {
+    let response = client.send_transaction(raw).await?.into_inner();
+    if response.error_code != 0 {
+        return Err(anyhow!(
+            "broadcast failed ({}): {}",
+            response.error_code,
+            response.error_message
+        ));
+    }
+    Ok(())
 }

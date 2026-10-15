@@ -90,7 +90,8 @@ async fn main() -> anyhow::Result<()> {
 
     let pczt = apply_signatures(unsigned.pczt, unsigned.sighash, &signatures)?;
     let txid = escrow.finalize(pczt)?;
-    escrow.broadcast(&mut client, txid).await?;
+    let raw = escrow.raw_transaction(txid)?;
+    sealforge_chain::spend::send_raw(&mut client, raw).await?;
     println!("broadcast escrow spend: {txid}");
     Ok(())
 }

@@ -9,14 +9,23 @@
 
 use std::path::{Path, PathBuf};
 
-use sealforge_api::types::{AuctionStatus, Network};
-use sealforge_chain::{chain_tip, connect, ChainParams, Client, EscrowWallet, ReceivedPayment};
+use std::collections::BTreeMap;
+
+use sealforge_api::types::{AuctionStatus, Network, SpendAuthView};
+use sealforge_chain::{
+    chain_tip, connect,
+    spend::{apply_signatures, pczt_from_bytes, pczt_to_bytes, send_raw, PaymentOut},
+    ChainParams, Client, EscrowWallet, ReceivedPayment,
+};
 use sealforge_core::memo::BidMemo;
+use sealforge_escrow::frost::keys::PublicKeyPackage;
+use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
     db::{self, AuctionRow},
     error::ApiError,
+    signing::{aggregate, SignerValues},
     AppState,
 };
 
@@ -137,6 +146,238 @@ async fn scan_auction(
     }
     if new > 0 {
         tracing::info!(code = %auction.code, new, "recorded escrow payments");
+    }
+    if auction.status == AuctionStatus::Refunding {
+        process_batches(state, client, auction, &mut wallet).await?;
+    }
+    Ok(())
+}
+
+/// Move refund/payout batches along: build → (trustees sign) → broadcast → confirm.
+/// One batch is in flight per auction, so two transactions never pick the same notes.
+async fn process_batches(
+    state: &AppState,
+    client: &mut Client,
+    auction: &AuctionRow,
+    wallet: &mut EscrowWallet,
+) -> anyhow::Result<()> {
+    let data_key = state
+        .settings
+        .data_key
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("SF_DATA_KEY missing"))?;
+
+    // Confirm broadcast batches that are now mined.
+    let broadcast: Vec<(Uuid, Vec<u8>)> = sqlx::query_as(
+        "SELECT id, txid FROM tx_batches WHERE auction_id = $1 AND status = 'broadcast' AND txid IS NOT NULL",
+    )
+    .bind(auction.id)
+    .fetch_all(&state.db)
+    .await?;
+    for (id, txid) in broadcast {
+        let txid: [u8; 32] = txid.try_into().map_err(|_| anyhow::anyhow!("bad txid"))?;
+        if let Some(height) = wallet.mined_height(&txid)? {
+            sqlx::query(
+                "UPDATE tx_batches SET status = 'confirmed', confirmed_height = $2 WHERE id = $1",
+            )
+            .bind(id)
+            .bind(height as i32)
+            .execute(&state.db)
+            .await?;
+            sqlx::query("UPDATE refund_notes SET status = 'confirmed' WHERE batch_id = $1")
+                .bind(id)
+                .execute(&state.db)
+                .await?;
+            tracing::info!(code = %auction.code, height, "escrow batch confirmed");
+        }
+    }
+
+    // Finalize batches both signers have signed.
+    let signed: Vec<(Uuid, Vec<u8>, Vec<u8>, serde_json::Value, Vec<i16>)> = sqlx::query_as(
+        "SELECT id, pczt, sighash, spend_auth, signer_slots FROM tx_batches WHERE auction_id = $1 AND status = 'signed'",
+    )
+    .bind(auction.id)
+    .fetch_all(&state.db)
+    .await?;
+    for (id, pczt, sighash, spend_auth, slots) in signed {
+        let spends: Vec<SpendAuthView> = serde_json::from_value(spend_auth)?;
+        let rows: Vec<(i16, serde_json::Value, serde_json::Value)> = sqlx::query_as(
+            "SELECT t.slot, s.commitments_json, s.shares_json FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id \
+             WHERE s.batch_id = $1 AND t.slot = ANY($2)",
+        )
+        .bind(id)
+        .bind(&slots)
+        .fetch_all(&state.db)
+        .await?;
+        let signers: BTreeMap<u16, SignerValues> = rows
+            .into_iter()
+            .map(|(slot, c, s)| {
+                Ok((
+                    slot as u16,
+                    SignerValues {
+                        commitments: serde_json::from_value(c)?,
+                        shares: serde_json::from_value(s)?,
+                    },
+                ))
+            })
+            .collect::<anyhow::Result<_>>()?;
+        let pkp: Vec<u8> = sqlx::query_scalar(
+            "SELECT public_key_package FROM trustees WHERE auction_id = $1 AND public_key_package IS NOT NULL LIMIT 1",
+        )
+        .bind(auction.id)
+        .fetch_one(&state.db)
+        .await?;
+        let sighash: [u8; 32] = sighash
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("bad sighash"))?;
+        let signatures = aggregate(
+            sighash,
+            &spends,
+            &PublicKeyPackage::deserialize(&pkp)?,
+            &signers,
+        )?;
+        let pczt = apply_signatures(pczt_from_bytes(&pczt)?, sighash, &signatures)?;
+        let txid = tokio::task::block_in_place(|| wallet.finalize(pczt))?;
+        let raw = wallet.raw_transaction(txid)?;
+        send_raw(client, raw).await?;
+        let txid_bytes: [u8; 32] = *txid.as_ref();
+        sqlx::query("UPDATE tx_batches SET status = 'broadcast', txid = $2, broadcast_at = now() WHERE id = $1")
+            .bind(id)
+            .bind(&txid_bytes[..])
+            .execute(&state.db)
+            .await?;
+        sqlx::query("UPDATE refund_notes SET status = 'broadcast' WHERE batch_id = $1")
+            .bind(id)
+            .execute(&state.db)
+            .await?;
+        db::audit(
+            &state.db,
+            Some(auction.id),
+            "system",
+            None,
+            "batch.broadcast",
+            json!({ "batch": id }),
+        )
+        .await?;
+        tracing::info!(code = %auction.code, %txid, "escrow batch broadcast");
+    }
+
+    // Build the next batch, only when nothing else is in flight.
+    let in_flight: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM tx_batches WHERE auction_id = $1 AND status IN ('awaiting_signatures', 'signed', 'broadcast')",
+    )
+    .bind(auction.id)
+    .fetch_one(&state.db)
+    .await?;
+    if in_flight == 0 {
+        let next: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM tx_batches WHERE auction_id = $1 AND status = 'building' ORDER BY created_at LIMIT 1",
+        )
+        .bind(auction.id)
+        .fetch_optional(&state.db)
+        .await?;
+        if let Some(batch_id) = next {
+            let outputs: Vec<(String, i64)> = sqlx::query_as(
+                "SELECT CASE WHEN n.kind = 'payout' THEN a.payout_ua ELSE pgp_sym_decrypt(b.refund_ua_enc, $2) END, \
+                 n.denomination_zat FROM refund_notes n JOIN auctions a ON a.id = n.auction_id \
+                 LEFT JOIN bids b ON b.id = n.bid_id WHERE n.batch_id = $1",
+            )
+            .bind(batch_id)
+            .bind(&data_key)
+            .fetch_all(&state.db)
+            .await?;
+            let outs: Vec<PaymentOut> = outputs
+                .iter()
+                .map(|(address, amount)| PaymentOut {
+                    address: address.clone(),
+                    amount_zat: *amount as u64,
+                    memo: None,
+                })
+                .collect();
+            // Proving is CPU-heavy; keep it off the async scheduler.
+            let unsigned = tokio::task::block_in_place(|| wallet.build_payment(&outs))?;
+            let spend_auth: Vec<SpendAuthView> = unsigned
+                .spends
+                .iter()
+                .map(|s| SpendAuthView {
+                    action_index: s.action_index as u32,
+                    alpha: hex::encode(s.alpha),
+                })
+                .collect();
+            let total: i64 = outputs.iter().map(|(_, a)| a).sum();
+            sqlx::query(
+                "UPDATE tx_batches SET status = 'awaiting_signatures', pczt = $2, sighash = $3, spend_auth = $4, \
+                 total_out_zat = $5, output_count = $6 WHERE id = $1 AND status = 'building'",
+            )
+            .bind(batch_id)
+            .bind(pczt_to_bytes(unsigned.pczt)?)
+            .bind(&unsigned.sighash[..])
+            .bind(serde_json::to_value(&spend_auth)?)
+            .bind(total)
+            .bind(outputs.len() as i32)
+            .execute(&state.db)
+            .await?;
+            tracing::info!(code = %auction.code, outputs = outputs.len(), "escrow batch ready for trustee signatures");
+        }
+    }
+
+    // When every refund is confirmed, pay the organiser; when that's confirmed, settle.
+    let (open_refunds, payout_notes, open_payout): (i64, i64, i64) = sqlx::query_as(
+        "SELECT count(*) FILTER (WHERE kind = 'refund' AND status <> 'confirmed'), \
+                count(*) FILTER (WHERE kind = 'payout'), \
+                count(*) FILTER (WHERE kind = 'payout' AND status <> 'confirmed') \
+         FROM refund_notes WHERE auction_id = $1",
+    )
+    .bind(auction.id)
+    .fetch_one(&state.db)
+    .await?;
+    if open_refunds == 0 && payout_notes == 0 {
+        let proceeds: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(sum(price_paid_zat), 0)::bigint FROM bids WHERE auction_id = $1",
+        )
+        .bind(auction.id)
+        .fetch_one(&state.db)
+        .await?;
+        if proceeds > 0 {
+            let mut tx = state.db.begin().await?;
+            let batch_id: Uuid = sqlx::query_scalar(
+                "INSERT INTO tx_batches (auction_id, kind, status) VALUES ($1, 'payout', 'building') RETURNING id",
+            )
+            .bind(auction.id)
+            .fetch_one(&mut *tx)
+            .await?;
+            sqlx::query(
+                "INSERT INTO refund_notes (auction_id, kind, denomination_zat, not_before, batch_id, status) \
+                 VALUES ($1, 'payout', $2, now(), $3, 'batched')",
+            )
+            .bind(auction.id)
+            .bind(proceeds)
+            .bind(batch_id)
+            .execute(&mut *tx)
+            .await?;
+            tx.commit().await?;
+            tracing::info!(code = %auction.code, proceeds, "payout batch planned");
+        }
+    } else if open_refunds == 0 && open_payout == 0 {
+        let moved = sqlx::query(
+            "UPDATE auctions SET status = 'settled', settled_at = now(), updated_at = now() WHERE id = $1 AND status = 'refunding'",
+        )
+        .bind(auction.id)
+        .execute(&state.db)
+        .await?
+        .rows_affected();
+        if moved > 0 {
+            db::audit(
+                &state.db,
+                Some(auction.id),
+                "system",
+                None,
+                "auction.transition",
+                json!({ "from": "refunding", "to": "settled" }),
+            )
+            .await?;
+            tracing::info!(code = %auction.code, "auction settled");
+        }
     }
     Ok(())
 }
