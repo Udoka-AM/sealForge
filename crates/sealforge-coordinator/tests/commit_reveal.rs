@@ -16,6 +16,9 @@ const REFUND_UA: &str = "uregtest1vx67p0383w4xq367fpfdpcztgll39hxyp3rmk67ggkhfld
 const ZEC: u64 = 100_000_000;
 const REVEAL_FEE: u64 = 10_000;
 
+/// (txid, status, invalid_reason, reveal_price_zat, is_winner, price_paid_zat, refund_due_zat)
+type Row = (Vec<u8>, String, Option<String>, Option<i64>, bool, i64, i64);
+
 struct Bidder {
     tx: u8,
     deposit: u64,
@@ -148,7 +151,7 @@ async fn deposits_are_budgets_and_reveals_set_prices(db: PgPool) {
     at(354).await.unwrap();
     assert!(closer::close_auction(&state, &auction).await.unwrap());
 
-    let rows: Vec<(Vec<u8>, String, Option<String>, Option<i64>, bool, i64, i64)> = sqlx::query_as(
+    let rows: Vec<Row> = sqlx::query_as(
         "SELECT txid, status::text, invalid_reason, reveal_price_zat, coalesce(is_winner, false), \
          coalesce(price_paid_zat, 0), coalesce(refund_due_zat, 0) FROM bids ORDER BY txid",
     )
@@ -160,7 +163,7 @@ async fn deposits_are_budgets_and_reveals_set_prices(db: PgPool) {
     let refund = |tx: u8| by_tx[&tx].6 as u64;
 
     // Uniform price over revealed prices: A (0.42) and B (0.30) win at 0.30.
-    assert_eq!(by_tx[&1].4, true);
+    assert!(by_tx[&1].4);
     assert_eq!(by_tx[&1].3, Some(42_000_000));
     assert_eq!(paid(1), 30_000_000);
     assert_eq!(

@@ -1,25 +1,28 @@
 //! Public auditor (Milestone 3, tasks 3.4 and 3.5).
 //!
-//! - [`audit`]: given the published result and the payments decoded from the
-//!   chain with the published viewing key, reclassify them, recompute the result
-//!   with the same code the coordinator used, and compare every published field
-//!   (PRD AC7). Scanning the chain itself is task 3.4.
-//! - [`payments_from_published`]: until the chain scan lands, rebuild payments
-//!   from the published bid list. That checks the published math and root are
+//! - [`audit_chain`]: given the published result and every payment decoded
+//!   from the chain with the published viewing key (`sealforge-audit` scans
+//!   them), reclassify them, recompute the result with the same code the
+//!   coordinator used, and compare every published field (PRD AC7). Handles
+//!   deposit and commit-reveal auctions.
+//! - [`payments_from_published`]: rebuild payments from the published bid list
+//!   (the browser's quick check). That checks the published math and root are
 //!   consistent, but not that no bid was left out.
 //! - [`verify_receipt`]: a bidder checks their receipt against the result (AC8).
 
 use std::collections::BTreeMap;
 
-use sealforge_api::types::{AuctionMode as ApiMode, PublishedResult};
+use sealforge_api::types::{AuctionMode as ApiMode, BidMode, PublishedResult};
 use sealforge_core::{
     clearing::{AuctionMode, AuctionRules},
-    memo::BidMemo,
+    memo::{BidMemo, RevealMemo},
     merkle::{leaf_hash, verify_proof, MerkleTree},
-    receipt::{commitment, Receipt},
+    receipt::{commitment, price_commitment, Receipt},
     refunds::{refund_dust, split_refund},
-    result::compute_result,
-    selection::{included_bids, BidWindow, Payment},
+    result::{compute_result, ScannedBid},
+    selection::{
+        included_bids, included_bids_commit_reveal, BidWindow, Payment, RevealPayment, RevealWindow,
+    },
     Zatoshi,
 };
 use serde::{Deserialize, Serialize};
@@ -52,14 +55,84 @@ fn opt(v: Option<u64>) -> String {
     v.map(|v| v.to_string()).unwrap_or_else(|| "none".into())
 }
 
-/// Recompute the result from chain payments and compare it with what was published.
-pub fn audit(published: &PublishedResult, payments: &[Payment]) -> AuditReport {
-    let window = BidWindow {
+/// The bidding window the published result was computed over.
+fn bid_window(published: &PublishedResult) -> BidWindow {
+    BidWindow {
         auction_code: published.auction_code.clone(),
         open_height: published.scan_from_height,
-        close_height: published.scan_to_height,
+        close_height: published
+            .rules
+            .close_height
+            .unwrap_or(published.scan_to_height),
         reserve: Zatoshi(published.rules.reserve_zat),
+    }
+}
+
+/// A payment exactly as the chain shows it to the viewing key.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChainPayment {
+    #[serde(with = "hex::serde")]
+    pub txid: [u8; 32],
+    pub output_index: u32,
+    pub block_height: u32,
+    pub amount_zat: u64,
+    pub memo: Option<String>,
+}
+
+/// Audit from chain payments, in whichever bid mode the auction used. Memos
+/// are decoded here, the same way the coordinator's scanner decodes them.
+pub fn audit_chain(published: &PublishedResult, payments: &[ChainPayment]) -> AuditReport {
+    let deposits: Vec<Payment> = payments
+        .iter()
+        .map(|p| Payment {
+            txid: p.txid,
+            output_index: p.output_index,
+            block_height: p.block_height,
+            amount: Zatoshi(p.amount_zat),
+            memo: p.memo.as_deref().and_then(|m| BidMemo::decode(m).ok()),
+        })
+        .collect();
+    if published.rules.bid_mode == BidMode::Deposit {
+        return audit(published, &deposits);
+    }
+    let reveals: Vec<RevealPayment> = payments
+        .iter()
+        .filter_map(|p| {
+            Some(RevealPayment {
+                txid: p.txid,
+                output_index: p.output_index,
+                block_height: p.block_height,
+                amount: Zatoshi(p.amount_zat),
+                memo: RevealMemo::decode(p.memo.as_deref()?).ok()?,
+            })
+        })
+        .collect();
+    audit_commit_reveal(published, &deposits, &reveals)
+}
+
+/// Recompute a commit-reveal result from deposits and reveals on chain.
+pub fn audit_commit_reveal(
+    published: &PublishedResult,
+    deposits: &[Payment],
+    reveals: &[RevealPayment],
+) -> AuditReport {
+    let window = RevealWindow {
+        bid: bid_window(published),
+        reveal_close_height: published.scan_to_height,
     };
+    compare(
+        published,
+        &included_bids_commit_reveal(&window, deposits, reveals),
+    )
+}
+
+/// Recompute the result from chain payments (deposit mode) and compare it with
+/// what was published.
+pub fn audit(published: &PublishedResult, payments: &[Payment]) -> AuditReport {
+    compare(published, &included_bids(&bid_window(published), payments))
+}
+
+fn compare(published: &PublishedResult, included: &[ScannedBid]) -> AuditReport {
     let rules = AuctionRules {
         mode: match published.rules.mode {
             ApiMode::UniformPrice => AuctionMode::UniformPrice,
@@ -70,7 +143,7 @@ pub fn audit(published: &PublishedResult, payments: &[Payment]) -> AuditReport {
     };
 
     let mut fields = Vec::new();
-    match compute_result(&rules, &included_bids(&window, payments)) {
+    match compute_result(&rules, included) {
         Err(err) => check(
             &mut fields,
             "result",
@@ -194,9 +267,18 @@ pub struct ReceiptCheck {
 
 /// Check a receipt against a published result.
 pub fn verify_receipt(published: &PublishedResult, receipt: &Receipt) -> ReceiptCheck {
-    let receipt_valid = receipt.auction_code == published.auction_code
-        && commitment(&receipt.auction_code, &receipt.refund_ua, &receipt.salt)
-            == receipt.commitment;
+    // Commit-reveal receipts commit to the hidden price as well.
+    let expected = match receipt.price_zat {
+        Some(price) => price_commitment(
+            &receipt.auction_code,
+            &receipt.refund_ua,
+            price,
+            &receipt.salt,
+        ),
+        None => commitment(&receipt.auction_code, &receipt.refund_ua, &receipt.salt),
+    };
+    let receipt_valid =
+        receipt.auction_code == published.auction_code && expected == receipt.commitment;
     let wanted = hex::encode(receipt.commitment);
     let bid = published.bids.iter().find(|b| b.commitment == wanted);
 
@@ -231,7 +313,11 @@ pub fn verify_receipt(published: &PublishedResult, receipt: &Receipt) -> Receipt
                     .is_ok_and(|proof| verify_proof(&root, &leaf, &proof));
         }
     }
-    check.amount_matches = bid.amount_zat == receipt.amount_zat;
+    // Commit-reveal: the bid is the revealed price, carried by the deposit.
+    check.amount_matches = match receipt.price_zat {
+        Some(price) => bid.amount_zat == price && bid.deposit_zat == Some(receipt.amount_zat),
+        None => bid.amount_zat == receipt.amount_zat,
+    };
     check.is_winner = bid.is_winner;
     check.price_paid_zat = bid.price_paid_zat;
     check.refund_due_zat = bid.refund_due_zat;
@@ -278,29 +364,9 @@ mod wasm {
         published_json: &str,
         payments_json: &str,
     ) -> Result<String, JsError> {
-        #[derive(serde::Deserialize)]
-        struct JsonPayment {
-            txid: String,
-            output_index: u32,
-            block_height: u32,
-            amount_zat: u64,
-            memo: Option<String>,
-        }
         let published: PublishedResult = parse(published_json, "published result")?;
-        let raw: Vec<JsonPayment> = parse(payments_json, "payments")?;
-        let payments = raw
-            .into_iter()
-            .map(|p| {
-                Ok(Payment {
-                    txid: hex32(&p.txid).ok_or_else(|| JsError::new("bad txid"))?,
-                    output_index: p.output_index,
-                    block_height: p.block_height,
-                    amount: Zatoshi(p.amount_zat),
-                    memo: p.memo.as_deref().and_then(|m| BidMemo::decode(m).ok()),
-                })
-            })
-            .collect::<Result<Vec<_>, JsError>>()?;
-        to_json(&audit(&published, &payments))
+        let payments: Vec<ChainPayment> = parse(payments_json, "payments")?;
+        to_json(&audit_chain(&published, &payments))
     }
 
     /// Check a bidder's receipt against a published result.
@@ -438,6 +504,8 @@ mod tests {
                 mode: ApiMode::UniformPrice,
                 quantity: 2,
                 reserve_zat: 1_000_000,
+                bid_mode: sealforge_api::types::BidMode::Deposit,
+                close_height: None,
             },
             scan_from_height: 100,
             scan_to_height: 200,
@@ -457,6 +525,7 @@ mod tests {
                     output_index: by_leaf[&o.leaf_hash].output_index,
                     block_height: by_leaf[&o.leaf_hash].block_height,
                     amount_zat: by_leaf[&o.leaf_hash].amount.0,
+                    deposit_zat: None,
                     commitment: hex::encode(
                         by_leaf[&o.leaf_hash].memo.as_ref().unwrap().commitment,
                     ),
@@ -502,5 +571,203 @@ mod tests {
             .fields
             .iter()
             .any(|f| f.field == "bid_outcomes_mismatched" && !f.ok));
+    }
+}
+
+#[cfg(test)]
+mod commit_reveal_tests {
+    use sealforge_api::types::{BidMode, Network, ResultBid, ResultRules};
+    use sealforge_core::{memo::RevealMemo, receipt::price_commitment};
+
+    use super::*;
+
+    const CODE: &str = "CR4DT00001";
+    const REFUND: &str = "utest1refund";
+
+    fn salt(i: u8) -> [u8; 32] {
+        [i; 32]
+    }
+
+    /// (deposit payment, reveal payment) for bidder `i`.
+    fn bidder(i: u8, deposit: u64, price: u64) -> (ChainPayment, ChainPayment) {
+        let c = price_commitment(CODE, REFUND, price, &salt(i));
+        let deposit = ChainPayment {
+            txid: [i; 32],
+            output_index: 0,
+            block_height: 150 + u32::from(i),
+            amount_zat: deposit,
+            memo: Some(
+                BidMemo {
+                    auction_code: CODE.into(),
+                    commitment: c,
+                    refund_ua: REFUND.into(),
+                }
+                .encode()
+                .unwrap(),
+            ),
+        };
+        let reveal = ChainPayment {
+            txid: [100 + i; 32],
+            output_index: 0,
+            block_height: 250 + u32::from(i),
+            amount_zat: 10_000,
+            memo: Some(
+                RevealMemo {
+                    auction_code: CODE.into(),
+                    commitment: c,
+                    price_zat: price,
+                    salt: salt(i),
+                }
+                .encode()
+                .unwrap(),
+            ),
+        };
+        (deposit, reveal)
+    }
+
+    fn chain() -> Vec<ChainPayment> {
+        let mut out = Vec::new();
+        for (i, deposit, price) in [
+            (1, 100_000_000, 42_000_000),
+            (2, 50_000_000, 30_000_000),
+            (3, 50_000_000, 10_000_000),
+        ] {
+            let (d, r) = bidder(i, deposit, price);
+            out.push(d);
+            out.push(r);
+        }
+        out
+    }
+
+    /// What an honest coordinator publishes for `chain()`.
+    fn published() -> PublishedResult {
+        let rules = AuctionRules {
+            mode: AuctionMode::UniformPrice,
+            quantity: 2,
+            reserve: Zatoshi(1_000_000),
+        };
+        let mut p = PublishedResult {
+            auction_code: CODE.into(),
+            network: Network::Testnet,
+            rules: ResultRules {
+                mode: ApiMode::UniformPrice,
+                quantity: 2,
+                reserve_zat: 1_000_000,
+                bid_mode: BidMode::CommitReveal,
+                close_height: Some(200),
+            },
+            scan_from_height: 100,
+            scan_to_height: 344,
+            uivk: String::new(),
+            algorithm_version: String::new(),
+            clearing_price_zat: None,
+            total_volume_zat: 0,
+            valid_bid_count: 0,
+            winner_count: 0,
+            merkle_root: String::new(),
+            bids: vec![],
+        };
+        let deposits: Vec<Payment> = chain()
+            .iter()
+            .map(|c| Payment {
+                txid: c.txid,
+                output_index: c.output_index,
+                block_height: c.block_height,
+                amount: Zatoshi(c.amount_zat),
+                memo: c.memo.as_deref().and_then(|m| BidMemo::decode(m).ok()),
+            })
+            .collect();
+        let reveals: Vec<RevealPayment> = chain()
+            .iter()
+            .filter_map(|c| {
+                Some(RevealPayment {
+                    txid: c.txid,
+                    output_index: c.output_index,
+                    block_height: c.block_height,
+                    amount: Zatoshi(c.amount_zat),
+                    memo: RevealMemo::decode(c.memo.as_deref()?).ok()?,
+                })
+            })
+            .collect();
+        let window = RevealWindow {
+            bid: bid_window(&p),
+            reveal_close_height: 344,
+        };
+        let included = included_bids_commit_reveal(&window, &deposits, &reveals);
+        let r = compute_result(&rules, &included).unwrap();
+        p.algorithm_version = r.algorithm_version.clone();
+        p.clearing_price_zat = r.clearing.clearing_price.map(|x| x.0);
+        p.total_volume_zat = r.clearing.total_volume.0;
+        p.valid_bid_count = r.clearing.valid_bid_count;
+        p.winner_count = r.clearing.winner_count;
+        p.merkle_root = hex::encode(r.merkle_root);
+        p.bids = included
+            .iter()
+            .map(|b| {
+                let o = r
+                    .clearing
+                    .outcomes
+                    .iter()
+                    .find(|o| o.leaf_hash == b.leaf_hash())
+                    .unwrap();
+                let deposit = deposits.iter().find(|d| d.txid == b.txid).unwrap().amount.0;
+                ResultBid {
+                    txid: hex::encode(b.txid),
+                    output_index: b.output_index,
+                    block_height: b.block_height,
+                    amount_zat: b.amount.0,
+                    deposit_zat: Some(deposit),
+                    commitment: hex::encode(b.commitment),
+                    leaf_hash: hex::encode(o.leaf_hash),
+                    is_winner: o.is_winner,
+                    price_paid_zat: o.price_paid.0,
+                    refund_due_zat: o.refund_due.0,
+                }
+            })
+            .collect();
+        p
+    }
+
+    #[test]
+    fn chain_audit_reproduces_a_commit_reveal_result() {
+        let p = published();
+        assert_eq!(p.clearing_price_zat, Some(30_000_000));
+        let report = audit_chain(&p, &chain());
+        assert!(report.matches, "{:?}", report.fields);
+        // The quick browser check works on the published (revealed) prices too.
+        assert!(audit(&p, &payments_from_published(&p).unwrap()).matches);
+    }
+
+    #[test]
+    fn a_suppressed_reveal_is_caught() {
+        // A coordinator that ignored bidder 1's reveal publishes a different result.
+        let mut chain = chain();
+        let honest = audit_chain(&published(), &chain);
+        assert!(honest.matches);
+        chain.retain(|c| c.txid != [101; 32]);
+        assert!(!audit_chain(&published(), &chain).matches);
+    }
+
+    #[test]
+    fn receipts_with_a_hidden_price_verify() {
+        let p = published();
+        let receipt = Receipt {
+            version: 2,
+            auction_code: CODE.into(),
+            amount_zat: 100_000_000,
+            refund_ua: REFUND.into(),
+            salt: salt(1),
+            commitment: price_commitment(CODE, REFUND, 42_000_000, &salt(1)),
+            price_zat: Some(42_000_000),
+        };
+        let check = verify_receipt(&p, &receipt);
+        assert!(check.receipt_valid && check.found && check.included && check.amount_matches);
+        assert!(check.is_winner);
+        assert_eq!(check.price_paid_zat, 30_000_000);
+        let lied = Receipt {
+            price_zat: Some(41_000_000),
+            ..receipt
+        };
+        assert!(!verify_receipt(&p, &lied).receipt_valid);
     }
 }

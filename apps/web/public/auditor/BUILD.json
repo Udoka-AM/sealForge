@@ -1,9 +1,9 @@
 {
   "crate": "sealforge-auditor",
   "version": "0.0.1",
-  "git_commit": "dc9c8ad10ab55fe26c2284de16b4aa32e31799ce",
+  "git_commit": "a119b6ff6dc6aa5185f663dbd647158aba0c6089",
   "source_dirty": true,
-  "rustc": "rustc 1.89.0 (29483883e 2025-08-04)",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
   "wasm_bindgen": "0.2.129",
-  "wasm_sha256": "5ac85bd4f202ef414ae228fd13c94350dde82bdf53aaa0f11fcdf3643a79345a"
+  "wasm_sha256": "cb8e7fa432dc5d844c26bb134dd89729906b3f0a842c841071ffbb599ae231ce"
 }

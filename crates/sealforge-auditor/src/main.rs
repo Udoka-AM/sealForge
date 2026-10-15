@@ -1,8 +1,7 @@
 use clap::Parser;
 use sealforge_api::types::{Network, PublishedResult};
-use sealforge_auditor::audit;
+use sealforge_auditor::{audit_chain, ChainPayment};
 use sealforge_chain::{audit::scan_incoming, connect, ChainParams};
-use sealforge_core::{memo::BidMemo, selection::Payment, Zatoshi};
 
 /// Recompute a published sealForge auction result from the chain, using only
 /// the published viewing key and a lightwallet server you choose.
@@ -61,17 +60,17 @@ async fn main() -> anyhow::Result<()> {
     let mut client = connect(&args.endpoint).await?;
     let found = scan_incoming(&mut client, params, ivk, from, to).await?;
     let scan_secs = started.elapsed().as_secs_f64();
-    let payments: Vec<Payment> = found
+    let payments: Vec<ChainPayment> = found
         .iter()
-        .map(|p| Payment {
+        .map(|p| ChainPayment {
             txid: p.txid,
             output_index: p.output_index,
             block_height: p.block_height,
-            amount: Zatoshi(p.amount_zat),
-            memo: p.memo.as_deref().and_then(|m| BidMemo::decode(m).ok()),
+            amount_zat: p.amount_zat,
+            memo: p.memo.clone(),
         })
         .collect();
-    let report = audit(&published, &payments);
+    let report = audit_chain(&published, &payments);
 
     if args.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
