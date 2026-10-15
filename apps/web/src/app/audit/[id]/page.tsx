@@ -106,11 +106,23 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
             <p className="max-w-[68ch] text-sm text-muted">
               This runs sealForge&rsquo;s auditor, compiled to WebAssembly, on the published bid
               list. It recomputes the price, volume, winners, every bidder&rsquo;s outcome and the
-              Merkle root, and compares each one. It doesn&rsquo;t yet prove that no bid was left
-              out of the list: that needs a rescan of the chain with the viewing key above, which is
-              being added next.
+              Merkle root, and compares each one. On its own it can&rsquo;t prove that no bid was
+              left out of the list. For that, rescan the chain yourself with the viewing key above.
             </p>
             <AuditRunner result={result} />
+            <div className="space-y-2 text-sm">
+              <p className="text-muted">
+                Independent check from the chain, with any lightwallet server you trust:
+              </p>
+              <pre className="num overflow-x-auto rounded-[var(--radius-control)] bg-surface-2 p-3 text-[13px]">
+                {`cargo install --git https://github.com/Udoka-AM/sealForge sealforge-auditor\nsealforge-audit --published https://<this site>/api/auctions/${result.auction_code}/result --endpoint <lightwalletd URL>`}
+              </pre>
+              <p className="text-muted">
+                It scans blocks {result.scan_from_height.toLocaleString("en-US")} to{" "}
+                {result.scan_to_height.toLocaleString("en-US")} with the viewing key, decrypts every
+                payment to the escrow, and recomputes the result from those payments alone.
+              </p>
+            </div>
           </section>
         </>
       )}
