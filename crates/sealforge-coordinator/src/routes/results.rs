@@ -98,6 +98,11 @@ pub async fn result(
                 // Commit-reveal: the bid is the revealed price; the payment was the deposit.
                 amount_zat: l.reveal_price_zat.unwrap_or(l.amount_zat) as u64,
                 deposit_zat: l.reveal_price_zat.map(|_| l.amount_zat as u64),
+                // The closer set refund = deposit + reveal - paid.
+                reveal_zat: l.reveal_price_zat.map(|_| {
+                    (l.refund_due_zat.unwrap_or(0) + l.price_paid_zat.unwrap_or(0) - l.amount_zat)
+                        as u64
+                }),
                 commitment: hex::encode(l.commitment.unwrap_or_default()),
                 leaf_hash: hex::encode(l.leaf_hash),
                 is_winner: l.is_winner.unwrap_or(false),

@@ -66,7 +66,7 @@
 | F10 | **Linkability test harness** + published chart (naive vs sealForge) | Judges and users see the privacy claim measured | **P1** |
 | F11 | **Organiser console** (web) + `sealforge` CLI (`init`, `dkg`, `close`, `publish`, `refund`) | Organisers and trustees operate auctions without hand-written scripts | **P1** |
 | F12 | **Embeddable widget** `@sealforge/shieldramp` + "run your own auction in 10 minutes" guide | Other teams can reuse the kit | **P1** |
-| F13 | **Commit-reveal mode** (bucketed budget deposit + `H(price ‖ salt)` memo, reveal after close) | Bids stay hidden even from trustees during the auction | **P2 (stretch)** |
+| F13 | **Commit-reveal mode** (bucketed budget deposit + `H(price ‖ salt)` memo, reveal after close) | Bids stay hidden even from trustees during the auction | **P2 (stretch), built** (task 4.6). The organiser chooses it per auction ("Sealed reveal") |
 | F14 | **Exit path**: refunds/winnings → USDC via Intents with an unshielding warning and score | Cross-chain bidders can cash out | **P2 (stretch)** |
 | F15 | **Tor (Arti) broadcast** for refunds and bids from the ephemeral wallet | Network-level IP privacy | **P2 (stretch)** |
 | F16 | SOL support in ShieldRamp (Solana wallet adapter) | Solana users can bid | **P2 (stretch)** |
@@ -135,6 +135,6 @@
 | Q6 | What is the live demo auction (item, quantity, reserve)? | 10 lots of a commemorative "sealForge Zcon7" digital pass, 0.01 ZEC reserve | Oct 19 |
 | Q7 | Refund remainder below the smallest denomination (0.0001 ZEC): add it to the smallest note, or require bids to be canonical amounts? | **Decided 2026-10-15:** refunds are canonical notes only, and the sub-0.0001 ZEC dust is not sent. It costs more in fees than it's worth, and the linkability harness showed that a remainder note links 98% of refunds, against 0.1% with dust dropped ([evidence](evidence/linkability.md)). The web form takes at most 4 decimals, so web bids have no dust | Done |
 | Q8 | Who pays ZIP-317 fees for refunds and payout? | **Decided:** the organiser. Fees come out of the escrow, and the payout sweeps what's left (proceeds + fee buffer + refund dust − fees). An auction that may have no winners needs a fee buffer, sent with memo `SF1FEE:<code>` (`sealforge auction fund-fees`) | Oct 13 |
-| Q9 | Is commit-reveal (F13) in v1? | Only if the M3 exit criterion is met by Oct 19 | Oct 19 |
+| Q9 | Is commit-reveal (F13) in v1? | **Decided: yes, as an option.** M3 exited Oct 15. Deposit mode stays the default because it has one fewer bidder step | Oct 19 |
 | Q10 | Domain and hosting account ownership (e.g. `sealforge.xyz`)? | Vercel default domain until purchased | Oct 20 |
 | Q11 | Licence: dual MIT/Apache-2.0? | Yes (scaffold ships both) | Done |

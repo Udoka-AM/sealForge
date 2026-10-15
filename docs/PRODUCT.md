@@ -67,7 +67,7 @@
 |---|---|---|
 | Public chain observer, during the auction | ✅ | All bids are shielded transfers into Ironwood. Amounts, senders and memos are encrypted. |
 | Public chain observer, after the close | ✅ amounts revealed / ✅ bidders hidden | The IVK reveals incoming notes (amount, memo), but **not sender addresses**. Refund UAs are fresh diversified addresses and can't be linked to a bidder's other addresses. |
-| Auction operator / trustees | ⚠️ Partial | Anyone holding the IVK can see bids live. **Commit-reveal mode** fixes this: the deposit is a bucketed "budget", the memo holds `H(price ‖ salt)`, and the bid is revealed after the close. MVP ships deposit-as-bid with this caveat documented. Commit-reveal is a Week-3 stretch. |
+| Auction operator / trustees | ⚠️ Partial | Anyone holding the IVK can see bids live. **Commit-reveal mode** fixes this: the deposit is a bucketed "budget", the memo holds `H(price ‖ salt)`, and the bid is revealed after the close. Deposit-as-bid is the default, with this caveat documented. Commit-reveal shipped as the per-auction "Sealed reveal" option (task 4.6). |
 | Source-chain observer (ShieldRamp) | ⚠️ Reduced, not eliminated | The EVM/SOL deposit is public, and Intents' ZEC deposit side may be transparent. Mitigations: canonical amounts, split swaps, timing jitter, ephemeral wallet, mandatory delay before the bid. The **score quantifies residual risk**. Never call this "untraceable". |
 | Single rogue trustee | ✅ | FROST 2-of-3. One key can't spend. |
 | Refund correlation (amount + timing) | ✅ Mitigated | Denominations + random delays + cross-bidder batching. The demo shows the before/after linkability. |

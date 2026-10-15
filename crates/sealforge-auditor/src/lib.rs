@@ -21,7 +21,8 @@ use sealforge_core::{
     refunds::{refund_dust, split_refund},
     result::{compute_result, ScannedBid},
     selection::{
-        included_bids, included_bids_commit_reveal, BidWindow, Payment, RevealPayment, RevealWindow,
+        classify_commit_reveal, included_bids, included_bids_commit_reveal, BidWindow, Payment,
+        RevealPayment, RevealWindow,
     },
     Zatoshi,
 };
@@ -120,19 +121,61 @@ pub fn audit_commit_reveal(
         bid: bid_window(published),
         reveal_close_height: published.scan_to_height,
     };
-    compare(
-        published,
-        &included_bids_commit_reveal(&window, deposits, reveals),
-    )
+    let outcomes = classify_commit_reveal(&window, deposits, reveals);
+    let included = included_bids_commit_reveal(&window, deposits, reveals);
+    let extra: BTreeMap<String, u64> = outcomes
+        .iter()
+        .zip(deposits)
+        .filter(|(o, _)| o.class.is_included())
+        .filter_map(|(o, d)| {
+            let price = o.price?.0;
+            let commitment = d.memo.as_ref()?.commitment;
+            let leaf = leaf_hash(&d.txid, d.output_index, price, &commitment);
+            let reveal = o.reveal.map_or(0, |i| reveals[i].amount.0);
+            Some((hex::encode(leaf), d.amount.0 - price + reveal))
+        })
+        .collect();
+    compare(published, &included, &extra)
 }
 
 /// Recompute the result from chain payments (deposit mode) and compare it with
 /// what was published.
 pub fn audit(published: &PublishedResult, payments: &[Payment]) -> AuditReport {
-    compare(published, &included_bids(&bid_window(published), payments))
+    compare(
+        published,
+        &included_bids(&bid_window(published), payments),
+        &BTreeMap::new(),
+    )
 }
 
-fn compare(published: &PublishedResult, included: &[ScannedBid]) -> AuditReport {
+/// The browser's quick check: recompute from the published bid list itself.
+/// Catches wrong math or a wrong root, not a bid left out of the list.
+pub fn audit_published(published: &PublishedResult) -> Result<AuditReport, String> {
+    let payments = payments_from_published(published)?;
+    let included = included_bids(&bid_window(published), &payments);
+    // Commit-reveal refunds include the deposit above the price and the reveal.
+    let extra: BTreeMap<String, u64> = published
+        .bids
+        .iter()
+        .filter_map(|b| {
+            let deposit = b.deposit_zat?;
+            Some((
+                b.leaf_hash.clone(),
+                (deposit + b.reveal_zat.unwrap_or(0)).saturating_sub(b.amount_zat),
+            ))
+        })
+        .collect();
+    Ok(compare(published, &included, &extra))
+}
+
+/// `extra_refund`: per leaf (hex), what is refunded on top of the clearing
+/// outcome. In commit-reveal mode that is the deposit above the price plus the
+/// counted reveal; in deposit mode nothing.
+fn compare(
+    published: &PublishedResult,
+    included: &[ScannedBid],
+    extra_refund: &BTreeMap<String, u64>,
+) -> AuditReport {
     let rules = AuctionRules {
         mode: match published.rules.mode {
             ApiMode::UniformPrice => AuctionMode::UniformPrice,
@@ -190,7 +233,15 @@ fn compare(published: &PublishedResult, included: &[ScannedBid]) -> AuditReport 
                 .map(|o| {
                     (
                         hex::encode(o.leaf_hash),
-                        (o.is_winner, o.price_paid.0, o.refund_due.0),
+                        (
+                            o.is_winner,
+                            o.price_paid.0,
+                            o.refund_due.0
+                                + extra_refund
+                                    .get(&hex::encode(o.leaf_hash))
+                                    .copied()
+                                    .unwrap_or(0),
+                        ),
                     )
                 })
                 .collect();
@@ -354,8 +405,7 @@ mod wasm {
     #[wasm_bindgen]
     pub fn audit_published(published_json: &str) -> Result<String, JsError> {
         let published: PublishedResult = parse(published_json, "published result")?;
-        let payments = payments_from_published(&published).map_err(|e| JsError::new(&e))?;
-        to_json(&audit(&published, &payments))
+        to_json(&super::audit_published(&published).map_err(|e| JsError::new(&e))?)
     }
 
     /// Full audit with payments decoded from the chain (used once the scan lands).
@@ -526,6 +576,7 @@ mod tests {
                     block_height: by_leaf[&o.leaf_hash].block_height,
                     amount_zat: by_leaf[&o.leaf_hash].amount.0,
                     deposit_zat: None,
+                    reveal_zat: None,
                     commitment: hex::encode(
                         by_leaf[&o.leaf_hash].memo.as_ref().unwrap().commitment,
                     ),
@@ -717,11 +768,13 @@ mod commit_reveal_tests {
                     block_height: b.block_height,
                     amount_zat: b.amount.0,
                     deposit_zat: Some(deposit),
+                    reveal_zat: Some(10_000),
                     commitment: hex::encode(b.commitment),
                     leaf_hash: hex::encode(o.leaf_hash),
                     is_winner: o.is_winner,
                     price_paid_zat: o.price_paid.0,
-                    refund_due_zat: o.refund_due.0,
+                    // What an honest coordinator refunds: deposit + reveal - paid.
+                    refund_due_zat: deposit + 10_000 - o.price_paid.0,
                 }
             })
             .collect();
@@ -735,7 +788,17 @@ mod commit_reveal_tests {
         let report = audit_chain(&p, &chain());
         assert!(report.matches, "{:?}", report.fields);
         // The quick browser check works on the published (revealed) prices too.
-        assert!(audit(&p, &payments_from_published(&p).unwrap()).matches);
+        assert!(audit_published(&p).unwrap().matches);
+    }
+
+    #[test]
+    fn refunds_must_include_the_deposit_and_reveal() {
+        let mut p = published();
+        assert!(audit_published(&p).unwrap().matches);
+        // A coordinator that keeps the deposit above the price is caught by both checks.
+        p.bids[0].refund_due_zat -= 1;
+        assert!(!audit_published(&p).unwrap().matches);
+        assert!(!audit_chain(&p, &chain()).matches);
     }
 
     #[test]

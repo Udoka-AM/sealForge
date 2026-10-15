@@ -256,6 +256,10 @@ pub struct ResultBid {
     /// Commit-reveal only: the deposit (budget) that carried the bid.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deposit_zat: Option<u64>,
+    /// Commit-reveal only: the amount of the reveal payment that counted. It is
+    /// refunded with the deposit, so refund = deposit + reveal - price paid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reveal_zat: Option<u64>,
     pub commitment: String,
     pub leaf_hash: String,
     pub is_winner: bool,

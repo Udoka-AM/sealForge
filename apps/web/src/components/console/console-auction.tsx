@@ -227,8 +227,10 @@ function NextAction({
           <p className="font-medium">Bidding is open</p>
           <p className="text-sm text-muted">
             Closes automatically at block {auction.close_height.toLocaleString("en-US")}
-            {blocksLeft !== null ? ` (${eta(blocksLeft)})` : ""}, then waits 10 confirmations before
-            computing the result.
+            {blocksLeft !== null ? ` (${eta(blocksLeft)})` : ""}
+            {auction.bid_mode === "commit_reveal" && auction.reveal_close_height
+              ? `. Bids are sealed: bidders reveal them until block ${auction.reveal_close_height.toLocaleString("en-US")}, then the result is computed after 10 confirmations.`
+              : ", then waits 10 confirmations before computing the result."}
           </p>
         </>
       );

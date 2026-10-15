@@ -56,7 +56,7 @@ Indexes: `UNIQUE (pubkey)`.
 | `reserve_zat` | `BIGINT` | ✓ | `0` | ≥ 0 |
 | `open_height` | `INTEGER` | | `NULL` | Set when opened |
 | `close_height` | `INTEGER` | ✓ | — | Last height whose bids count |
-| `reveal_close_height` | `INTEGER` | | `NULL` | Commit-reveal only |
+| `reveal_close_height` | `INTEGER` | | `NULL` | Commit-reveal only. Last block for reveals; at least `close_height + 144` |
 | `threshold` | `SMALLINT` | ✓ | `2` | FROST *t* |
 | `max_signers` | `SMALLINT` | ✓ | `3` | FROST *n* |
 | `escrow_ua` | `TEXT` | | `NULL` | Set after DKG |
@@ -118,7 +118,10 @@ Indexes: `UNIQUE (auction_id, round, from_slot, to_slot)`.
 | `commitment` | `BYTEA` | | `NULL` | 32 bytes |
 | `refund_ua_enc` | `BYTEA` | | `NULL` | Encrypted. Wiped 30 days after settlement |
 | `status` | `bid_status` | ✓ | — | `valid` · `invalid` · `late` · `under_reserve` |
-| `invalid_reason` | `TEXT` | | `NULL` | `bad_memo`, `wrong_auction` (set by the scanner from the raw memo), `before_open`, `duplicate_commitment` (set at close by `sealforge-core::selection`), `fee_buffer` (the organiser's fee deposit, memo `SF1FEE:<code>`: never refunded, left out of clearing, added to `auctions.fee_buffer_zat`) |
+| `invalid_reason` | `TEXT` | | `NULL` | `bad_memo`, `wrong_auction` (set by the scanner from the raw memo), `before_open`, `duplicate_commitment` (set at close by `sealforge-core::selection`), `fee_buffer` (the organiser's fee deposit, memo `SF1FEE:<code>`: never refunded, left out of clearing, added to `auctions.fee_buffer_zat`), `reveal` (commit-reveal reveal payment), `not_revealed` (commit-reveal deposit without a counted reveal: refunded in full) |
+| `memo_refund_ua_enc` | `BYTEA` | | `NULL` | pgcrypto-encrypted refund address exactly as written in the memo. Commit-reveal price commitments bind it, so it's kept even when it can't be paid (then `refund_ua_enc` is `NULL`) |
+| `reveal_price_zat` | `BIGINT` | | `NULL` | Reveal payment: the price it claims. Deposit: the price that counted (set at close) |
+| `reveal_salt` | `BYTEA` | | `NULL` | Reveal payment: the disclosed salt (32 bytes) |
 | `leaf_hash` | `BYTEA` | | `NULL` | Merkle leaf (valid bids only) |
 | `is_winner` | `BOOLEAN` | | `NULL` | Set at clearing |
 | `price_paid_zat` | `BIGINT` | | `NULL` | Winners only |
@@ -169,6 +172,8 @@ Indexes: `(auction_id, status)`, `UNIQUE (txid) WHERE txid IS NOT NULL`.
 | `status` | `note_status` | ✓ | `'planned'` | `planned` · `batched` · `broadcast` · `confirmed` · `failed` |
 
 Indexes: `(auction_id, status, not_before)`, `(bid_id)`, `(batch_id)`.
+
+Commit-reveal (task 4.6, PRD F13): a deposit's memo is a normal `SF1:` bid memo whose commitment is `BLAKE2b-256("sealforge_rev_v1", code ‖ 0 ‖ refund_ua ‖ 0 ‖ price_zat LE ‖ salt)`. After the close, the bidder sends a reveal of any amount with memo `SF1R:<code>:<commitment>:<price_zat>:<salt>`. The earliest reveal in `(close_height, reveal_close_height]` that opens a valid deposit's commitment, with `1 ≤ price ≤ deposit`, sets that bid's price. Clearing and the Merkle tree use the price. Refund = deposit + counted reveal − price paid. The closer runs once the reveal window has 10 confirmations, and the published result carries `deposit_zat` and `reveal_zat` per bid so auditors can check refunds.
 
 Refund planning (task 3.9): when an auction is published, the coordinator plans `refund_notes` for every bid with a refund of at least 0.0001 ZEC and a stored refund address, each with a CSPRNG delay, and moves the auction to `refunding`. A batcher shuffles due notes and groups them into `tx_batches` (≤ 20 outputs, bidders interleaved). Due notes are held until at least 3 bidders' notes can share a batch, the oldest due note has waited 30 minutes, or no more notes are coming (`sealforge_core::refunds::ready_to_batch`). Payments that reach the escrow after close are stored as `late` with `refund_due_zat = amount_zat` and planned for a full refund with the same delays. Bids whose memo was unreadable have no refund address and are counted as `needs_manual_review` in `GET /v1/auctions/{code}/refunds` (aggregates only).
 
