@@ -9,6 +9,17 @@ use sqlx::PgPool;
 const CODE: &str = "ABCDEFGHJK";
 const KEY: &str = "test-data-key";
 
+/// (txid, status, invalid_reason, commitment, decrypted refund address)
+type StoredBid = (
+    Vec<u8>,
+    String,
+    Option<String>,
+    Option<Vec<u8>>,
+    Option<String>,
+);
+/// The same, reduced for readable assertions.
+type Summary<'a> = (u8, &'a str, Option<&'a str>, bool, Option<&'a str>);
+
 fn payment(tx: u8, memo: Option<String>) -> ReceivedPayment {
     ReceivedPayment {
         txid: [tx; 32],
@@ -70,7 +81,7 @@ async fn records_payments_with_memo_level_checks(db: PgPool) {
         "re-scans are idempotent"
     );
 
-    let rows: Vec<(Vec<u8>, String, Option<String>, Option<Vec<u8>>, Option<String>)> = sqlx::query_as(
+    let rows: Vec<StoredBid> = sqlx::query_as(
         "SELECT txid, status::text, invalid_reason, commitment, pgp_sym_decrypt(refund_ua_enc, $1) \
          FROM bids ORDER BY txid",
     )
@@ -78,7 +89,7 @@ async fn records_payments_with_memo_level_checks(db: PgPool) {
     .fetch_all(&db)
     .await
     .unwrap();
-    let summary: Vec<(u8, &str, Option<&str>, bool, Option<&str>)> = rows
+    let summary: Vec<Summary> = rows
         .iter()
         .map(|(tx, s, r, c, ua)| (tx[0], s.as_str(), r.as_deref(), c.is_some(), ua.as_deref()))
         .collect();
