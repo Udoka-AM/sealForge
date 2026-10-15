@@ -158,6 +158,15 @@ function BidCard({
           <p id={noteId} className="text-[13px] text-muted">
             Cross-chain bidding (ShieldRamp) is coming soon.
           </p>
+          <p className="border-t border-border pt-3 text-sm text-muted">
+            {typeof a.bid_count === "number" ? (
+              <>
+                <span className="num text-text">{a.bid_count}</span> sealed bids so far
+              </>
+            ) : (
+              "Be one of the first sealed bids. The count shows from 5 bids, so early activity stays private."
+            )}
+          </p>
         </>
       ) : (
         <p className="text-sm text-muted">

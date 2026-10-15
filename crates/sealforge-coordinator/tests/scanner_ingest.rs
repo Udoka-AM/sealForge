@@ -136,6 +136,35 @@ async fn records_payments_with_memo_level_checks(db: PgPool) {
     .unwrap();
     assert_eq!(stored, 3, "valid bids, no refund address");
 
+    // The public bid count appears only from 5 bids; the owner always sees it.
+    let auction = db::auction_by_code(&db, CODE).await.unwrap().unwrap();
+    assert_eq!(
+        db::auction_view(&db, &auction, false)
+            .await
+            .unwrap()
+            .bid_count,
+        Some(7)
+    );
+    sqlx::query("DELETE FROM bids WHERE txid = ANY($1)")
+        .bind(unusable.iter().map(|p| p.txid.to_vec()).collect::<Vec<_>>())
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        db::auction_view(&db, &auction, false)
+            .await
+            .unwrap()
+            .bid_count,
+        None
+    );
+    assert_eq!(
+        db::auction_view(&db, &auction, true)
+            .await
+            .unwrap()
+            .bid_count,
+        Some(4)
+    );
+
     // After close the result is fixed: a new payment is late and refunded in full.
     sqlx::query("UPDATE auctions SET status = 'refunding'")
         .execute(&db)

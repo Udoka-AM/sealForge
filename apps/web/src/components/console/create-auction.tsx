@@ -332,7 +332,7 @@ function Invites({ created }: { created: CreatedAuction }) {
       </ol>
       <div className="space-y-2 text-sm text-muted">
         <p>Each trustee runs, on their own machine:</p>
-        <pre className="num overflow-x-auto rounded-[var(--radius-control)] bg-surface-2 p-3 text-text">
+        <pre className="num break-all whitespace-pre-wrap rounded-[var(--radius-control)] bg-surface-2 p-3 text-text">
           {`sealforge trustee join <invite>\nsealforge trustee dkg ${code} --wait`}
         </pre>
         <p>

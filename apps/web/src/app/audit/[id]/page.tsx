@@ -69,33 +69,31 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
             </div>
           </dl>
 
-          <dl className="space-y-4 text-sm">
-            <div className="space-y-1.5">
+          <dl className="flex flex-wrap gap-x-8 gap-y-4 text-sm">
+            <div className="w-full space-y-1.5">
               <dt className="text-muted">Merkle root of all bids</dt>
               <dd>
                 <HashChip value={result.merkle_root} label="Merkle root" head={12} tail={10} />
               </dd>
             </div>
-            <div className="space-y-1.5">
+            <div className="w-full space-y-1.5">
               <dt className="text-muted">Escrow incoming viewing key (UIVK)</dt>
               <dd>
                 <HashChip value={result.uivk} label="viewing key" head={14} tail={10} />
               </dd>
             </div>
-            <div className="flex flex-wrap gap-x-8 gap-y-2">
-              <div>
-                <dt className="text-muted">Blocks to scan</dt>
-                <dd className="num">
-                  {result.scan_from_height.toLocaleString("en-US")} to{" "}
-                  {result.scan_to_height.toLocaleString("en-US")}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted">Rules</dt>
-                <dd>
-                  {modeLabel(result.rules.mode)}, reserve {zec(result.rules.reserve_zat)}
-                </dd>
-              </div>
+            <div>
+              <dt className="text-muted">Blocks to scan</dt>
+              <dd className="num">
+                {result.scan_from_height.toLocaleString("en-US")} to{" "}
+                {result.scan_to_height.toLocaleString("en-US")}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted">Rules</dt>
+              <dd>
+                {modeLabel(result.rules.mode)}, reserve {zec(result.rules.reserve_zat)}
+              </dd>
             </div>
           </dl>
 
@@ -114,7 +112,7 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
               <p className="text-muted">
                 Independent check from the chain, with any lightwallet server you trust:
               </p>
-              <pre className="num overflow-x-auto rounded-[var(--radius-control)] bg-surface-2 p-3 text-[13px]">
+              <pre className="num break-all whitespace-pre-wrap rounded-[var(--radius-control)] bg-surface-2 p-3 text-[13px]">
                 {`cargo install --git https://github.com/Udoka-AM/sealForge sealforge-auditor\nsealforge-audit --published https://<this site>/api/auctions/${result.auction_code}/result --endpoint <lightwalletd URL>`}
               </pre>
               <p className="text-muted">

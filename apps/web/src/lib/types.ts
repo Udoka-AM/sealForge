@@ -34,6 +34,8 @@ export interface AuctionView {
   status: AuctionStatus;
   escrow_ua: string | null;
   trustees: TrusteeView[];
+  /** Hidden (null) below 5 bids so early activity stays private. */
+  bid_count: number | null;
   /** Only in the organiser's own view (GET /v1/console/...). */
   owner?: { payout_ua: string; fee_buffer_zat: number };
 }

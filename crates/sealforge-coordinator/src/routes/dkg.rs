@@ -470,6 +470,27 @@ pub async fn complete(
 
     let mut tx = state.db.begin().await?;
     lock_auction(&mut tx, auction.id).await?;
+    // Another trustee's report may have finished the DKG while we waited for the
+    // lock. A repeat report of the same group key is then a no-op, not an error.
+    let (status, group_key): (AuctionStatus, Option<Vec<u8>>) =
+        sqlx::query_as("SELECT status, escrow_group_key FROM auctions WHERE id = $1")
+            .bind(auction.id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if status != AuctionStatus::Dkg {
+        let reported_key = frost_dkg::group_key_bytes(
+            &PublicKeyPackage::deserialize(&reported).map_err(|e| ApiError::Internal(e.into()))?,
+        )
+        .map_err(|e| ApiError::Internal(e.into()))?;
+        if group_key.as_deref() != Some(&reported_key[..]) {
+            return Err(ApiError::conflict(
+                "dkg_mismatch",
+                "this key share doesn't match the escrow's group key",
+            ));
+        }
+        tx.commit().await?;
+        return self::state(State(state), Path(code), req).await;
+    }
     sqlx::query(
         "UPDATE trustees SET dkg_status = 'complete', public_key_package = $1 WHERE id = $2",
     )

@@ -316,6 +316,13 @@ pub async fn dkg_step(
             .read(code, PUBLIC_KEY_PACKAGE)?
             .ok_or_else(|| anyhow!("missing public key package"))?,
     )?;
+    // Already reported: nothing to send again while the others finish.
+    if my_status == Some(sealforge_api::types::DkgStatus::Complete) {
+        return Ok(DkgProgress::Completed {
+            fingerprint: fingerprint(&pubkeys),
+            escrow_ua: state.escrow_ua.clone(),
+        });
+    }
     let after: DkgState = client
         .post(
             &format!("{path}/complete"),
