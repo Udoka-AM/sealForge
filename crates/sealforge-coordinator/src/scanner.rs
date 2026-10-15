@@ -180,6 +180,12 @@ async fn scan_auction(
         // Without a recorded birthday, fall back to the open height or genesis (slow on public networks).
         let birthday = birthday.or(auction.open_height).unwrap_or(1).max(1) as u32;
         std::fs::create_dir_all(dir)?;
+        // Escrow wallets hold viewing-key material: owner-only.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+        }
         EscrowWallet::create(&path, params, &ufvk, birthday, client).await?
     };
     wallet.sync(client).await?;

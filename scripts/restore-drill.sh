@@ -22,7 +22,8 @@ $PSQL "$ADMIN_URL" -qc "DROP DATABASE IF EXISTS $scratch" -c "CREATE DATABASE $s
 $PG_RESTORE --no-owner --exit-on-error -d "$scratch_url" < "$dump"
 elapsed=$(( $(date +%s) - start ))
 
-q() { $PSQL "$1" -tAc "$2"; }
+# SQL goes through stdin so SF_DATA_KEY never shows up in `ps` output.
+q() { printf '%s\n' "$2" | $PSQL "$1" -tAq; }
 fail=0
 check() { if [[ "$2" == "$3" ]]; then echo "ok    $1 ($2)"; else echo "FAIL  $1: got $2, want $3"; fail=1; fi; }
 
