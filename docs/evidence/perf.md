@@ -13,5 +13,5 @@ Measured 2026-10-15 on an Apple M3 Pro laptop, against the local regtest stack (
 
 Not yet measured, because they need the hosted testnet stack (task 1.3):
 - **Auditor rescan on real blocks.** Regtest blocks are nearly empty. Testnet blocks carry other users' Orchard and Ironwood actions, so trial decryption costs more per block. To be re-run over a 3,500-block testnet range.
-- **Browser rescan (WASM).** The browser Audit page checks the published list. The chain rescan runs in the CLI only for now.
+- **Browser rescan (WASM) on real blocks.** On regtest it took 252 ms for 205 blocks (`docs/evidence/audit-rescan.md`). The 3,500-block testnet target (< 60 s) needs the hosted node.
 - **LCP on 4G.** Needs Lighthouse against the deployed site.

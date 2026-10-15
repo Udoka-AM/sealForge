@@ -4,13 +4,22 @@ import type { NextConfig } from "next";
 // origin; 'unsafe-inline' covers Next's hydration scripts. Framing is refused so the
 // console and trustee pages, which sign with keys stored here, can't be clickjacked.
 // Dev mode needs eval for React Refresh, so the policy applies to production builds only.
+function lightwalletdOrigin(): string {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_LIGHTWALLETD_GRPCWEB ?? "").origin;
+  } catch {
+    return "";
+  }
+}
+
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  "connect-src 'self'",
+  // The Audit page rescans the chain from a lightwallet server the auditor chooses.
+  `connect-src 'self' https: ${lightwalletdOrigin()}`.trim(),
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -1,0 +1,9 @@
+{
+  "crate": "sealforge-scan",
+  "version": "0.0.1",
+  "git_commit": "68706d917412e5b2fe31037d6fadcd8bba8833a6",
+  "source_dirty": false,
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "wasm_bindgen": "0.2.129",
+  "wasm_sha256": "2921ca149bdeadf3f6c5124abf6915404538ec1f10a2647a8da9a9d6f80f23d0"
+}

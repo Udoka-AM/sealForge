@@ -9,7 +9,7 @@ sealForge is an open-source kit for running private, verifiable sales (tickets, 
 | **You bid privately** | Scan one ZIP-321 QR with any Zcash wallet. The payment is a shielded Ironwood transfer, and its memo carries a salted commitment and a fresh refund address. Your receipt stays in your browser |
 | **Nobody can run off with the money** | Bids go to an escrow whose spend authority is split across three trustees with **FROST 2-of-3**. One trustee alone can't move funds; the coordinator can't move funds at all |
 | **Optional: nobody sees bids early** | In **sealed-reveal** mode you deposit a standard budget and reveal your bid after the close. Until then the coordinator, the trustees and the public see only budgets |
-| **Anyone can check the result** | After close, the escrow's incoming viewing key and a Merkle root of every bid are published. `sealforge-audit` rescans the chain with that key, through any lightwallet server, and recomputes price, volume, winners, each bidder's outcome and the root |
+| **Anyone can check the result** | After close, the escrow's incoming viewing key and a Merkle root of every bid are published. The Audit page (in the browser) or `sealforge-audit` (CLI) rescans the chain with that key, through any lightwallet server, and recomputes price, volume, winners, each bidder's outcome and the root |
 | **Refunds can't be traced back to bids** | Refunds are split into standard denominations, sent after random delays, and batched with other bidders' refunds. Measured: **0.1%** of refunds linkable at the exit, against 100% for naive refunds |
 
 Built for the [Zecathon](https://thezecathon.com) **Private Markets** track (Oct 6–28, 2026).
@@ -66,7 +66,7 @@ Full version, including what is **not** protected: [docs/THREAT-MODEL.md](docs/T
 
 | Done | Waiting on |
 |---|---|
-| FROST 2-of-3 escrow, on-chain spends · bid flow and receipts · scanner · close/publish · Merkle receipts · chain auditor (CLI) and published-list auditor (WASM) · unlinkable refunds and payout · organiser console · browser trustee signing · sealed-reveal mode · embeddable auction card (`<script src=…/embed.js data-auction=CODE>`) · security, accessibility, performance, backups | **Testnet and mainnet runs** (hosted node) · **ShieldRamp** cross-chain bidding via NEAR Intents (API access) · the live mainnet micro-auction |
+| FROST 2-of-3 escrow, on-chain spends · bid flow and receipts · scanner · close/publish · Merkle receipts · chain auditor in the CLI and in the browser (WASM, any gRPC-web lightwallet server) · unlinkable refunds and payout · organiser console · browser trustee signing · sealed-reveal mode · embeddable auction card (`<script src=…/embed.js data-auction=CODE>`) · security, accessibility, performance, backups | **Testnet and mainnet runs** (hosted node) · **ShieldRamp** cross-chain bidding via NEAR Intents (API access) · the live mainnet micro-auction |
 
 ## Architecture
 

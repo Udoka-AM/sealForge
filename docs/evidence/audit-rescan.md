@@ -29,4 +29,13 @@ The second auction's escrow also received the organiser's fee-buffer deposit. Th
 
 **Tamper test:** the NKZNE8FM69 result was edited to hide the 0.30 ZEC bid and claim a 0.05 ZEC price. Clearing price, valid bid count and per-bid outcomes failed, the exit code was 1, and the output said "MISMATCH: the published result does not follow from the chain."
 
-The browser Audit page still re-checks only the published list. It now shows the CLI command for this independent rescan.
+## In the browser (task 3.5)
+
+The Audit page now runs the same scanner (`sealforge-scan`, compiled to WebAssembly). The browser fetches compact blocks and transactions over gRPC-web from a lightwallet server the auditor types in, decrypts with the published viewing key, and runs the auditor on those payments. Nothing comes from sealForge except the result being checked.
+
+| Auction | Blocks | Payments found | Result | Time (incl. loading the module) |
+|---|---|---|---|---|
+| `PT6G5C67G7` (sealed) | 646–982 | 7 (4 deposits, 3 reveals) | Every published figure matches | under 1 s |
+| `JTY3AX0SMC` | 221–425 | 4 | Every published figure matches | 252 ms |
+
+Served locally through Envoy (`scripts/regtest.sh envoy`, gRPC-web on :8081) in front of Zaino. The old published-list check remains as the "quick check".
