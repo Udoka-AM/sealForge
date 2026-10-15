@@ -9,6 +9,7 @@ members = [
   "crates/sealforge-api",
   "crates/sealforge-chain",
   "crates/sealforge-signer-wasm",
+  "crates/sealforge-scan",
   "tools/linkability-harness",
 ]
 
@@ -25,6 +26,7 @@ sealforge-core = { path = "crates/sealforge-core" }
 sealforge-escrow = { path = "crates/sealforge-escrow", default-features = false }
 sealforge-auditor = { path = "crates/sealforge-auditor" }
 sealforge-chain = { path = "crates/sealforge-chain" }
+sealforge-scan = { path = "crates/sealforge-scan" }
 sealforge-api = { path = "crates/sealforge-api" }
 
 anyhow = "1"

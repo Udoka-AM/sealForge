@@ -12,7 +12,8 @@
       "!**/public/artifacts",
       "!**/tests/fixtures",
       "!**/public/auditor",
-      "!**/public/signer"
+      "!**/public/signer",
+      "!**/public/scanner"
     ]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },

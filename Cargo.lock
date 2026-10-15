@@ -3174,11 +3174,13 @@ dependencies = [
  "orchard",
  "pasta_curves 0.6.1",
  "pczt",
+ "prost",
  "rand 0.10.3",
  "rand 0.8.8",
  "rusqlite",
  "sealforge-core",
  "sealforge-escrow",
+ "sealforge-scan",
  "secrecy",
  "serde_json",
  "tokio",
@@ -3293,6 +3295,24 @@ dependencies = [
  "sealforge-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "sealforge-scan"
+version = "0.0.1"
+dependencies = [
+ "getrandom 0.2.17",
+ "getrandom 0.4.3",
+ "hex",
+ "orchard",
+ "prost",
+ "serde_json",
+ "wasm-bindgen",
+ "zcash_client_backend",
+ "zcash_keys",
+ "zcash_note_encryption",
+ "zcash_primitives",
+ "zcash_protocol",
 ]
 
 [[package]]

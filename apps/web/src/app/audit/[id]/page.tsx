@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AuditRunner } from "@/components/audit-runner";
 import { ButtonLink } from "@/components/button";
+import { ChainAudit } from "@/components/chain-audit";
 import { CoordinatorError } from "@/components/coordinator-error";
 import { HashChip } from "@/components/hash-chip";
 import { CoordinatorUnavailable, getAuction, getResult } from "@/lib/coordinator";
@@ -10,6 +11,11 @@ import type { AuctionView, PublishedResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Audit" };
+
+/** Default gRPC-web lightwallet endpoint offered for the browser rescan. */
+function lightwalletd(): string {
+  return process.env.NEXT_PUBLIC_LIGHTWALLETD_GRPCWEB ?? "http://localhost:8081";
+}
 
 export default async function AuditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -97,30 +103,38 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
             </div>
           </dl>
 
-          <section aria-labelledby="recompute" className="space-y-3">
-            <h2 id="recompute" className="text-[18px] leading-6 font-semibold">
-              Recompute
+          <section aria-labelledby="chain" className="space-y-3">
+            <h2 id="chain" className="text-[18px] leading-6 font-semibold">
+              Rescan the chain
             </h2>
             <p className="max-w-[68ch] text-sm text-muted">
-              This runs sealForge&rsquo;s auditor, compiled to WebAssembly, on the published bid
-              list. It recomputes the price, volume, winners, every bidder&rsquo;s outcome and the
-              Merkle root, and compares each one. On its own it can&rsquo;t prove that no bid was
-              left out of the list. For that, rescan the chain yourself with the viewing key above.
+              The independent check. Your browser downloads blocks{" "}
+              {result.scan_from_height.toLocaleString("en-US")} to{" "}
+              {result.scan_to_height.toLocaleString("en-US")} from a lightwallet server you choose,
+              decrypts every payment to the escrow with the viewing key above, and recomputes the
+              price, volume, winners, every bidder&rsquo;s outcome and the Merkle root from those
+              payments alone. A bid left out of the result would show up here.
             </p>
-            <AuditRunner result={result} />
-            <div className="space-y-2 text-sm">
-              <p className="text-muted">
-                Independent check from the chain, with any lightwallet server you trust:
-              </p>
-              <pre className="num break-all whitespace-pre-wrap rounded-[var(--radius-control)] bg-surface-2 p-3 text-[13px]">
+            <ChainAudit result={result} defaultEndpoint={lightwalletd()} />
+            <details className="text-sm">
+              <summary className="cursor-pointer text-muted hover:text-text">
+                Prefer the command line?
+              </summary>
+              <pre className="num mt-2 break-all whitespace-pre-wrap rounded-[var(--radius-control)] bg-surface-2 p-3 text-[13px]">
                 {`cargo install --git https://github.com/Udoka-AM/sealForge sealforge-auditor\nsealforge-audit --published https://<this site>/api/auctions/${result.auction_code}/result --endpoint <lightwalletd URL>`}
               </pre>
-              <p className="text-muted">
-                It scans blocks {result.scan_from_height.toLocaleString("en-US")} to{" "}
-                {result.scan_to_height.toLocaleString("en-US")} with the viewing key, decrypts every
-                payment to the escrow, and recomputes the result from those payments alone.
-              </p>
-            </div>
+            </details>
+          </section>
+
+          <section aria-labelledby="recompute" className="space-y-3">
+            <h2 id="recompute" className="text-[18px] leading-6 font-semibold">
+              Quick check of the published list
+            </h2>
+            <p className="max-w-[68ch] text-sm text-muted">
+              Recomputes the result from the published bid list only. It catches wrong arithmetic or
+              a wrong root in seconds, but not a bid left out of the list: the rescan above does.
+            </p>
+            <AuditRunner result={result} />
           </section>
         </>
       )}

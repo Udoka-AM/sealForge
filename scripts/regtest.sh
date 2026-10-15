@@ -8,6 +8,8 @@ IMAGE=${ZEBRA_REGTEST_IMAGE:-zfnd/zebra:7.0.0-rc.0}
 ZAINO_IMAGE=${ZAINO_REGTEST_IMAGE:-zingodevops/zaino:0.10.2-no-tls}
 NAME=sealforge-regtest
 ZAINO=sealforge-regtest-zaino
+ENVOY=sealforge-regtest-envoy
+ENVOY_IMAGE=${ENVOY_IMAGE:-envoyproxy/envoy:v1.31-latest}
 NET=sealforge-regtest-net
 RPC=${ZEBRA_RPC:-http://127.0.0.1:18232}
 
@@ -16,7 +18,21 @@ rpc() {
     -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$1\",\"params\":${2:-[]}}" "$RPC"
 }
 
+# gRPC-web on 127.0.0.1:8081 for the browser audit (infra/envoy.yaml, pointed at Zaino).
+start_envoy() {
+  local config
+  config=$(mktemp)
+  sed "s|address: zaino,|address: $ZAINO,|" infra/envoy.yaml > "$config"
+  docker rm -f "$ENVOY" >/dev/null 2>&1 || true
+  docker run -d --name "$ENVOY" --network "$NET" -p 127.0.0.1:8081:8081 \
+    -v "$config:/etc/envoy/envoy.yaml:ro" "$ENVOY_IMAGE" >/dev/null
+  echo "Envoy (gRPC-web) at http://127.0.0.1:8081"
+}
+
 case "${1:-}" in
+  envoy)
+    start_envoy
+    ;;
   up)
     address=${2:?usage: regtest.sh up <miner-address>}
     config=$(mktemp)
@@ -33,6 +49,7 @@ case "${1:-}" in
       -v "$(pwd)/infra/regtest/zainod.toml:/app/config/zainod.toml:ro" \
       "$ZAINO_IMAGE" start >/dev/null
     echo "Zaino (lightwallet gRPC) starting at 127.0.0.1:8137"
+    start_envoy
     ;;
   mine)
     rpc generate "[${2:-1}]" | sed 's/.*"result":\[\(.\{0,80\}\).*/mined: \1.../'
@@ -50,12 +67,12 @@ case "${1:-}" in
     docker logs --tail "${2:-50}" "$ZAINO"
     ;;
   down)
-    docker rm -f "$NAME" "$ZAINO" >/dev/null 2>&1 || true
+    docker rm -f "$NAME" "$ZAINO" "$ENVOY" >/dev/null 2>&1 || true
     [[ "${2:-}" == "--wipe" ]] && docker volume rm sealforge-regtest-state >/dev/null 2>&1 || true
     echo "stopped"
     ;;
   *)
-    echo "usage: regtest.sh up <miner-address> | mine [n] | height | rpc <method> [params] | logs [n] | zaino-logs [n] | down [--wipe]" >&2
+    echo "usage: regtest.sh up <miner-address> | envoy | mine [n] | height | rpc <method> [params] | logs [n] | zaino-logs [n] | down [--wipe]" >&2
     exit 1
     ;;
 esac

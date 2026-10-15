@@ -1,0 +1,33 @@
+[package]
+name = "sealforge-scan"
+description = "Find and decrypt payments to an escrow from compact blocks and raw transactions, with only its incoming viewing key. No I/O: used natively and in the browser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+zcash_client_backend = { version = "=0.25.0-pre.2", default-features = false, features = ["orchard"] }
+zcash_keys = { version = "=0.17.0-pre.2", default-features = false, features = ["orchard"] }
+zcash_primitives = { version = "=0.31.0-pre.2", default-features = false }
+zcash_protocol.workspace = true
+zcash_note_encryption = "0.5"
+orchard = { workspace = true }
+prost = "0.14"
+hex = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+
+[features]
+# Browser bindings for the Audit page (scripts/build-scanner-wasm.sh).
+wasm = ["dep:wasm-bindgen", "dep:hex", "dep:serde_json"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# Browser randomness for every getrandom version in the tree.
+getrandom = { version = "0.2", features = ["js"] }
+getrandom04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
