@@ -4,6 +4,7 @@ import {
   formatZec,
   isCanonical,
   looksLikeUnifiedAddress,
+  MIN_DENOMINATION,
   type PreparedBid,
   parseZec,
   prepareBid,
@@ -131,8 +132,10 @@ function AmountStep({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const next: typeof errors = {};
-    if (parsed === null || parsed <= 0n)
-      next.amount = "Enter an amount in ZEC, up to 8 decimal places.";
+    if (parsed === null || parsed <= 0n) next.amount = "Enter an amount in ZEC.";
+    // Bids in whole 0.0001 ZEC steps leave no refund dust (see docs/evidence/linkability.md).
+    else if (parsed % MIN_DENOMINATION !== 0n)
+      next.amount = "Use at most 4 decimal places (0.0001 ZEC).";
     else if (parsed < reserve) next.amount = `Below the ${formatZec(reserve)} ZEC reserve.`;
     const refundUa = refund.trim();
     if (!looksLikeUnifiedAddress(refundUa, auction.network))

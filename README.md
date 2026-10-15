@@ -40,7 +40,7 @@ Details: [docs/02-TRD.md §2.6](docs/02-TRD.md#26-architecture).
 | Auction operator / trustees | ⚠️ Partial | IVK holders can see bids live. Commit-reveal mode (stretch) fixes this. The MVP documents the caveat |
 | Source-chain observer (ShieldRamp) | ⚠️ Reduced, not eliminated | EVM deposits are public. Canonical amounts, split swaps, delays and an ephemeral wallet reduce linkage, and the score quantifies what's left. Never "untraceable" |
 | Single rogue trustee | ✅ | FROST 2-of-3 |
-| Refund correlation (amount + timing) | ✅ Mitigated | Denominations + random delays + cross-bidder batching, measured by the linkability harness |
+| Refund correlation (amount + timing) | ✅ Mitigated | Canonical notes, random delays and cross-bidder batching. Measured: 0.1% of refunds linkable at the exit vs 100% for naive refunds ([evidence](docs/evidence/linkability.md)) |
 
 Full version: [docs/PRODUCT.md](docs/PRODUCT.md#threat-model-put-this-in-the-readme-judges-reward-honesty).
 

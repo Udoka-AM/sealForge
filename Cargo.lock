@@ -2625,6 +2625,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sealforge-linkability"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "rand 0.8.8",
+ "sealforge-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "secp256k1"
 version = "0.33.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
