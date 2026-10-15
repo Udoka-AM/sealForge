@@ -35,6 +35,7 @@ dev-wallet = ["dep:zcash_proofs", "dep:zip321", "dep:zcash_address"]
 sealforge-escrow.workspace = true
 sealforge-core.workspace = true
 hex.workspace = true
+serde_json.workspace = true
 
 [[example]]
 name = "regtest_bid"

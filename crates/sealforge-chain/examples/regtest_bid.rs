@@ -2,7 +2,8 @@
 //! bid (with an `SF1:` memo) into a FROST escrow, and the escrow wallet finds it.
 //!
 //!   regtest_bid address <dev.sqlite> <birthday>      print the dev wallet's UA (mine to it)
-//!   regtest_bid bid <dev.sqlite> <escrow-ua> <escrow-ufvk> <escrow.sqlite> <auction-code> <zat>
+//!   regtest_bid bid <dev.sqlite> <escrow-ua> <escrow-ufvk> <escrow.sqlite> <auction-code> <zat> [salt-byte]
+//!   (prints the bid receipt JSON, as the web app would save it)
 
 use sealforge_chain::{connect, dev::DevWallet, ChainParams, EscrowWallet};
 use sealforge_core::{memo::BidMemo, receipt::commitment};
@@ -34,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
 
             // A real bid memo: commitment over the code, refund address and a salt.
             let refund_ua = dev.address()?;
-            let salt = [7u8; 32];
+            let salt = [args.get(8).map(|b| b.parse()).transpose()?.unwrap_or(7u8); 32];
             let memo = BidMemo {
                 auction_code: code.clone(),
                 commitment: commitment(code, &refund_ua, &salt),

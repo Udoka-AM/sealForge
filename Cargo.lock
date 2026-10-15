@@ -3172,6 +3172,7 @@ dependencies = [
  "sealforge-core",
  "sealforge-escrow",
  "secrecy",
+ "serde_json",
  "tokio",
  "tonic",
  "tracing",
