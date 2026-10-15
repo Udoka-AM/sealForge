@@ -22,6 +22,34 @@ pub fn commitment(auction_code: &str, refund_ua: &str, salt: &[u8; 32]) -> [u8; 
     hash.as_bytes().try_into().expect("32-byte hash")
 }
 
+/// Personalization for commit-reveal price commitments (PRD F13).
+pub const PRICE_COMMITMENT_PERSONAL: &[u8; 16] = b"sealforge_rev_v1";
+
+/// Commit-reveal mode: the deposit memo carries this instead of [`commitment`],
+/// binding the hidden price as well.
+///
+/// commitment = BLAKE2b-256(personal = "sealforge_rev_v1",
+///                          auction_code ‖ 0 ‖ refund_ua ‖ 0 ‖ price_zat (u64 LE) ‖ salt)
+pub fn price_commitment(
+    auction_code: &str,
+    refund_ua: &str,
+    price_zat: u64,
+    salt: &[u8; 32],
+) -> [u8; 32] {
+    let hash = blake2b_simd::Params::new()
+        .hash_length(32)
+        .personal(PRICE_COMMITMENT_PERSONAL)
+        .to_state()
+        .update(auction_code.as_bytes())
+        .update(&[0])
+        .update(refund_ua.as_bytes())
+        .update(&[0])
+        .update(&price_zat.to_le_bytes())
+        .update(salt)
+        .finalize();
+    hash.as_bytes().try_into().expect("32-byte hash")
+}
+
 /// The receipt a bidder downloads (`sealforge-receipt-*.json`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Receipt {
@@ -33,6 +61,9 @@ pub struct Receipt {
     pub salt: [u8; 32],
     #[serde(with = "hex_32")]
     pub commitment: [u8; 32],
+    /// Commit-reveal mode only: the hidden price. `amount_zat` is then the deposit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price_zat: Option<u64>,
 }
 
 mod hex_32 {
@@ -63,6 +94,26 @@ mod tests {
             "76d9fde6644588bafdcfda79e63389a225284a84b51e634ab02a43ad2070592e"
         );
     }
+
+    /// Shared with packages/bid (TypeScript).
+    #[test]
+    fn price_commitment_vector() {
+        assert_eq!(
+            hex::encode(price_commitment(
+                "7K3QX9MZ2P",
+                "utest1refundexample",
+                42_000_000,
+                &[1; 32]
+            )),
+            PRICE_VECTOR
+        );
+        assert_ne!(
+            price_commitment("7K3QX9MZ2P", "utest1refundexample", 42_000_001, &[1; 32]),
+            price_commitment("7K3QX9MZ2P", "utest1refundexample", 42_000_000, &[1; 32]),
+        );
+    }
+
+    const PRICE_VECTOR: &str = "3be46b6b494a7ca47c27b63d4e525861cca83f3c1d6cf25d17124ae1da5c542f";
 
     #[test]
     fn commitment_is_deterministic_and_salted() {

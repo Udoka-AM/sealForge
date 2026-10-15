@@ -27,6 +27,8 @@ export interface AuctionView {
   network: Network;
   mode: AuctionMode;
   bid_mode: "deposit" | "commit_reveal";
+  /** Commit-reveal only: last block for reveals. */
+  reveal_close_height: number | null;
   quantity: number;
   reserve_zat: number;
   open_height: number | null;
@@ -53,6 +55,8 @@ export interface CreateAuction {
   lot_image_url: string | null;
   network: Network;
   mode: AuctionMode;
+  bid_mode: "deposit" | "commit_reveal";
+  reveal_close_height: number | null;
   quantity: number;
   reserve_zat: number;
   close_height: number;
@@ -122,7 +126,11 @@ export interface ResultBid {
   txid: string;
   output_index: number;
   block_height: number;
+  /** The bid: the payment, or in commit-reveal mode the revealed price. */
   amount_zat: number;
+  /** Commit-reveal only: the deposit, and the counted reveal payment. */
+  deposit_zat?: number;
+  reveal_zat?: number;
   commitment: string;
   leaf_hash: string;
   is_winner: boolean;
@@ -133,7 +141,14 @@ export interface ResultBid {
 export interface PublishedResult {
   auction_code: string;
   network: Network;
-  rules: { mode: AuctionMode; quantity: number; reserve_zat: number };
+  rules: {
+    mode: AuctionMode;
+    quantity: number;
+    reserve_zat: number;
+    bid_mode?: "deposit" | "commit_reveal";
+    /** Commit-reveal: the bidding close; scan_to_height is then the reveal close. */
+    close_height?: number;
+  };
   scan_from_height: number;
   scan_to_height: number;
   uivk: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  canonicalDenominations,
   formatZec,
   isCanonical,
   looksLikeUnifiedAddress,
@@ -8,6 +9,7 @@ import {
   type PreparedBid,
   parseZec,
   prepareBid,
+  prepareSealedBid,
   roundingOptions,
 } from "@sealforge/bid";
 import { ArrowLeft, Download, ExternalLink } from "lucide-react";
@@ -118,6 +120,10 @@ function AmountStep({
 }) {
   const amountId = useId();
   const refundId = useId();
+  const depositId = useId();
+  // Commit-reveal: the amount is the hidden bid, and only the deposit is visible.
+  const sealedMode = auction.bid_mode === "commit_reveal";
+  const [deposit, setDeposit] = useState<bigint | null>(null);
   const [amount, setAmount] = useState("");
   const [refund, setRefund] = useState("");
   const [errors, setErrors] = useState<{ amount?: string; refund?: string }>({});
@@ -125,9 +131,19 @@ function AmountStep({
   const parsed = parseZec(amount);
   const rounding =
     parsed !== null && parsed > 0n && !isCanonical(parsed) ? roundingOptions(parsed) : null;
-  const suggestions = rounding
-    ? [rounding.lower, rounding.upper].filter((d): d is bigint => d !== null && d >= reserve)
-    : [];
+  const suggestions =
+    rounding && !sealedMode
+      ? [rounding.lower, rounding.upper].filter((d): d is bigint => d !== null && d >= reserve)
+      : [];
+  // Deposits are standard amounts at or above the bid, so they reveal little about it.
+  const depositChoices =
+    sealedMode && parsed !== null && parsed > 0n
+      ? canonicalDenominations()
+          .filter((d) => d >= parsed)
+          .slice(0, 3)
+      : [];
+  const chosenDeposit =
+    deposit !== null && depositChoices.includes(deposit) ? deposit : (depositChoices[0] ?? null);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -148,6 +164,19 @@ function AmountStep({
       }).`;
     setErrors(next);
     if (next.amount || next.refund || parsed === null || !auction.escrow_ua) return;
+    if (sealedMode) {
+      if (chosenDeposit === null) return;
+      onSealed(
+        prepareSealedBid({
+          auctionCode: auction.code,
+          escrowUa: auction.escrow_ua,
+          priceZat: parsed,
+          depositZat: chosenDeposit,
+          refundUa,
+        }),
+      );
+      return;
+    }
     onSealed(
       prepareBid({
         auctionCode: auction.code,
@@ -164,7 +193,7 @@ function AmountStep({
 
       <div className="space-y-2">
         <label htmlFor={amountId} className="block text-sm font-medium">
-          Maximum bid
+          {sealedMode ? "Your bid (hidden until you reveal it)" : "Maximum bid"}
         </label>
         <div className="flex h-14 items-center rounded-[var(--radius-control)] border border-border bg-surface-2 focus-within:border-primary">
           <input
@@ -188,7 +217,9 @@ function AmountStep({
           className={`text-sm ${errors.amount ? "text-danger" : "text-muted"}`}
         >
           {errors.amount ??
-            `Reserve ${formatZec(reserve)} ZEC. You send this amount now; anything above the price you pay comes back.`}
+            (sealedMode
+              ? `Reserve ${formatZec(reserve)} ZEC. You don't send this amount: it stays in your receipt until you reveal it after bidding closes.`
+              : `Reserve ${formatZec(reserve)} ZEC. You send this amount now; anything above the price you pay comes back.`)}
         </p>
         {suggestions.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -211,6 +242,41 @@ function AmountStep({
           </div>
         ) : null}
       </div>
+
+      {sealedMode && depositChoices.length > 0 ? (
+        <fieldset className="space-y-2">
+          <legend id={depositId} className="text-sm font-medium">
+            Deposit
+          </legend>
+          <div className="flex flex-wrap gap-2">
+            {depositChoices.map((d) => (
+              <label
+                key={d.toString()}
+                className={`num cursor-pointer rounded-[var(--radius-control)] border px-4 py-2.5 text-[15px] transition-colors duration-150 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary ${
+                  d === chosenDeposit
+                    ? "border-primary text-primary"
+                    : "border-border hover:border-muted"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="deposit"
+                  value={d.toString()}
+                  checked={d === chosenDeposit}
+                  onChange={() => setDeposit(d)}
+                  className="sr-only"
+                />
+                {formatZec(d)} ZEC
+              </label>
+            ))}
+          </div>
+          <p className="text-sm text-muted">
+            This is what you send now, and all that the escrow&rsquo;s viewers (including the
+            trustees) see. A larger deposit hides your bid better. Everything above the price you
+            pay comes back.
+          </p>
+        </fieldset>
+      ) : null}
 
       <div className="space-y-2">
         <label htmlFor={refundId} className="block text-sm font-medium">
@@ -310,7 +376,9 @@ function PayStep({
 
       <dl className="space-y-3 text-sm">
         <div className="flex items-baseline justify-between gap-4">
-          <dt className="text-muted">Amount</dt>
+          <dt className="text-muted">
+            {auction.bid_mode === "commit_reveal" ? "Deposit" : "Amount"}
+          </dt>
           <dd className="num text-[18px]">{formatZec(BigInt(bid.receipt.amount_zat))} ZEC</dd>
         </div>
         <div className="space-y-1.5">
@@ -331,6 +399,9 @@ function PayStep({
         <p className="mt-2 text-muted">
           The auction code, your bid commitment and your refund address. It&rsquo;s encrypted on
           chain, and becomes readable to auditors only after close, without revealing who sent it.
+          {auction.bid_mode === "commit_reveal"
+            ? " In this auction the commitment also seals your bid amount: nobody, the trustees included, can read it until you reveal it."
+            : null}
         </p>
       </details>
 
@@ -385,7 +456,9 @@ function SealedStep({
           <dd className="text-right">{auction.title}</dd>
         </div>
         <div className="flex items-baseline justify-between gap-4">
-          <dt className="text-muted">Amount</dt>
+          <dt className="text-muted">
+            {auction.bid_mode === "commit_reveal" ? "Deposit" : "Amount"}
+          </dt>
           <dd className="num">{formatZec(BigInt(receipt.amount_zat))} ZEC</dd>
         </div>
         <div className="flex items-center justify-between gap-4">
@@ -414,6 +487,22 @@ function SealedStep({
             at block <span className="num">{auction.close_height.toLocaleString("en-US")}</span>.
           </span>
         </li>
+        {auction.bid_mode === "commit_reveal" && auction.reveal_close_height ? (
+          <li>
+            <span className="font-medium">Reveal your bid</span>
+            <span className="text-muted">
+              {" "}
+              from{" "}
+              <Link href="/me" className="underline">
+                My bids
+              </Link>{" "}
+              between blocks{" "}
+              <span className="num">{(auction.close_height + 1).toLocaleString("en-US")}</span> and{" "}
+              <span className="num">{auction.reveal_close_height.toLocaleString("en-US")}</span>. A
+              bid that isn&rsquo;t revealed doesn&rsquo;t count, and its deposit is refunded.
+            </span>
+          </li>
+        ) : null}
         <li>
           <span className="font-medium">The result is published.</span>
           <span className="text-muted"> Your receipt lets you check your bid was counted.</span>

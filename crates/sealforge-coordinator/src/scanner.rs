@@ -11,13 +11,13 @@ use std::path::{Path, PathBuf};
 
 use std::collections::BTreeMap;
 
-use sealforge_api::types::{AuctionStatus, Network, SpendAuthView};
+use sealforge_api::types::{AuctionStatus, BidMode, Network, SpendAuthView};
 use sealforge_chain::{
     chain_tip, connect,
     spend::{apply_signatures, pczt_from_bytes, pczt_to_bytes, send_raw, PaymentOut},
     ChainParams, Client, EscrowWallet, ReceivedPayment,
 };
-use sealforge_core::memo::{parse_fee_buffer_memo, BidMemo};
+use sealforge_core::memo::{parse_fee_buffer_memo, BidMemo, RevealMemo};
 use sealforge_escrow::frost::keys::PublicKeyPackage;
 use serde_json::json;
 use uuid::Uuid;
@@ -83,6 +83,41 @@ pub async fn ingest(
             inserted += rows as usize;
             continue;
         }
+        // Commit-reveal: a reveal names a deposit's commitment and opens it. The
+        // closer decides whether it counts; its amount is refunded with the deposit.
+        let after_close = matches!(
+            auction.status,
+            AuctionStatus::Closed | AuctionStatus::Published | AuctionStatus::Refunding
+        );
+        let reveal = p
+            .memo
+            .as_deref()
+            .filter(|_| auction.bid_mode == BidMode::CommitReveal)
+            .and_then(|m| RevealMemo::decode(m).ok())
+            .filter(|r| r.auction_code == auction.code);
+        if let Some(r) = reveal {
+            let rows = sqlx::query(
+                "INSERT INTO bids (auction_id, txid, output_index, pool, block_height, block_time, amount_zat, \
+                 memo_version, commitment, status, invalid_reason, reveal_price_zat, reveal_salt, refund_due_zat, is_winner) \
+                 VALUES ($1, $2, $3, 'ironwood', $4, now(), $5, 1, $6, 'invalid', 'reveal', $7, $8, $9, \
+                         CASE WHEN $9::bigint IS NULL THEN NULL ELSE false END) \
+                 ON CONFLICT (txid, output_index) DO NOTHING",
+            )
+            .bind(auction.id)
+            .bind(&p.txid[..])
+            .bind(p.output_index as i32)
+            .bind(p.block_height as i32)
+            .bind(p.amount_zat as i64)
+            .bind(&r.commitment[..])
+            .bind(r.price_zat as i64)
+            .bind(&r.salt[..])
+            .bind(after_close.then_some(p.amount_zat as i64))
+            .execute(&state.db)
+            .await?
+            .rows_affected();
+            inserted += rows as usize;
+            continue;
+        }
         let parsed = p.memo.as_deref().map(BidMemo::decode);
         let (status, reason, commitment, refund_ua): (
             &str,
@@ -104,6 +139,8 @@ pub async fn ingest(
             ),
             _ => ("invalid", Some("bad_memo"), None, None),
         };
+        // Kept as written: commit-reveal commitments bind it, usable or not.
+        let memo_refund_ua = refund_ua.clone();
         // A refund address that can't be paid privately (wrong network, transparent,
         // no Orchard receiver) is not stored: the bid still counts, but its refund goes
         // to manual review instead of breaking every batch it would join.
@@ -115,10 +152,6 @@ pub async fn ingest(
             ok
         });
         // Once the result is computed (at close), anything new is late and refunded in full.
-        let after_close = matches!(
-            auction.status,
-            AuctionStatus::Closed | AuctionStatus::Published | AuctionStatus::Refunding
-        );
         let (status, refund_due) = match (after_close, status) {
             (true, "valid") => ("late", Some(p.amount_zat as i64)),
             (true, s) => (s, Some(p.amount_zat as i64)),
@@ -126,10 +159,12 @@ pub async fn ingest(
         };
         let rows = sqlx::query(
             "INSERT INTO bids (auction_id, txid, output_index, pool, block_height, block_time, amount_zat, \
-             memo_version, commitment, refund_ua_enc, status, invalid_reason, refund_due_zat, is_winner) \
+             memo_version, commitment, refund_ua_enc, status, invalid_reason, refund_due_zat, is_winner, \
+             memo_refund_ua_enc) \
              VALUES ($1, $2, $3, 'ironwood', $4, now(), $5, $6, $7, \
                      CASE WHEN $8::text IS NULL THEN NULL ELSE pgp_sym_encrypt($8, $9) END, $10::bid_status, $11, \
-                     $12, CASE WHEN $12::bigint IS NULL THEN NULL ELSE false END) \
+                     $12, CASE WHEN $12::bigint IS NULL THEN NULL ELSE false END, \
+                     CASE WHEN $13::text IS NULL THEN NULL ELSE pgp_sym_encrypt($13, $9) END) \
              ON CONFLICT (txid, output_index) DO NOTHING",
         )
         .bind(auction.id)
@@ -144,6 +179,7 @@ pub async fn ingest(
         .bind(status)
         .bind(reason)
         .bind(refund_due)
+        .bind(memo_refund_ua)
         .execute(&state.db)
         .await?
         .rows_affected();

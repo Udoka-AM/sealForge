@@ -58,6 +58,9 @@ pub struct CreateAuction {
     pub quantity: u32,
     pub reserve_zat: u64,
     pub close_height: u32,
+    /// Commit-reveal only: last block for reveals (at least 144 after the close).
+    #[serde(default)]
+    pub reveal_close_height: Option<u32>,
     pub payout_ua: String,
     pub trustees: Vec<TrusteeSlotInput>,
 }
@@ -105,6 +108,8 @@ pub struct AuctionView {
     pub reserve_zat: u64,
     pub open_height: Option<u32>,
     pub close_height: u32,
+    #[serde(default)]
+    pub reveal_close_height: Option<u32>,
     pub status: AuctionStatus,
     pub escrow_ua: Option<String>,
     pub trustees: Vec<TrusteeView>,
@@ -228,6 +233,13 @@ pub struct ResultRules {
     pub mode: AuctionMode,
     pub quantity: u32,
     pub reserve_zat: u64,
+    #[serde(default = "default_bid_mode")]
+    pub bid_mode: BidMode,
+    /// Commit-reveal only: deposits count up to this height, and reveals from
+    /// the next block up to `scan_to_height` (the reveal close). In deposit
+    /// mode the bidding close is `scan_to_height`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub close_height: Option<u32>,
 }
 
 /// One bid in the published result. Everything here is already visible to
@@ -239,7 +251,15 @@ pub struct ResultBid {
     pub txid: String,
     pub output_index: u32,
     pub block_height: u32,
+    /// The bid: the payment amount, or in commit-reveal mode the revealed price.
     pub amount_zat: u64,
+    /// Commit-reveal only: the deposit (budget) that carried the bid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deposit_zat: Option<u64>,
+    /// Commit-reveal only: the amount of the reveal payment that counted. It is
+    /// refunded with the deposit, so refund = deposit + reveal - price paid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reveal_zat: Option<u64>,
     pub commitment: String,
     pub leaf_hash: String,
     pub is_winner: bool,

@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use sealforge_api::types::{CreateAuction, Network, TrusteeSlotInput, UpdateAuction};
+use sealforge_api::types::{BidMode, CreateAuction, Network, TrusteeSlotInput, UpdateAuction};
 use sealforge_core::amount::MAX_MONEY;
 use zcash_keys::address::Address;
 use zcash_protocol::consensus::NetworkType;
@@ -125,7 +125,28 @@ pub fn create_auction(input: &CreateAuction) -> Result<(), ApiError> {
         return Err(ApiError::Validation("close height is required".into()));
     }
     shielded_ua(&input.payout_ua, input.network)?;
+    reveal_window(
+        input.bid_mode,
+        input.close_height,
+        input.reveal_close_height,
+    )?;
     trustees(&input.trustees)
+}
+
+/// Blocks bidders get to reveal in commit-reveal mode (about 3 hours at 75 s).
+pub const MIN_REVEAL_BLOCKS: u32 = 144;
+
+fn reveal_window(mode: BidMode, close: u32, reveal_close: Option<u32>) -> Result<(), ApiError> {
+    match (mode, reveal_close) {
+        (BidMode::Deposit, None) => Ok(()),
+        (BidMode::Deposit, Some(_)) => Err(ApiError::Validation(
+            "a reveal close height only applies to commit-reveal auctions".into(),
+        )),
+        (BidMode::CommitReveal, Some(r)) if r >= close.saturating_add(MIN_REVEAL_BLOCKS) => Ok(()),
+        (BidMode::CommitReveal, _) => Err(ApiError::Validation(format!(
+            "commit-reveal auctions need a reveal close height at least {MIN_REVEAL_BLOCKS} blocks after the close"
+        ))),
+    }
 }
 
 pub fn update_auction(input: &UpdateAuction, network: Network) -> Result<(), ApiError> {

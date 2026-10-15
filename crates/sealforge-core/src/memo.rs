@@ -62,6 +62,63 @@ pub fn parse_fee_buffer_memo(memo: &str) -> Option<&str> {
     is_valid_auction_code(code).then_some(code)
 }
 
+/// Prefix of a commit-reveal reveal memo (PRD F13):
+/// `SF1R:<auction_code>:<commitment-hex64>:<price_zat>:<salt-hex64>`.
+pub const REVEAL_PREFIX: &str = "SF1R";
+
+/// A bidder's reveal, sent to the escrow after the bidding close.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RevealMemo {
+    pub auction_code: String,
+    /// The commitment in the matching deposit's memo.
+    pub commitment: [u8; 32],
+    pub price_zat: u64,
+    pub salt: [u8; 32],
+}
+
+impl RevealMemo {
+    pub fn encode(&self) -> Result<String, MemoError> {
+        if !is_valid_auction_code(&self.auction_code) {
+            return Err(MemoError::BadAuctionCode);
+        }
+        Ok(format!(
+            "{REVEAL_PREFIX}:{}:{}:{}:{}",
+            self.auction_code,
+            hex::encode(self.commitment),
+            self.price_zat,
+            hex::encode(self.salt)
+        ))
+    }
+
+    pub fn decode(memo: &str) -> Result<Self, MemoError> {
+        let memo = memo.trim_end_matches('\0');
+        let parts: Vec<&str> = memo.split(':').collect();
+        let [prefix, code, commitment, price, salt] = parts[..] else {
+            return Err(MemoError::BadShape);
+        };
+        if prefix != REVEAL_PREFIX {
+            return Err(MemoError::BadPrefix);
+        }
+        if !is_valid_auction_code(code) {
+            return Err(MemoError::BadAuctionCode);
+        }
+        let hex32 = |v: &str| -> Option<[u8; 32]> { hex::decode(v).ok()?.try_into().ok() };
+        let commitment = hex32(commitment).ok_or(MemoError::BadCommitment)?;
+        let salt = hex32(salt).ok_or(MemoError::BadCommitment)?;
+        // Plain decimal zatoshi, no sign, no leading zeros.
+        if price.is_empty() || (price.len() > 1 && price.starts_with('0')) {
+            return Err(MemoError::BadShape);
+        }
+        let price_zat: u64 = price.parse().map_err(|_| MemoError::BadShape)?;
+        Ok(Self {
+            auction_code: code.to_owned(),
+            commitment,
+            price_zat,
+            salt,
+        })
+    }
+}
+
 /// Returns true if `code` is a valid 10-char Crockford base32 auction code.
 pub fn is_valid_auction_code(code: &str) -> bool {
     code.len() == AUCTION_CODE_LEN
@@ -177,5 +234,23 @@ mod tests {
         assert_eq!(parse_fee_buffer_memo("SF1FEE:bad"), None);
         assert_eq!(parse_fee_buffer_memo("SF1:JTY3AX0SMC"), None);
         assert!(fee_buffer_memo("nope").is_err());
+    }
+
+    #[test]
+    fn reveal_memo_round_trips() {
+        let r = RevealMemo {
+            auction_code: "7K3QX9MZ2P".into(),
+            commitment: [0xab; 32],
+            price_zat: 42_000_000,
+            salt: [1; 32],
+        };
+        let memo = r.encode().unwrap();
+        assert!(memo.starts_with("SF1R:7K3QX9MZ2P:abab"));
+        assert_eq!(RevealMemo::decode(&memo).unwrap(), r);
+        assert_eq!(RevealMemo::decode(&format!("{memo}\0\0")).unwrap(), r);
+        assert!(BidMemo::decode(&memo).is_err(), "a reveal is never a bid");
+        assert!(RevealMemo::decode(&memo.replace(":42000000:", ":042000000:")).is_err());
+        assert!(RevealMemo::decode(&memo.replace(":42000000:", ":-1:")).is_err());
+        assert!(RevealMemo::decode("SF1:7K3QX9MZ2P:00:00").is_err());
     }
 }

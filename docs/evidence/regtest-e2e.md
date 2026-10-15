@@ -76,3 +76,22 @@ Found and fixed along the way:
 - The DKG deadlock above, now covered by a concurrent e2e test that fails 5 out of 5 runs without the fix.
 - The trustee page paused polling in a hidden tab, so round 2 waited until the tab was visible again. It now polls in the background.
 - Dev wallets created before `transparent-inputs` was enabled weren't recognised. They're now matched by their Orchard key.
+
+## Sealed bids (commit-reveal, task 4.6)
+
+Auction `PT6G5C67G7`: 2 lots, uniform price, reserve 0.01 ZEC. Bidding closed at 838 and reveals were accepted until 982. It was created with **Sealed reveal** in the console. Each sealed bid and each reveal memo was built by the **browser bid flow** (receipt v2 kept in IndexedDB), then paid by the dev wallet.
+
+| Bidder | Hidden bid | Deposit (all anyone saw while bidding was open) | Reveal | Outcome | Refund |
+|---|---|---|---|---|---|
+| 1 | 0.42 | 0.5 | block 842 | won, pays 0.30 | 0.2001 |
+| 2 | 0.30 | 0.5 | block 841 | won, pays 0.30 | 0.2001 |
+| 3 | 0.12 | 0.2 | block 840 | lost | 0.2001 |
+| 4 | 0.25 | 0.5 | none | `not_revealed` | 0.5 |
+
+- **While bidding was open:** the coordinator's records (and anyone with the escrow's viewing key) showed four deposits of 0.5, 0.5, 0.2 and 0.5 ZEC, with no prices. The auction page hid the Bid button once the tip passed 838 and pointed bidders to the reveal.
+- **Close:** the closer waited for 982 + 10. It counted the three reveals, computed the uniform price of 0.30 over revealed prices, and folded each counted 0.0001 ZEC reveal into its bidder's refund.
+- **Audit:** `sealforge-audit` rescanned 646–982 with the viewing key and found 7 payments (4 deposits, 3 reveals). **Match** on price, volume, winners, Merkle root and every bid's outcome, refunds included.
+- **Verify page:** bidder 1's receipt verified in the browser: included under root `315a3f7d…`, won at 0.3 ZEC, refund 0.2001 ZEC as 2 notes. Bidder 4's receipt reports "not in the published result", with the note that unrevealed deposits are refunded in full.
+- **Refunds and payout:** two refund batches (0.2003 and 0.9 ZEC) were confirmed at 996 and 1000, and the 0.5993 ZEC payout at 1007. The auction then settled.
+
+While auditing this run, the chain audit first flagged all 3 bid outcomes. The published refunds (deposit + reveal − paid) were correct, but the auditor compared them with the clearing-only refund (price − paid). The published result now carries `reveal_zat` per bid, and both the chain audit and the browser's quick check account for the deposit and reveal. Tests now cover a coordinator that keeps part of a deposit.

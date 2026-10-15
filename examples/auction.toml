@@ -6,6 +6,9 @@ mode = "uniform_price"       # uniform_price | first_price
 quantity = 10
 reserve_zat = 1_000_000      # 0.01 ZEC
 close_height = 4_000_000     # must be at least the chain tip + 144 when you open
+# Sealed bids, hidden even from trustees until a reveal after the close (PRD F13):
+# bid_mode = "commit_reveal"
+# reveal_close_height = 4_000_144   # at least close_height + 144
 payout_ua = "utest1..."      # your Unified Address (shielded receiver required)
 
 [[trustees]]

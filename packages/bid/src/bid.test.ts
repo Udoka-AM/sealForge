@@ -8,6 +8,9 @@ import {
   parseZec,
   paymentUri,
   prepareBid,
+  prepareReveal,
+  prepareSealedBid,
+  priceCommitment,
   roundingOptions,
   verifyReceipt,
 } from "./index";
@@ -30,6 +33,51 @@ describe("matches sealforge-core", () => {
     const memo = bidMemo(VECTOR.code, c, VECTOR.refund);
     expect(memo).toBe(VECTOR.memo);
     expect(paymentUri("utest1escrowexample", 42_000_000n, memo)).toBe(VECTOR.uri);
+  });
+});
+
+describe("commit-reveal matches sealforge-core", () => {
+  it("price commitment vector (receipt::tests::price_commitment_vector)", () => {
+    const c = priceCommitment(VECTOR.code, VECTOR.refund, 42_000_000n, VECTOR.salt);
+    expect(bytesToHex(c)).toBe("3be46b6b494a7ca47c27b63d4e525861cca83f3c1d6cf25d17124ae1da5c542f");
+  });
+
+  it("sealed bid, reveal and receipt round trip", () => {
+    const bid = prepareSealedBid({
+      auctionCode: VECTOR.code,
+      escrowUa: "utest1escrowexample",
+      priceZat: 42_000_000n,
+      depositZat: 100_000_000n,
+      refundUa: VECTOR.refund,
+      salt: VECTOR.salt,
+    });
+    expect(bid.receipt.version).toBe(2);
+    expect(bid.receipt.amount_zat).toBe(100_000_000);
+    expect(bid.receipt.price_zat).toBe(42_000_000);
+    expect(bid.memo).toBe(
+      "SF1:7K3QX9MZ2P:3be46b6b494a7ca47c27b63d4e525861cca83f3c1d6cf25d17124ae1da5c542f:utest1refundexample",
+    );
+    expect(bid.uri.startsWith("zcash:utest1escrowexample?amount=1&memo=")).toBe(true);
+    expect(verifyReceipt(bid.receipt)).toBe(true);
+    expect(verifyReceipt({ ...bid.receipt, price_zat: 41_000_000 })).toBe(false);
+
+    const reveal = prepareReveal(bid.receipt, "utest1escrowexample");
+    expect(reveal.memo).toBe(
+      `SF1R:7K3QX9MZ2P:3be46b6b494a7ca47c27b63d4e525861cca83f3c1d6cf25d17124ae1da5c542f:42000000:${"01".repeat(32)}`,
+    );
+    expect(reveal.uri.startsWith("zcash:utest1escrowexample?amount=0.0001&memo=")).toBe(true);
+  });
+
+  it("refuses a deposit below the price", () => {
+    expect(() =>
+      prepareSealedBid({
+        auctionCode: VECTOR.code,
+        escrowUa: "utest1escrowexample",
+        priceZat: 2n,
+        depositZat: 1n,
+        refundUa: VECTOR.refund,
+      }),
+    ).toThrow();
   });
 });
 
