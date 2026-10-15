@@ -25,3 +25,12 @@ pub async fn connect(url: &str) -> anyhow::Result<Client> {
         .await?;
     Ok(CompactTxStreamerClient::new(channel))
 }
+
+/// Height of the server's chain tip.
+pub async fn chain_tip(client: &mut Client) -> anyhow::Result<u32> {
+    let tip = client
+        .get_latest_block(zcash_client_backend::proto::service::ChainSpec::default())
+        .await?
+        .into_inner();
+    Ok(u32::try_from(tip.height)?)
+}

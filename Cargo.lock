@@ -3225,6 +3225,7 @@ dependencies = [
  "http-body-util",
  "rand 0.8.8",
  "sealforge-api",
+ "sealforge-chain",
  "sealforge-core",
  "sealforge-escrow",
  "serde",

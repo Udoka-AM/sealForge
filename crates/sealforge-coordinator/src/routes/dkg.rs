@@ -501,13 +501,14 @@ pub async fn complete(
 
         sqlx::query(
             "UPDATE auctions SET escrow_ua = $1, escrow_ufvk_enc = pgp_sym_encrypt($2, $3), escrow_group_key = $4, \
-             updated_at = now() WHERE id = $5",
+             escrow_birthday_height = $6, updated_at = now() WHERE id = $5",
         )
         .bind(&escrow_ua)
         .bind(&ufvk)
         .bind(&data_key)
         .bind(&ak[..])
         .bind(auction.id)
+        .bind(state.chain_tip().map(|h| h as i32))
         .execute(&mut *tx)
         .await?;
         sqlx::query("DELETE FROM dkg_packages WHERE auction_id = $1")

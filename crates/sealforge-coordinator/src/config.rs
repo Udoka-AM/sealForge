@@ -34,7 +34,11 @@ pub struct Config {
     )]
     pub invite_codes: String,
 
-    /// Development only: pretend the chain tip is at this height until the scanner exists.
+    /// Directory for escrow wallet databases (one SQLite file per auction).
+    #[arg(long, env = "SF_WALLET_DIR", default_value = "data/wallets")]
+    pub wallet_dir: std::path::PathBuf,
+
+    /// Development only: pretend the chain tip is at this height (when no node is available).
     #[arg(long, env = "SF_DEV_CHAIN_HEIGHT")]
     pub dev_chain_height: Option<u32>,
 }

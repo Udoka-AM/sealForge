@@ -12,6 +12,7 @@ authors.workspace = true
 sealforge-api = { workspace = true, features = ["sqlx"] }
 sealforge-core.workspace = true
 sealforge-escrow.workspace = true
+sealforge-chain = { path = "../sealforge-chain" }
 anyhow.workspace = true
 axum.workspace = true
 chrono.workspace = true
@@ -41,3 +42,4 @@ uuid.workspace = true
 zcash_protocol.workspace = true
 sealforge-escrow.workspace = true
 chrono.workspace = true
+sealforge-chain = { path = "../sealforge-chain" }
