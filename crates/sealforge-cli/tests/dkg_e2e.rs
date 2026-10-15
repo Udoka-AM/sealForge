@@ -6,14 +6,18 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use pasta_curves::group::ff::{FromUniformBytes, PrimeField};
 use rand::{rngs::OsRng, RngCore};
-use sealforge_api::types::{AuctionStatus, DkgState};
+use sealforge_api::types::{AuctionStatus, DkgState, SpendAuthView};
 use sealforge_cli::{
     client::Client,
     keystore::Keystore,
     organiser,
-    trustee::{self, DkgProgress},
+    trustee::{self, DkgProgress, SignProgress},
 };
-use sealforge_coordinator::{routes, AppState, Settings};
+use sealforge_coordinator::{
+    routes,
+    signing::{self as coordinator_signing, SignerValues},
+    AppState, Settings,
+};
 use sealforge_escrow::{dkg, signing};
 use sqlx::PgPool;
 
@@ -162,6 +166,107 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     ]);
     let signature = signing::aggregate(&request, &package, &shares, &pubkeys).unwrap();
     signing::verify_spend_auth(&ak, &request, &signature).unwrap();
+
+    // A two-spend escrow batch goes through `trustee sign` over HTTP.
+    let sighash = [7u8; 32];
+    let spends = vec![
+        SpendAuthView {
+            action_index: 0,
+            alpha: hex::encode(random_alpha()),
+        },
+        SpendAuthView {
+            action_index: 2,
+            alpha: hex::encode(random_alpha()),
+        },
+    ];
+    let batch_id: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO tx_batches (auction_id, kind, status, sighash, spend_auth, total_out_zat, output_count) \
+         SELECT id, 'refund', 'awaiting_signatures', $2, $3, 100000000, 2 FROM auctions WHERE code = $1 RETURNING id",
+    )
+    .bind(&code)
+    .bind(&sighash[..])
+    .bind(serde_json::to_value(&spends).unwrap())
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let batch = batch_id.to_string();
+
+    // Trustees 2 and 3 commit first, so they are the signers; trustee 1 is not needed.
+    for i in [1, 2] {
+        assert_eq!(
+            trustee::sign_step(&trustees[i], &url, &code).await.unwrap(),
+            vec![SignProgress::Committed {
+                batch: batch.clone()
+            }]
+        );
+    }
+    let first = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    assert!(
+        matches!(&first[..], [SignProgress::Committed { .. }]),
+        "{first:?}"
+    );
+    assert_eq!(
+        trustee::sign_step(&trustees[0], &url, &code).await.unwrap(),
+        vec![SignProgress::NotSelected {
+            batch: batch.clone()
+        }]
+    );
+    for i in [1, 2] {
+        assert_eq!(
+            trustee::sign_step(&trustees[i], &url, &code).await.unwrap(),
+            vec![SignProgress::Signed {
+                batch: batch.clone()
+            }]
+        );
+        assert!(
+            !trustees[i]
+                .trustee_dir(&code)
+                .join(format!("batch-{batch}.nonces"))
+                .exists(),
+            "nonces are deleted after use"
+        );
+    }
+    let status: String = sqlx::query_scalar("SELECT status::text FROM tx_batches WHERE id = $1")
+        .bind(batch_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(status, "signed");
+
+    // The coordinator aggregates the posted shares into valid spend signatures.
+    let rows: Vec<(i16, serde_json::Value, serde_json::Value)> = sqlx::query_as(
+        "SELECT t.slot, s.commitments_json, s.shares_json FROM signature_shares s \
+         JOIN trustees t ON t.id = s.trustee_id WHERE s.batch_id = $1 AND s.shares_json IS NOT NULL",
+    )
+    .bind(batch_id)
+    .fetch_all(&db)
+    .await
+    .unwrap();
+    let signers: BTreeMap<u16, SignerValues> = rows
+        .into_iter()
+        .map(|(slot, c, s)| {
+            (
+                slot as u16,
+                SignerValues {
+                    commitments: serde_json::from_value(c).unwrap(),
+                    shares: serde_json::from_value(s).unwrap(),
+                },
+            )
+        })
+        .collect();
+    assert_eq!(signers.keys().copied().collect::<Vec<_>>(), vec![2, 3]);
+    let signatures = coordinator_signing::aggregate(sighash, &spends, &pubkeys, &signers).unwrap();
+    assert_eq!(
+        signatures.iter().map(|(i, _)| *i).collect::<Vec<_>>(),
+        vec![0, 2]
+    );
+    for (spend, (_, sig)) in spends.iter().zip(&signatures) {
+        let request = signing::SpendAuthRequest {
+            sighash,
+            alpha: hex::decode(&spend.alpha).unwrap().try_into().unwrap(),
+        };
+        signing::verify_spend_auth(&ak, &request, sig).unwrap();
+    }
 
     // And the organiser can open it.
     state.set_chain_tip(3_900_000);

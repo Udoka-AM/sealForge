@@ -35,3 +35,4 @@ axum.workspace = true
 sealforge-coordinator.workspace = true
 sqlx.workspace = true
 pasta_curves.workspace = true
+uuid.workspace = true

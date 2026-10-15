@@ -67,6 +67,14 @@ enum AuctionCommand {
     Cancel { code: String },
     /// Publish a closed auction's result and viewing key so anyone can audit it.
     Publish { code: String },
+    /// Print a payment request that funds the escrow's fee buffer (ZIP-317 fees
+    /// for refunds and the payout). Whatever fees don't use comes back with the payout.
+    FundFees {
+        code: String,
+        /// Amount in zatoshi (default 0.001 ZEC, enough for about 20 escrow transactions).
+        #[arg(long, default_value_t = 100_000)]
+        zat: u64,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -80,8 +88,13 @@ enum TrusteeCommand {
         #[arg(long)]
         wait: bool,
     },
-    /// Review and sign a pending refund or payout batch (task 3.9).
-    Sign { batch_id: String },
+    /// Review and co-sign pending refund/payout batches. Safe to re-run.
+    Sign {
+        code: String,
+        /// Keep going until nothing is waiting on you (polls every 10 s).
+        #[arg(long)]
+        wait: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -141,9 +154,31 @@ async fn main() -> anyhow::Result<()> {
                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             }
         },
-        Command::Trustee(other @ TrusteeCommand::Sign { .. }) => {
-            anyhow::bail!("`{other:?}` is not implemented yet (task 3.9)")
-        }
+        Command::Trustee(TrusteeCommand::Sign { code, wait }) => loop {
+            for batch in trustee::pending_batches(&store, url, &code).await? {
+                if batch.status == "awaiting_signatures" && !batch.i_shared {
+                    println!("Reviewing {}", trustee::describe_batch(&batch));
+                }
+            }
+            let progress = trustee::sign_step(&store, url, &code).await?;
+            if progress.is_empty() {
+                println!("Nothing to sign for {code}.");
+            }
+            for p in &progress {
+                println!("{p}");
+            }
+            let waiting = progress.iter().any(|p| {
+                matches!(
+                    p,
+                    trustee::SignProgress::Committed { .. }
+                        | trustee::SignProgress::WaitingForSecondSigner { .. }
+                )
+            });
+            if !wait || !waiting {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        },
         Command::Escrow(EscrowCommand::LocalDkg { out, network }) => local_dkg(&out, &network)?,
     }
     Ok(())
@@ -173,6 +208,19 @@ async fn auction(store: &Keystore, url: &str, cmd: AuctionCommand) -> anyhow::Re
         }
         AuctionCommand::Cancel { code } => {
             print_json(&organiser::auction_cancel(store, url, &code).await?)
+        }
+        AuctionCommand::FundFees { code, zat } => {
+            let view = organiser::auction_show(store, url, &code).await?;
+            let escrow = view
+                .escrow_ua
+                .ok_or_else(|| anyhow::anyhow!("{code} has no escrow yet: finish the DKG first"))?;
+            let memo = sealforge_core::memo::fee_buffer_memo(&code)?;
+            println!(
+                "Send {} ZEC to the escrow with this memo, from a shielded wallet:\n\n{}\n",
+                sealforge_core::zip321::format_zec(sealforge_core::Zatoshi(zat)),
+                sealforge_core::zip321::payment_uri(&escrow, sealforge_core::Zatoshi(zat), &memo)
+            );
+            println!("Address: {escrow}\nMemo:    {memo}");
         }
         AuctionCommand::Publish { code } => {
             let view = organiser::auction_publish(store, url, &code).await?;
@@ -224,8 +272,9 @@ fn describe(progress: &DkgProgress) -> String {
 
 fn local_dkg(out: &std::path::Path, network: &str) -> anyhow::Result<()> {
     use rand::rngs::OsRng;
+    use sealforge_escrow::address::EncodingParams;
     use sealforge_escrow::{address, dkg, Threshold};
-    use zcash_protocol::consensus::TEST_NETWORK;
+    use zcash_protocol::consensus::NetworkType;
 
     anyhow::ensure!(
         matches!(network, "testnet" | "regtest"),
@@ -243,9 +292,13 @@ fn local_dkg(out: &std::path::Path, network: &str) -> anyhow::Result<()> {
 
     let ak = dkg::group_key_bytes(&pubkeys)?;
     let fvk = address::escrow_fvk(&ak, &mut OsRng)?;
-    // Regtest shares the testnet address encoding.
-    let ua = address::escrow_address(&fvk, &TEST_NETWORK)?;
-    let (ufvk, uivk) = address::escrow_view_keys(&fvk, &TEST_NETWORK)?;
+    let params = EncodingParams(if network == "regtest" {
+        NetworkType::Regtest
+    } else {
+        NetworkType::Test
+    });
+    let ua = address::escrow_address(&fvk, &params)?;
+    let (ufvk, uivk) = address::escrow_view_keys(&fvk, &params)?;
     write_private(
         &out.join("escrow.fvk"),
         hex::encode(fvk.to_bytes()).as_bytes(),

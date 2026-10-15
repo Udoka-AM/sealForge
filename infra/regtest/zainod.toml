@@ -1,0 +1,16 @@
+# Zaino (lightwallet gRPC) for the local regtest chain. See infra/regtest/README.md.
+backend = 'fetch'
+network = 'Regtest'
+ephemeral_finalised_state = true
+
+[grpc_settings]
+listen_address = '0.0.0.0:8137'
+
+[validator_settings]
+validator_jsonrpc_listen_address = 'sealforge-regtest:18232'
+validator_grpc_listen_address = 'sealforge-regtest:18233'
+validator_user = 'regtest'
+validator_password = 'regtest'
+
+[storage.database]
+path = '/app/data'

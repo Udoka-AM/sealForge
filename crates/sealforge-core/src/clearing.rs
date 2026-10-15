@@ -93,7 +93,7 @@ pub fn clear(rules: &AuctionRules, bids: &[ClearingBid]) -> Result<ClearingResul
     }
 
     let mut by_leaf: Vec<&ClearingBid> = bids.iter().collect();
-    by_leaf.sort_by(|a, b| a.leaf_hash.cmp(&b.leaf_hash));
+    by_leaf.sort_by_key(|b| b.leaf_hash);
     if let Some(pair) = by_leaf
         .windows(2)
         .find(|w| w[0].leaf_hash == w[1].leaf_hash)

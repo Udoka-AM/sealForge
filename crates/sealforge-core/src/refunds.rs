@@ -29,6 +29,10 @@ pub struct RefundPolicy {
     pub max_delay_secs: u64,
     /// Maximum outputs per escrow transaction.
     pub max_outputs_per_batch: usize,
+    /// Due notes are held until this many bidders' notes can share a batch...
+    pub min_owners_per_batch: usize,
+    /// ...or the oldest due note has waited this long, in seconds.
+    pub max_hold_secs: u64,
 }
 
 impl Default for RefundPolicy {
@@ -38,6 +42,8 @@ impl Default for RefundPolicy {
             min_delay_secs: 10 * 60,
             max_delay_secs: 240 * 60,
             max_outputs_per_batch: 20,
+            min_owners_per_batch: 3,
+            max_hold_secs: 30 * 60,
         }
     }
 }
@@ -126,6 +132,24 @@ pub fn batch_due_notes<Id: Clone + Ord>(
         }
     }
     interleaved.chunks(max_outputs).map(<[_]>::to_vec).collect()
+}
+
+/// Whether an auction's due notes should be batched now, or held so more
+/// bidders' notes can share the transaction (task 3.9: batches mix at least
+/// `min_owners_per_batch` bidders when that many are available).
+///
+/// Batch when enough distinct owners are due, when the oldest due note has
+/// waited `max_hold_secs`, or when no planned note is still to come.
+pub fn ready_to_batch(
+    due_owners: usize,
+    oldest_due_age_secs: u64,
+    notes_not_yet_due: usize,
+    policy: &RefundPolicy,
+) -> bool {
+    due_owners > 0
+        && (due_owners >= policy.min_owners_per_batch
+            || oldest_due_age_secs >= policy.max_hold_secs
+            || notes_not_yet_due == 0)
 }
 
 #[cfg(test)]
@@ -233,5 +257,16 @@ mod tests {
         let mut ids: Vec<u32> = batches.iter().flatten().map(|n| n.id).collect();
         ids.sort_unstable();
         assert_eq!(ids, (0..53).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn batches_wait_for_three_bidders_or_the_hold() {
+        let p = RefundPolicy::default();
+        assert!(!ready_to_batch(0, 10_000, 0, &p), "nothing due");
+        assert!(!ready_to_batch(1, 60, 5, &p), "hold for more bidders");
+        assert!(!ready_to_batch(2, 60, 5, &p));
+        assert!(ready_to_batch(3, 0, 5, &p), "three bidders mix");
+        assert!(ready_to_batch(1, p.max_hold_secs, 5, &p), "hold expired");
+        assert!(ready_to_batch(1, 0, 0, &p), "nothing else is coming");
     }
 }

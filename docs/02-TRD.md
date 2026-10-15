@@ -109,7 +109,7 @@ No analytics or third-party trackers ship in the bid or ShieldRamp flows. Server
 4. **Close:** at `close_height` the book freezes → `sealforge-core::clearing` computes winners + price → Merkle root over the sorted leaves → `clearing_results`.
 5. **Publish:** IVK, params, block range and root are made public → the audit page and CLI recompute independently.
 6. **Refund:** `sealforge-core::refunds` plans denominated notes + delays → scheduler groups due notes into cross-bidder batches → `sealforge-escrow` builds a PCZT → trustees sign (2-of-3) → aggregate → broadcast via Zaino → mark `paid`.
-7. **Payout:** after all refunds are paid, winners' payments go to the organiser payout UA with the same 2-of-3 flow.
+7. **Payout:** after all refunds are confirmed, the escrow is swept to the organiser payout UA with the same 2-of-3 flow. The sweep is everything left (winners' payments, fee buffer, refund dust) minus the ZIP-317 fee, except payments awaiting manual review, which stay in the escrow. The auction then moves to `settled`.
 
 **ShieldRamp flow:** wagmi connects → `/api/shieldramp/quote` (server route proxies 1Click) → score computed client-side → user signs the EVM deposit → 1Click delivers ZEC to the ephemeral WebZjs wallet → WebZjs shields → random 20–90 min delay (state persisted in IndexedDB, resumable) → ephemeral wallet pays bid instructions in denominations.
 

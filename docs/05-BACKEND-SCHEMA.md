@@ -118,7 +118,7 @@ Indexes: `UNIQUE (auction_id, round, from_slot, to_slot)`.
 | `commitment` | `BYTEA` | | `NULL` | 32 bytes |
 | `refund_ua_enc` | `BYTEA` | | `NULL` | Encrypted. Wiped 30 days after settlement |
 | `status` | `bid_status` | ✓ | — | `valid` · `invalid` · `late` · `under_reserve` |
-| `invalid_reason` | `TEXT` | | `NULL` | `bad_memo`, `wrong_auction` (set by the scanner from the raw memo), `before_open`, `duplicate_commitment` (set at close by `sealforge-core::selection`) |
+| `invalid_reason` | `TEXT` | | `NULL` | `bad_memo`, `wrong_auction` (set by the scanner from the raw memo), `before_open`, `duplicate_commitment` (set at close by `sealforge-core::selection`), `fee_buffer` (the organiser's fee deposit, memo `SF1FEE:<code>`: never refunded, left out of clearing, added to `auctions.fee_buffer_zat`) |
 | `leaf_hash` | `BYTEA` | | `NULL` | Merkle leaf (valid bids only) |
 | `is_winner` | `BOOLEAN` | | `NULL` | Set at clearing |
 | `price_paid_zat` | `BIGINT` | | `NULL` | Winners only |
@@ -170,7 +170,7 @@ Indexes: `(auction_id, status)`, `UNIQUE (txid) WHERE txid IS NOT NULL`.
 
 Indexes: `(auction_id, status, not_before)`, `(bid_id)`, `(batch_id)`.
 
-Refund planning (task 3.9): when an auction is published, the coordinator plans `refund_notes` for every bid with a refund of at least 0.0001 ZEC and a stored refund address, each with a CSPRNG delay, and moves the auction to `refunding`. A batcher shuffles due notes and groups them into `tx_batches` (≤ 20 outputs, bidders interleaved). Bids whose memo was unreadable have no refund address and are counted as `needs_manual_review` in `GET /v1/auctions/{code}/refunds` (aggregates only).
+Refund planning (task 3.9): when an auction is published, the coordinator plans `refund_notes` for every bid with a refund of at least 0.0001 ZEC and a stored refund address, each with a CSPRNG delay, and moves the auction to `refunding`. A batcher shuffles due notes and groups them into `tx_batches` (≤ 20 outputs, bidders interleaved). Due notes are held until at least 3 bidders' notes can share a batch, the oldest due note has waited 30 minutes, or no more notes are coming (`sealforge_core::refunds::ready_to_batch`). Payments that reach the escrow after close are stored as `late` with `refund_due_zat = amount_zat` and planned for a full refund with the same delays. Bids whose memo was unreadable have no refund address and are counted as `needs_manual_review` in `GET /v1/auctions/{code}/refunds` (aggregates only).
 
 ### `signature_shares`
 | Field | Type | Required | Default | Notes |

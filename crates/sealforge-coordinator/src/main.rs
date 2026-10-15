@@ -1,6 +1,9 @@
 use anyhow::Context;
 use clap::Parser;
-use sealforge_coordinator::{auth, closer, config::Config, refunds, routes, AppState, Settings};
+use sealforge_api::types::Network;
+use sealforge_coordinator::{
+    auth, closer, config::Config, refunds, routes, scanner, AppState, Settings,
+};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -39,7 +42,21 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::spawn(auth::purge_nonces(state.db.clone()));
     tokio::spawn(closer::run(state.clone()));
-    // TODO(2.5): spawn the escrow scanner task (also keeps chain_tip current).
+    let network = match config.network.as_str() {
+        "mainnet" => Network::Mainnet,
+        "regtest" => Network::Regtest,
+        _ => Network::Testnet,
+    };
+    // The scanner keeps the chain tip and every live escrow current. With
+    // SF_DEV_CHAIN_HEIGHT set (no node available), it stays off.
+    if config.dev_chain_height.is_none() {
+        tokio::spawn(scanner::run(
+            state.clone(),
+            config.zaino_url.clone(),
+            network,
+            config.wallet_dir.clone(),
+        ));
+    }
     tokio::spawn(refunds::run(state.clone(), config.refunds_paused));
 
     let app = routes::router(state);

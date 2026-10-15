@@ -5,31 +5,18 @@ use std::collections::BTreeSet;
 use sealforge_api::types::{CreateAuction, Network, TrusteeSlotInput, UpdateAuction};
 use sealforge_core::amount::MAX_MONEY;
 use zcash_keys::address::Address;
-use zcash_protocol::consensus::{BlockHeight, NetworkType, NetworkUpgrade, Parameters};
+use zcash_protocol::consensus::NetworkType;
 
 use crate::error::ApiError;
 
 /// Minimum blocks between opening and closing (≈ 1 h at NU7's 25 s blocks).
 pub const MIN_OPEN_BLOCKS: u32 = 144;
 
-/// Address-encoding parameters: only the network type matters for encodings.
-#[derive(Clone, Copy, Debug)]
-pub struct AddressParams(NetworkType);
+/// Address-encoding parameters for an auction's network.
+pub type AddressParams = sealforge_escrow::address::EncodingParams;
 
-impl AddressParams {
-    pub fn for_network(network: Network) -> Self {
-        Self(network_type(network))
-    }
-}
-
-impl Parameters for AddressParams {
-    fn network_type(&self) -> NetworkType {
-        self.0
-    }
-
-    fn activation_height(&self, _nu: NetworkUpgrade) -> Option<BlockHeight> {
-        None
-    }
+pub fn params_for(network: Network) -> AddressParams {
+    sealforge_escrow::address::EncodingParams(network_type(network))
 }
 
 fn network_type(network: Network) -> NetworkType {
@@ -42,7 +29,7 @@ fn network_type(network: Network) -> NetworkType {
 
 /// A Unified Address for `network` with at least one shielded receiver.
 pub fn shielded_ua(value: &str, network: Network) -> Result<(), ApiError> {
-    match Address::decode(&AddressParams(network_type(network)), value) {
+    match Address::decode(&params_for(network), value) {
         Some(Address::Unified(ua)) if ua.has_orchard() || ua.has_sapling() => Ok(()),
         Some(Address::Unified(_)) => Err(ApiError::Validation(
             "address has no shielded receiver".into(),
