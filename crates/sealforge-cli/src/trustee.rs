@@ -345,3 +345,154 @@ pub fn key_share(store: &Keystore, code: &str) -> anyhow::Result<(KeyPackage, Pu
     }
     Ok((key_package, pubkeys))
 }
+
+// ---------------------------------------------------------------------------
+// Signing escrow batches (task 3.9).
+
+use sealforge_api::types::{BatchView, PostCommitments, PostShares};
+use sealforge_escrow::{
+    frost::round1::{SigningCommitments, SigningNonces},
+    signing::{self, SpendAuthRequest},
+};
+
+/// What one `sign_step` did for a batch.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SignProgress {
+    Committed { batch: String },
+    Signed { batch: String },
+    WaitingForSecondSigner { batch: String },
+    NotSelected { batch: String },
+    Done { batch: String },
+}
+
+fn nonces_file(batch: &str) -> String {
+    format!("batch-{batch}.nonces")
+}
+
+fn hex32(value: &str) -> anyhow::Result<[u8; 32]> {
+    hex::decode(value)?
+        .try_into()
+        .map_err(|_| anyhow!("expected 32 bytes"))
+}
+
+/// One-line summary trustees review before signing.
+pub fn describe_batch(b: &BatchView) -> String {
+    format!(
+        "{} batch {}: {} output(s), {} ZEC total, {} escrow spend(s) to authorize",
+        b.kind,
+        &b.id[..8],
+        b.output_count,
+        sealforge_core::zip321::format_zec(sealforge_core::Zatoshi(b.total_out_zat)),
+        b.spends.len()
+    )
+}
+
+/// Move this trustee's part of every pending batch forward by one round.
+pub async fn sign_step(
+    store: &Keystore,
+    coordinator: &str,
+    code: &str,
+) -> anyhow::Result<Vec<SignProgress>> {
+    let identity = store.trustee_identity(code)?;
+    let (key_package, _) = key_share(store, code)?;
+    let client = Client::new(coordinator, Some(identity.signing_key()?));
+    let batches: Vec<BatchView> = client.get(&format!("/v1/auctions/{code}/batches")).await?;
+    let me = identity.slot;
+    let mut out = Vec::new();
+
+    for batch in batches {
+        if batch.status != "awaiting_signatures" {
+            out.push(SignProgress::Done { batch: batch.id });
+            continue;
+        }
+        if !batch.i_committed {
+            // Round 1: fresh nonces per spend, saved (owner-only) before anything is sent.
+            let mut nonces = Vec::new();
+            let mut commitments = Vec::new();
+            for _ in &batch.spends {
+                let (n, c) = signing::commit(&key_package, &mut OsRng);
+                nonces.push(hex::encode(n.serialize()?));
+                commitments.push(hex::encode(c.serialize()?));
+            }
+            store.write(
+                code,
+                &nonces_file(&batch.id),
+                serde_json::to_string(&nonces)?.as_bytes(),
+            )?;
+            let _: BatchView = client
+                .post(
+                    &format!("/v1/batches/{}/commitments", batch.id),
+                    &PostCommitments { commitments },
+                )
+                .await?;
+            out.push(SignProgress::Committed { batch: batch.id });
+            continue;
+        }
+        if !batch.signer_slots.contains(&me) {
+            let progress = if batch.signer_slots.is_empty() {
+                SignProgress::WaitingForSecondSigner { batch: batch.id }
+            } else {
+                SignProgress::NotSelected { batch: batch.id }
+            };
+            out.push(progress);
+            continue;
+        }
+        if batch.i_shared {
+            out.push(SignProgress::Done { batch: batch.id });
+            continue;
+        }
+        if batch.signer_commitments.len() < 2 {
+            out.push(SignProgress::WaitingForSecondSigner { batch: batch.id });
+            continue;
+        }
+
+        // Round 2: sign each spend with its alpha against the agreed commitments.
+        let nonce_hex: Vec<String> =
+            serde_json::from_slice(&store.read(code, &nonces_file(&batch.id))?.ok_or_else(
+                || anyhow!("nonces for batch {} are missing on this machine", batch.id),
+            )?)?;
+        let sighash = hex32(&batch.sighash)?;
+        let mut shares = Vec::new();
+        for (i, spend) in batch.spends.iter().enumerate() {
+            let request = SpendAuthRequest {
+                sighash,
+                alpha: hex32(&spend.alpha)?,
+            };
+            let mut commitments = BTreeMap::new();
+            for (slot, values) in &batch.signer_commitments {
+                let c = values.get(i).ok_or_else(|| anyhow!("missing commitment"))?;
+                commitments.insert(
+                    dkg::identifier(*slot)?,
+                    SigningCommitments::deserialize(&hex::decode(c)?)?,
+                );
+            }
+            let package = signing::signing_package(&request, commitments);
+            let nonces = SigningNonces::deserialize(&hex::decode(&nonce_hex[i])?)?;
+            shares.push(hex::encode(
+                signing::sign(&request, &package, &nonces, &key_package)?.serialize(),
+            ));
+        }
+        let _: BatchView = client
+            .post(
+                &format!("/v1/batches/{}/shares", batch.id),
+                &PostShares { shares },
+            )
+            .await?;
+        // Nonces must never be reused.
+        std::fs::remove_file(store.trustee_dir(code).join(nonces_file(&batch.id))).ok();
+        out.push(SignProgress::Signed { batch: batch.id });
+    }
+    Ok(out)
+}
+
+/// Pending batches as this trustee sees them (for review before signing).
+pub async fn pending_batches(
+    store: &Keystore,
+    coordinator: &str,
+    code: &str,
+) -> anyhow::Result<Vec<BatchView>> {
+    let identity = store.trustee_identity(code)?;
+    Client::new(coordinator, Some(identity.signing_key()?))
+        .get(&format!("/v1/auctions/{code}/batches"))
+        .await
+}

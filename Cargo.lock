@@ -3215,6 +3215,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "toml",
+ "uuid",
  "zcash_protocol",
 ]
 

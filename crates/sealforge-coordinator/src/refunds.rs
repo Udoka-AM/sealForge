@@ -6,8 +6,9 @@
 //!    `published → refunding`. Dust below 0.0001 ZEC is not sent.
 //! 2. **Batch** (continuously): notes whose delay has passed are shuffled and
 //!    grouped into escrow transactions that interleave bidders, as `tx_batches`
-//!    in `building`. Building the PCZT and collecting trustee signatures needs
-//!    the chain and lands with the scanner (TODO(3.9)).
+//!    in `building`. The chain worker (`scanner::process_batches`) then builds
+//!    each PCZT, collects 2-of-3 trustee signatures (`trustee sign`) and
+//!    broadcasts, one batch in flight per auction.
 //!
 //! Payments whose memo couldn't be read have no refund address. They are
 //! reported for manual review instead of being planned.
@@ -161,7 +162,6 @@ pub async fn batch_due(
         }
     }
     tx.commit().await?;
-    // TODO(3.9): build each batch's PCZT and open it for trustee signatures.
     Ok(created)
 }
 

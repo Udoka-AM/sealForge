@@ -80,8 +80,13 @@ enum TrusteeCommand {
         #[arg(long)]
         wait: bool,
     },
-    /// Review and sign a pending refund or payout batch (task 3.9).
-    Sign { batch_id: String },
+    /// Review and co-sign pending refund/payout batches. Safe to re-run.
+    Sign {
+        code: String,
+        /// Keep going until nothing is waiting on you (polls every 10 s).
+        #[arg(long)]
+        wait: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -141,9 +146,26 @@ async fn main() -> anyhow::Result<()> {
                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             }
         },
-        Command::Trustee(other @ TrusteeCommand::Sign { .. }) => {
-            anyhow::bail!("`{other:?}` is not implemented yet (task 3.9)")
-        }
+        Command::Trustee(TrusteeCommand::Sign { code, wait }) => loop {
+            for batch in trustee::pending_batches(&store, url, &code).await? {
+                println!("Reviewing {}", trustee::describe_batch(&batch));
+            }
+            let progress = trustee::sign_step(&store, url, &code).await?;
+            for p in &progress {
+                println!("{p:?}");
+            }
+            let waiting = progress.iter().any(|p| {
+                matches!(
+                    p,
+                    trustee::SignProgress::Committed { .. }
+                        | trustee::SignProgress::WaitingForSecondSigner { .. }
+                )
+            });
+            if !wait || !waiting {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        },
         Command::Escrow(EscrowCommand::LocalDkg { out, network }) => local_dkg(&out, &network)?,
     }
     Ok(())
