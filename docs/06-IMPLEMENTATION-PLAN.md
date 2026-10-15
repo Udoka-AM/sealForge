@@ -69,7 +69,7 @@ Ordered by dependency: core logic → API → UI → refunds.
 | 4.1 | ShieldRamp v1 (USDC/ETH → shielded → delayed bid) | B | 1.7, 3.6 | `packages/shieldramp` flow S6–S8 | AC12. One real mainnet cross-chain bid lands as a shielded bid | 1.7, 3.6 |
 | 4.2 | Linkability Score | B + C | Intents flow stats, score factors | `packages/shieldramp/src/score.ts` + card UI | AC11. Unit tests per factor. Copy reviewed for honesty | 4.1 |
 | 4.3 | Linkability test harness + chart | C | 3.9 refunds, fixtures | `tools/linkability-harness`, `docs/evidence/linkability.svg` | AC13 (< 5% vs ~100%) | 3.9 |
-| 4.4 | Embeddable widget build (`@sealforge/shieldramp`) | B + Agent | 4.1 | ESM + UMD bundles, `<script>` embed | Embed works in a plain HTML page | 4.1 |
+| 4.4 | Embeddable widget build (`@sealforge/shieldramp`) | B + Agent | 4.1 | ESM + UMD bundles, `<script>` embed | Embed works in a plain HTML page. ✅ Auction card done (`apps/web/public/embed.js` + `/api/embed/{code}`), tested on a third-party page; the ShieldRamp modal joins it with 4.1 | 4.1 |
 | 4.5 | "Run your own auction in 10 minutes" guide | C | M3 | `docs/QUICKSTART.md` | An outside tester finishes in ≤ 10 min | M3 |
 | 4.6 | Commit-reveal mode (stretch, only if M3 exited by Oct 19) | A + C | PRD F13 | `bid_mode = commit_reveal` | Reveal flow tested on testnet. ✅ Built and run end to end on the local chain (`docs/evidence/regtest-e2e.md`); testnet run pending the VM | M3 |
 | 4.7 | Ephemeral wallet page S12 (export, send out) | B | 4.1 | Screen | Seed export + re-import works | 4.1 |
