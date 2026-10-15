@@ -358,6 +358,7 @@ mod tests {
             refund_ua: REFUND.into(),
             salt: salt(i),
             commitment: commitment(CODE, REFUND, &salt(i)),
+            price_zat: None,
         }
     }
 
