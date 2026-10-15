@@ -153,6 +153,16 @@ async fn scan_auction(
     Ok(())
 }
 
+/// A batch both signers have signed, ready to finalize.
+#[derive(sqlx::FromRow)]
+struct SignedBatch {
+    id: Uuid,
+    pczt: Vec<u8>,
+    sighash: Vec<u8>,
+    spend_auth: serde_json::Value,
+    signer_slots: Vec<i16>,
+}
+
 /// Move refund/payout batches along: build → (trustees sign) → broadcast → confirm.
 /// One batch is in flight per auction, so two transactions never pick the same notes.
 async fn process_batches(
@@ -193,13 +203,20 @@ async fn process_batches(
     }
 
     // Finalize batches both signers have signed.
-    let signed: Vec<(Uuid, Vec<u8>, Vec<u8>, serde_json::Value, Vec<i16>)> = sqlx::query_as(
+    let signed: Vec<SignedBatch> = sqlx::query_as(
         "SELECT id, pczt, sighash, spend_auth, signer_slots FROM tx_batches WHERE auction_id = $1 AND status = 'signed'",
     )
     .bind(auction.id)
     .fetch_all(&state.db)
     .await?;
-    for (id, pczt, sighash, spend_auth, slots) in signed {
+    for SignedBatch {
+        id,
+        pczt,
+        sighash,
+        spend_auth,
+        signer_slots: slots,
+    } in signed
+    {
         let spends: Vec<SpendAuthView> = serde_json::from_value(spend_auth)?;
         let rows: Vec<(i16, serde_json::Value, serde_json::Value)> = sqlx::query_as(
             "SELECT t.slot, s.commitments_json, s.shares_json FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id \
