@@ -26,7 +26,7 @@ use crate::{cache::MemBlockCache, ChainParams, Client};
 
 /// The OS RNG, as the wallet library recommends: nothing to seed or leak.
 type Rng = UnwrapErr<SysRng>;
-type Db = WalletDb<rusqlite::Connection, ChainParams, SystemClock, Rng>;
+pub(crate) type Db = WalletDb<rusqlite::Connection, ChainParams, SystemClock, Rng>;
 
 /// A payment received by the escrow, as the scanner and auditor see it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,12 +45,12 @@ pub struct EscrowWallet {
     path: PathBuf,
 }
 
-fn rng() -> Rng {
+pub(crate) fn rng() -> Rng {
     UnwrapErr(SysRng)
 }
 
 impl EscrowWallet {
-    fn open_db(path: &Path, params: ChainParams) -> anyhow::Result<Db> {
+    pub(crate) fn open_db(path: &Path, params: ChainParams) -> anyhow::Result<Db> {
         let mut db = WalletDb::for_path(path, params, SystemClock, rng())
             .with_context(|| format!("opening wallet db {}", path.display()))?;
         init_wallet_db(&mut db, None).map_err(|e| anyhow!("initialising wallet db: {e:?}"))?;
@@ -99,81 +99,7 @@ impl EscrowWallet {
 
     /// Scan new blocks, then download full transactions to read memos.
     pub async fn sync(&mut self, client: &mut Client) -> anyhow::Result<()> {
-        let cache = MemBlockCache::default();
-        sync::run(client, &self.params, &cache, &mut self.db, 1_000)
-            .await
-            .map_err(|e| anyhow!("sync failed: {e}"))?;
-        self.enhance(client).await
-    }
-
-    async fn enhance(&mut self, client: &mut Client) -> anyhow::Result<()> {
-        // Requests can produce further requests, so loop until none are left (bounded).
-        for _ in 0..10 {
-            let requests = self
-                .db
-                .transaction_data_requests()
-                .map_err(|e| anyhow!("listing data requests: {e:?}"))?;
-            if requests.is_empty() {
-                return Ok(());
-            }
-            for request in requests {
-                let txid = match &request {
-                    TransactionDataRequest::GetStatus(txid)
-                    | TransactionDataRequest::Enhancement(txid) => *txid,
-                };
-                let raw = client
-                    .get_transaction(TxFilter {
-                        block: None,
-                        index: 0,
-                        hash: txid.as_ref().to_vec(),
-                    })
-                    .await;
-                let raw = match raw {
-                    Ok(r) => r.into_inner(),
-                    Err(status) if status.code() == tonic::Code::NotFound => {
-                        self.db
-                            .set_transaction_status(txid, TransactionStatus::TxidNotRecognized)
-                            .map_err(|e| anyhow!("{e:?}"))?;
-                        continue;
-                    }
-                    Err(status) => return Err(status.into()),
-                };
-                // lightwalletd reports mempool transactions with height 0 (or u64::MAX).
-                let mined = (raw.height > 0 && raw.height < u64::from(u32::MAX))
-                    .then(|| BlockHeight::from_u32(raw.height as u32));
-                match request {
-                    TransactionDataRequest::GetStatus(_) => {
-                        let status = match mined {
-                            Some(h) => TransactionStatus::Mined(h),
-                            None => TransactionStatus::NotInMainChain,
-                        };
-                        self.db
-                            .set_transaction_status(txid, status)
-                            .map_err(|e| anyhow!("{e:?}"))?;
-                    }
-                    _ => {
-                        let branch_height = match mined {
-                            Some(h) => h,
-                            None => {
-                                self.db
-                                    .chain_height()
-                                    .map_err(|e| anyhow!("{e:?}"))?
-                                    .ok_or_else(|| anyhow!("wallet has no chain tip"))?
-                                    + 1
-                            }
-                        };
-                        let tx = Transaction::read(
-                            &raw.data[..],
-                            BranchId::for_height(&self.params, branch_height),
-                        )
-                        .context("parsing transaction")?;
-                        decrypt_and_store_transaction(&self.params, &mut self.db, &tx, mined)
-                            .map_err(|e| anyhow!("storing transaction: {e:?}"))?;
-                    }
-                }
-            }
-        }
-        Ok(())
+        sync_db(&mut self.db, self.params, client).await
     }
 
     /// Highest block the wallet has fully scanned.
@@ -230,4 +156,83 @@ impl EscrowWallet {
         }
         Ok(out)
     }
+}
+
+/// Scan new blocks into `db`, then fetch full transactions so memos are stored.
+pub(crate) async fn sync_db(
+    db: &mut Db,
+    params: ChainParams,
+    client: &mut Client,
+) -> anyhow::Result<()> {
+    let cache = MemBlockCache::default();
+    sync::run(client, &params, &cache, db, 1_000)
+        .await
+        .map_err(|e| anyhow!("sync failed: {e}"))?;
+    enhance(db, params, client).await
+}
+
+async fn enhance(db: &mut Db, params: ChainParams, client: &mut Client) -> anyhow::Result<()> {
+    // Requests can produce further requests, so loop until none are left (bounded).
+    for _ in 0..10 {
+        let requests = db
+            .transaction_data_requests()
+            .map_err(|e| anyhow!("listing data requests: {e:?}"))?;
+        if requests.is_empty() {
+            return Ok(());
+        }
+        for request in requests {
+            let txid = match &request {
+                TransactionDataRequest::GetStatus(txid)
+                | TransactionDataRequest::Enhancement(txid) => *txid,
+            };
+            let raw = client
+                .get_transaction(TxFilter {
+                    block: None,
+                    index: 0,
+                    hash: txid.as_ref().to_vec(),
+                })
+                .await;
+            let raw = match raw {
+                Ok(r) => r.into_inner(),
+                Err(status) if status.code() == tonic::Code::NotFound => {
+                    db.set_transaction_status(txid, TransactionStatus::TxidNotRecognized)
+                        .map_err(|e| anyhow!("{e:?}"))?;
+                    continue;
+                }
+                Err(status) => return Err(status.into()),
+            };
+            // lightwalletd reports mempool transactions with height 0 (or u64::MAX).
+            let mined = (raw.height > 0 && raw.height < u64::from(u32::MAX))
+                .then(|| BlockHeight::from_u32(raw.height as u32));
+            match request {
+                TransactionDataRequest::GetStatus(_) => {
+                    let status = match mined {
+                        Some(h) => TransactionStatus::Mined(h),
+                        None => TransactionStatus::NotInMainChain,
+                    };
+                    db.set_transaction_status(txid, status)
+                        .map_err(|e| anyhow!("{e:?}"))?;
+                }
+                _ => {
+                    let branch_height = match mined {
+                        Some(h) => h,
+                        None => {
+                            db.chain_height()
+                                .map_err(|e| anyhow!("{e:?}"))?
+                                .ok_or_else(|| anyhow!("wallet has no chain tip"))?
+                                + 1
+                        }
+                    };
+                    let tx = Transaction::read(
+                        &raw.data[..],
+                        BranchId::for_height(&params, branch_height),
+                    )
+                    .context("parsing transaction")?;
+                    decrypt_and_store_transaction(&params, db, &tx, mined)
+                        .map_err(|e| anyhow!("storing transaction: {e:?}"))?;
+                }
+            }
+        }
+    }
+    Ok(())
 }

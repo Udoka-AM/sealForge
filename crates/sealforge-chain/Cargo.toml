@@ -20,7 +20,15 @@ zcash_client_backend = { workspace = true, features = ["lightwalletd-tonic-trans
 zcash_client_sqlite = { workspace = true, features = ["orchard"] }
 zcash_keys.workspace = true
 zcash_primitives = "=0.31.0-pre.2"
+zcash_proofs = { version = "=0.31.0-pre.2", features = ["bundled-prover"], optional = true }
+zip321 = { version = "=0.10.0-pre.2", optional = true }
+zcash_address = { version = "=0.14.0-pre.2", optional = true }
+secrecy = "0.8"
 zcash_protocol.workspace = true
+
+[features]
+# Spending dev wallet for local regtest testing (bundles the Sapling proving parameters).
+dev-wallet = ["dep:zcash_proofs", "dep:zip321", "dep:zcash_address"]
 
 [dev-dependencies]
 sealforge-escrow.workspace = true
