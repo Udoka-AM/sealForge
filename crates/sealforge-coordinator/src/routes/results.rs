@@ -7,7 +7,7 @@ use axum::{
 use sealforge_api::types::{AuctionStatus, PublishedResult, ResultBid, ResultRules};
 use sqlx::FromRow;
 
-use crate::{db, error::ApiError, AppState};
+use crate::{db, error::ApiError, refunds, AppState};
 
 #[derive(Debug, FromRow)]
 struct ResultRow {
@@ -100,4 +100,21 @@ pub async fn result(
             })
             .collect(),
     }))
+}
+
+/// `GET /v1/auctions/{code}/refunds`: aggregate refund progress (no per-bid data).
+pub async fn refund_progress(
+    State(state): State<AppState>,
+    Path(code): Path<String>,
+) -> Result<Json<refunds::RefundProgress>, ApiError> {
+    let auction = db::auction_by_code(&state.db, &code)
+        .await?
+        .filter(|a| {
+            matches!(
+                a.status,
+                AuctionStatus::Published | AuctionStatus::Refunding | AuctionStatus::Settled
+            )
+        })
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(refunds::progress(&state, auction.id).await?))
 }

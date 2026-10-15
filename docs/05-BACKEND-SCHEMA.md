@@ -170,6 +170,8 @@ Indexes: `(auction_id, status)`, `UNIQUE (txid) WHERE txid IS NOT NULL`.
 
 Indexes: `(auction_id, status, not_before)`, `(bid_id)`, `(batch_id)`.
 
+Refund planning (task 3.9): when an auction is published, the coordinator plans `refund_notes` for every bid with a refund of at least 0.0001 ZEC and a stored refund address, each with a CSPRNG delay, and moves the auction to `refunding`. A batcher shuffles due notes and groups them into `tx_batches` (≤ 20 outputs, bidders interleaved). Bids whose memo was unreadable have no refund address and are counted as `needs_manual_review` in `GET /v1/auctions/{code}/refunds` (aggregates only).
+
 ### `signature_shares`
 | Field | Type | Required | Default | Notes |
 |---|---|---|---|---|

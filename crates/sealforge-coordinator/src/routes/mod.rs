@@ -41,6 +41,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/auctions/{code}/dkg/complete", post(dkg::complete))
         .route("/v1/auctions/{code}/publish", post(auctions::publish))
         .route("/v1/auctions/{code}/result", get(results::result))
+        .route("/v1/auctions/{code}/refunds", get(results::refund_progress))
         // TODO(3.9): /v1/batches/*
         .layer(TraceLayer::new_for_http())
         .with_state(state)
