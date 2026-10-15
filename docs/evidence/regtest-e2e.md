@@ -35,6 +35,20 @@ cargo run -p sealforge-chain --features dev-wallet --example regtest_bid -- bid 
 scripts/regtest.sh mine 1
 ```
 
-## Not yet on chain
+## Refunds and payout on chain (tasks 3.9, 3.11)
 
-Refund notes are planned and batched, but not yet signed and broadcast. That is the PCZT + FROST step (task 3.9). The signing cryptography is proven in `sealforge-escrow`.
+The same auction, continued with `sealforge trustee sign` on each trustee's keystore:
+
+| Step | What happened | Result |
+|---|---|---|
+| 11. Batch | The batcher held due notes until 3 bidders' notes could share a transaction | 1 refund batch: 6 outputs from 3 bidders, 1.15 ZEC |
+| 12. Build | The chain worker proposed, created and proved the PCZT (3 escrow spends) | `awaiting_signatures` in about 4 s (release build) |
+| 13. Sign | Trustees 3 and 1 committed first and signed; trustee 2 was told it wasn't needed | Coordinator aggregated, checked each signature against `rk`, broadcast |
+| 14. Confirm | Mined 1 block | Refund tx `b0cf5894…9e6f` confirmed at **438** |
+| 15. Payout | The escrow was swept to the payout UA: 0.59965 ZEC left, minus the 0.0001 ZEC fee | Payout batch 0.59955 ZEC, 2 escrow spends |
+| 16. Sign | Trustees 2 and 1 signed this time | Broadcast |
+| 17. Settle | Mined 1 block | Payout confirmed at **439**, auction `settled` automatically |
+
+Escrow arithmetic: 1.75 ZEC in, 1.15 ZEC refunded, 0.00035 ZEC refund fee (ZIP-317, 7 logical actions), 0.59955 ZEC payout, 0.0001 ZEC payout fee. Winners paid 0.6 ZEC, so the organiser bore 0.00045 ZEC of fees. There was no refund dust in this run.
+
+Caveat: all four test bids used the dev wallet's single refund address, so this run shows the mechanics, not unlinkability. The browser bid flow uses a fresh refund address per bid, and the linkability harness measures mixing (`docs/evidence/linkability.md`).
