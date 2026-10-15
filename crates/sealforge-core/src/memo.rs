@@ -40,6 +40,28 @@ pub enum MemoError {
     MissingRefundAddress,
 }
 
+/// Prefix of the organiser's fee-buffer deposit memo: `SF1FEE:<auction_code>`.
+/// The deposit pays ZIP-317 fees for refunds and the payout (PRD Q8); what
+/// isn't spent on fees returns to the organiser with the payout.
+pub const FEE_BUFFER_PREFIX: &str = "SF1FEE";
+
+/// The fee-buffer memo for an auction.
+pub fn fee_buffer_memo(auction_code: &str) -> Result<String, MemoError> {
+    if !is_valid_auction_code(auction_code) {
+        return Err(MemoError::BadAuctionCode);
+    }
+    Ok(format!("{FEE_BUFFER_PREFIX}:{auction_code}"))
+}
+
+/// The auction code of a fee-buffer deposit memo, if `memo` is one.
+pub fn parse_fee_buffer_memo(memo: &str) -> Option<&str> {
+    let code = memo
+        .trim_end_matches('\0')
+        .strip_prefix(FEE_BUFFER_PREFIX)?
+        .strip_prefix(':')?;
+    is_valid_auction_code(code).then_some(code)
+}
+
 /// Returns true if `code` is a valid 10-char Crockford base32 auction code.
 pub fn is_valid_auction_code(code: &str) -> bool {
     code.len() == AUCTION_CODE_LEN
@@ -144,5 +166,16 @@ mod tests {
             Err(MemoError::BadCommitment)
         );
         assert_eq!(BidMemo::decode(&"x".repeat(600)), Err(MemoError::TooLong));
+    }
+
+    #[test]
+    fn fee_buffer_memo_round_trips_and_is_not_a_bid() {
+        let memo = fee_buffer_memo("JTY3AX0SMC").unwrap();
+        assert_eq!(memo, "SF1FEE:JTY3AX0SMC");
+        assert_eq!(parse_fee_buffer_memo(&memo), Some("JTY3AX0SMC"));
+        assert!(BidMemo::decode(&memo).is_err());
+        assert_eq!(parse_fee_buffer_memo("SF1FEE:bad"), None);
+        assert_eq!(parse_fee_buffer_memo("SF1:JTY3AX0SMC"), None);
+        assert!(fee_buffer_memo("nope").is_err());
     }
 }

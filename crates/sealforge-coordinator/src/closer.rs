@@ -96,7 +96,7 @@ pub async fn close_auction(state: &AppState, auction: &AuctionRow) -> Result<boo
     let mut tx = state.db.begin().await?;
     let rows: Vec<BidRow> = sqlx::query_as(
         "SELECT id, txid, output_index, block_height, amount_zat, commitment, invalid_reason \
-         FROM bids WHERE auction_id = $1 FOR UPDATE",
+         FROM bids WHERE auction_id = $1 AND invalid_reason IS DISTINCT FROM 'fee_buffer' FOR UPDATE",
     )
     .bind(auction.id)
     .fetch_all(&mut *tx)

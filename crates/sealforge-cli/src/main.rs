@@ -67,6 +67,14 @@ enum AuctionCommand {
     Cancel { code: String },
     /// Publish a closed auction's result and viewing key so anyone can audit it.
     Publish { code: String },
+    /// Print a payment request that funds the escrow's fee buffer (ZIP-317 fees
+    /// for refunds and the payout). Whatever fees don't use comes back with the payout.
+    FundFees {
+        code: String,
+        /// Amount in zatoshi (default 0.001 ZEC, enough for about 20 escrow transactions).
+        #[arg(long, default_value_t = 100_000)]
+        zat: u64,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -148,11 +156,16 @@ async fn main() -> anyhow::Result<()> {
         },
         Command::Trustee(TrusteeCommand::Sign { code, wait }) => loop {
             for batch in trustee::pending_batches(&store, url, &code).await? {
-                println!("Reviewing {}", trustee::describe_batch(&batch));
+                if batch.status == "awaiting_signatures" && !batch.i_shared {
+                    println!("Reviewing {}", trustee::describe_batch(&batch));
+                }
             }
             let progress = trustee::sign_step(&store, url, &code).await?;
+            if progress.is_empty() {
+                println!("Nothing to sign for {code}.");
+            }
             for p in &progress {
-                println!("{p:?}");
+                println!("{p}");
             }
             let waiting = progress.iter().any(|p| {
                 matches!(
@@ -195,6 +208,19 @@ async fn auction(store: &Keystore, url: &str, cmd: AuctionCommand) -> anyhow::Re
         }
         AuctionCommand::Cancel { code } => {
             print_json(&organiser::auction_cancel(store, url, &code).await?)
+        }
+        AuctionCommand::FundFees { code, zat } => {
+            let view = organiser::auction_show(store, url, &code).await?;
+            let escrow = view
+                .escrow_ua
+                .ok_or_else(|| anyhow::anyhow!("{code} has no escrow yet: finish the DKG first"))?;
+            let memo = sealforge_core::memo::fee_buffer_memo(&code)?;
+            println!(
+                "Send {} ZEC to the escrow with this memo, from a shielded wallet:\n\n{}\n",
+                sealforge_core::zip321::format_zec(sealforge_core::Zatoshi(zat)),
+                sealforge_core::zip321::payment_uri(&escrow, sealforge_core::Zatoshi(zat), &memo)
+            );
+            println!("Address: {escrow}\nMemo:    {memo}");
         }
         AuctionCommand::Publish { code } => {
             let view = organiser::auction_publish(store, url, &code).await?;

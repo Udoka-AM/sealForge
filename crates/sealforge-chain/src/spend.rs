@@ -24,14 +24,16 @@ use pczt::{
 use zcash_address::ZcashAddress;
 use zcash_client_backend::{
     data_api::{
+        error::Error as DataApiError,
         wallet::{
             create_pczt_from_proposal, extract_and_store_transaction_from_pczt,
             input_selection::{GreedyInputSelector, GreedyInputSelectorError, SpendPolicy},
             propose_transfer, ConfirmationsPolicy,
         },
-        WalletCommitmentTrees, WalletRead,
+        InputSource, WalletCommitmentTrees, WalletRead,
     },
     fees::{standard::MultiOutputChangeStrategy, DustOutputPolicy, SplitPolicy, StandardFeeRule},
+    proposal::Proposal,
     proto::service::RawTransaction,
     util::SystemClock,
     wallet::OvkPolicy,
@@ -96,6 +98,31 @@ impl From<SignError> for anyhow::Error {
     }
 }
 
+type EscrowProposal = Proposal<StandardFeeRule, <Db as InputSource>::NoteRef>;
+
+enum ProposeFail {
+    Insufficient { available: u64, required: u64 },
+    Other(anyhow::Error),
+}
+
+impl From<anyhow::Error> for ProposeFail {
+    fn from(e: anyhow::Error) -> Self {
+        Self::Other(e)
+    }
+}
+
+impl From<ProposeFail> for anyhow::Error {
+    fn from(e: ProposeFail) -> Self {
+        match e {
+            ProposeFail::Insufficient {
+                available,
+                required,
+            } => anyhow!("proposing escrow payment: insufficient balance (have {available}, need {required} including fee)"),
+            ProposeFail::Other(o) => o,
+        }
+    }
+}
+
 fn circuit() -> OrchardCircuitVersion {
     OrchardCircuitVersion::PostNu6_3
 }
@@ -110,9 +137,7 @@ impl EscrowWallet {
             .ok_or_else(|| anyhow!("escrow wallet has no account"))
     }
 
-    /// Propose and prove a payment from the escrow. Proving takes a while
-    /// (building the Ironwood proving key plus the proof itself).
-    pub fn build_payment(&mut self, outputs: &[PaymentOut]) -> anyhow::Result<UnsignedPayment> {
+    fn propose(&mut self, outputs: &[PaymentOut]) -> Result<EscrowProposal, ProposeFail> {
         let payments = outputs
             .iter()
             .map(|o| {
@@ -141,7 +166,7 @@ impl EscrowWallet {
         );
         let account = self.account()?;
         let params = self.params();
-        let proposal = propose_transfer::<_, _, _, _, <Db as WalletCommitmentTrees>::Error>(
+        propose_transfer::<_, _, _, _, <Db as WalletCommitmentTrees>::Error>(
             self.db_mut(),
             &params,
             account,
@@ -153,8 +178,75 @@ impl EscrowWallet {
             None,
             None,
         )
-        .map_err(|e| anyhow!("proposing escrow payment: {e}"))?;
+        .map_err(|e| match e {
+            DataApiError::InsufficientFunds {
+                available,
+                required,
+            } => ProposeFail::Insufficient {
+                available: available.into(),
+                required: required.into(),
+            },
+            other => ProposeFail::Other(anyhow!("proposing escrow payment: {other}")),
+        })
+    }
 
+    /// Propose and prove a payment from the escrow. Proving takes a while
+    /// (building the Ironwood proving key plus the proof itself).
+    pub fn build_payment(&mut self, outputs: &[PaymentOut]) -> anyhow::Result<UnsignedPayment> {
+        let proposal = self.propose(outputs).map_err(anyhow::Error::from)?;
+        self.prove(&proposal)
+    }
+
+    /// Pay everything in the escrow to `address` except `keep_zat`, net of the
+    /// ZIP-317 fee (the organiser payout). Returns the payment and the amount sent.
+    pub fn build_sweep(
+        &mut self,
+        address: &str,
+        keep_zat: u64,
+    ) -> anyhow::Result<(UnsignedPayment, u64)> {
+        let available = self.spendable_zat()?;
+        // ZIP-317 minimum: two logical actions.
+        let mut fee = 10_000u64;
+        for _ in 0..5 {
+            let amount = available
+                .checked_sub(keep_zat + fee)
+                .filter(|a| *a > 0)
+                .ok_or_else(|| anyhow!("escrow holds {available} zat: nothing left to sweep"))?;
+            let out = PaymentOut {
+                address: address.to_owned(),
+                amount_zat: amount,
+                memo: None,
+            };
+            match self.propose(std::slice::from_ref(&out)) {
+                Ok(proposal) => return Ok((self.prove(&proposal)?, amount)),
+                // The fee depends on the notes selected; learn it from the shortfall.
+                Err(ProposeFail::Insufficient { required, .. }) => {
+                    fee = required.saturating_sub(amount).max(fee + 5_000);
+                }
+                Err(ProposeFail::Other(e)) => return Err(e),
+            }
+        }
+        Err(anyhow!("couldn't size the sweep"))
+    }
+
+    /// Spendable escrow balance under the minimum confirmations policy.
+    pub fn spendable_zat(&self) -> anyhow::Result<u64> {
+        let account = self.account()?;
+        let summary = self
+            .db()
+            .get_wallet_summary(ConfirmationsPolicy::MIN)
+            .map_err(|e| anyhow!("{e:?}"))?
+            .ok_or_else(|| anyhow!("wallet not synced"))?;
+        Ok(summary
+            .account_balances()
+            .get(&account)
+            .map(|b| u64::from(b.spendable_value()))
+            .unwrap_or(0))
+    }
+
+    fn prove(&mut self, proposal: &EscrowProposal) -> anyhow::Result<UnsignedPayment> {
+        let account = self.account()?;
+        let params = self.params();
         let pczt = create_pczt_from_proposal::<
             _,
             _,
@@ -169,7 +261,7 @@ impl EscrowWallet {
             &mut rng(),
             account,
             OvkPolicy::Sender,
-            &proposal,
+            proposal,
             None,
             BundlePadding::DEFAULT,
         )

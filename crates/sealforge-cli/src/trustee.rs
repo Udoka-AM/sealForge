@@ -365,6 +365,31 @@ pub enum SignProgress {
     Done { batch: String },
 }
 
+impl std::fmt::Display for SignProgress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let short = |id: &str| id.chars().take(8).collect::<String>();
+        match self {
+            Self::Committed { batch } => write!(
+                f,
+                "Batch {}: commitments sent. Run again once a second trustee has committed.",
+                short(batch)
+            ),
+            Self::Signed { batch } => write!(f, "Batch {}: signature share sent.", short(batch)),
+            Self::WaitingForSecondSigner { batch } => {
+                write!(f, "Batch {}: waiting for a second trustee.", short(batch))
+            }
+            Self::NotSelected { batch } => write!(
+                f,
+                "Batch {}: two other trustees are signing; you're not needed.",
+                short(batch)
+            ),
+            Self::Done { batch } => {
+                write!(f, "Batch {}: nothing left for you to do.", short(batch))
+            }
+        }
+    }
+}
+
 fn nonces_file(batch: &str) -> String {
     format!("batch-{batch}.nonces")
 }

@@ -17,7 +17,7 @@ use sealforge_chain::{
     spend::{apply_signatures, pczt_from_bytes, pczt_to_bytes, send_raw, PaymentOut},
     ChainParams, Client, EscrowWallet, ReceivedPayment,
 };
-use sealforge_core::memo::BidMemo;
+use sealforge_core::memo::{parse_fee_buffer_memo, BidMemo};
 use sealforge_escrow::frost::keys::PublicKeyPackage;
 use serde_json::json;
 use uuid::Uuid;
@@ -55,6 +55,34 @@ pub async fn ingest(
         .ok_or_else(|| ApiError::Unavailable("SF_DATA_KEY is not configured".into()))?;
     let mut inserted = 0;
     for p in payments {
+        // The organiser's fee buffer: kept for fees, never refunded, swept with the payout.
+        if p.memo.as_deref().and_then(parse_fee_buffer_memo) == Some(auction.code.as_str()) {
+            let rows = sqlx::query(
+                "INSERT INTO bids (auction_id, txid, output_index, pool, block_height, block_time, amount_zat, \
+                 status, invalid_reason, refund_due_zat, is_winner) \
+                 VALUES ($1, $2, $3, 'ironwood', $4, now(), $5, 'invalid', 'fee_buffer', 0, false) \
+                 ON CONFLICT (txid, output_index) DO NOTHING",
+            )
+            .bind(auction.id)
+            .bind(&p.txid[..])
+            .bind(p.output_index as i32)
+            .bind(p.block_height as i32)
+            .bind(p.amount_zat as i64)
+            .execute(&state.db)
+            .await?
+            .rows_affected();
+            if rows > 0 {
+                sqlx::query(
+                    "UPDATE auctions SET fee_buffer_zat = fee_buffer_zat + $2 WHERE id = $1",
+                )
+                .bind(auction.id)
+                .bind(p.amount_zat as i64)
+                .execute(&state.db)
+                .await?;
+            }
+            inserted += rows as usize;
+            continue;
+        }
         let parsed = p.memo.as_deref().map(BidMemo::decode);
         let (status, reason, commitment, refund_ua): (
             &str,
@@ -299,32 +327,58 @@ async fn process_batches(
     .fetch_one(&state.db)
     .await?;
     if in_flight == 0 {
-        let next: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM tx_batches WHERE auction_id = $1 AND status = 'building' ORDER BY created_at LIMIT 1",
+        let next: Option<(Uuid, String)> = sqlx::query_as(
+            "SELECT id, kind::text FROM tx_batches WHERE auction_id = $1 AND status = 'building' ORDER BY created_at LIMIT 1",
         )
         .bind(auction.id)
         .fetch_optional(&state.db)
         .await?;
-        if let Some(batch_id) = next {
-            let outputs: Vec<(String, i64)> = sqlx::query_as(
-                "SELECT CASE WHEN n.kind = 'payout' THEN a.payout_ua ELSE pgp_sym_decrypt(b.refund_ua_enc, $2) END, \
-                 n.denomination_zat FROM refund_notes n JOIN auctions a ON a.id = n.auction_id \
-                 LEFT JOIN bids b ON b.id = n.bid_id WHERE n.batch_id = $1",
-            )
-            .bind(batch_id)
-            .bind(&data_key)
-            .fetch_all(&state.db)
-            .await?;
-            let outs: Vec<PaymentOut> = outputs
-                .iter()
-                .map(|(address, amount)| PaymentOut {
-                    address: address.clone(),
-                    amount_zat: *amount as u64,
-                    memo: None,
-                })
-                .collect();
-            // Proving is CPU-heavy; keep it off the async scheduler.
-            let unsigned = tokio::task::block_in_place(|| wallet.build_payment(&outs))?;
+        if let Some((batch_id, kind)) = next {
+            let (unsigned, outputs) = if kind == "payout" {
+                // The payout sweeps what's left: proceeds plus any fee buffer and
+                // refund dust, net of fees. Payments awaiting manual review stay.
+                let held: i64 = sqlx::query_scalar(
+                    "SELECT COALESCE(sum(refund_due_zat), 0)::bigint FROM bids \
+                     WHERE auction_id = $1 AND refund_due_zat >= 10000 AND refund_ua_enc IS NULL",
+                )
+                .bind(auction.id)
+                .fetch_one(&state.db)
+                .await?;
+                let (unsigned, amount) = tokio::task::block_in_place(|| {
+                    wallet.build_sweep(&auction.payout_ua, held as u64)
+                })?;
+                sqlx::query("UPDATE refund_notes SET denomination_zat = $2 WHERE batch_id = $1")
+                    .bind(batch_id)
+                    .bind(amount as i64)
+                    .execute(&state.db)
+                    .await?;
+                (unsigned, 1)
+            } else {
+                let outputs: Vec<(String, i64)> = sqlx::query_as(
+                    "SELECT pgp_sym_decrypt(b.refund_ua_enc, $2), n.denomination_zat FROM refund_notes n \
+                     JOIN bids b ON b.id = n.bid_id WHERE n.batch_id = $1",
+                )
+                .bind(batch_id)
+                .bind(&data_key)
+                .fetch_all(&state.db)
+                .await?;
+                let outs: Vec<PaymentOut> = outputs
+                    .iter()
+                    .map(|(address, amount)| PaymentOut {
+                        address: address.clone(),
+                        amount_zat: *amount as u64,
+                        memo: None,
+                    })
+                    .collect();
+                // Proving is CPU-heavy; keep it off the async scheduler.
+                let unsigned = tokio::task::block_in_place(|| wallet.build_payment(&outs))?;
+                (unsigned, outputs.len())
+            };
+            let total: i64 =
+                sqlx::query_scalar("SELECT COALESCE(sum(denomination_zat), 0)::bigint FROM refund_notes WHERE batch_id = $1")
+                    .bind(batch_id)
+                    .fetch_one(&state.db)
+                    .await?;
             let spend_auth: Vec<SpendAuthView> = unsigned
                 .spends
                 .iter()
@@ -333,7 +387,6 @@ async fn process_batches(
                     alpha: hex::encode(s.alpha),
                 })
                 .collect();
-            let total: i64 = outputs.iter().map(|(_, a)| a).sum();
             sqlx::query(
                 "UPDATE tx_batches SET status = 'awaiting_signatures', pczt = $2, sighash = $3, spend_auth = $4, \
                  total_out_zat = $5, output_count = $6 WHERE id = $1 AND status = 'building'",
@@ -343,10 +396,10 @@ async fn process_batches(
             .bind(&unsigned.sighash[..])
             .bind(serde_json::to_value(&spend_auth)?)
             .bind(total)
-            .bind(outputs.len() as i32)
+            .bind(outputs as i32)
             .execute(&state.db)
             .await?;
-            tracing::info!(code = %auction.code, outputs = outputs.len(), "escrow batch ready for trustee signatures");
+            tracing::info!(code = %auction.code, outputs, "escrow batch ready for trustee signatures");
         }
     }
 

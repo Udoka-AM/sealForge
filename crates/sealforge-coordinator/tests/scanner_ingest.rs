@@ -131,4 +131,27 @@ async fn records_payments_with_memo_level_checks(db: PgPool) {
     assert_eq!(late.0, "late");
     assert_eq!(late.1, Some(late.2));
     assert_eq!(late.3, Some(false));
+
+    // The organiser's fee buffer is recorded as such: never refunded, never a bid.
+    let fee = payment(6, Some(format!("SF1FEE:{CODE}")));
+    assert_eq!(
+        scanner::ingest(&state, &auction, std::slice::from_ref(&fee))
+            .await
+            .unwrap(),
+        1
+    );
+    scanner::ingest(&state, &auction, &[fee]).await.unwrap();
+    let (reason, due): (Option<String>, Option<i64>) =
+        sqlx::query_as("SELECT invalid_reason, refund_due_zat FROM bids WHERE txid = $1")
+            .bind(&payment(6, None).txid[..])
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(reason.as_deref(), Some("fee_buffer"));
+    assert_eq!(due, Some(0));
+    let buffer: i64 = sqlx::query_scalar("SELECT fee_buffer_zat FROM auctions")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(buffer, payment(6, None).amount_zat as i64, "counted once");
 }

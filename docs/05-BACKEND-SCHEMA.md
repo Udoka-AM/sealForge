@@ -118,7 +118,7 @@ Indexes: `UNIQUE (auction_id, round, from_slot, to_slot)`.
 | `commitment` | `BYTEA` | | `NULL` | 32 bytes |
 | `refund_ua_enc` | `BYTEA` | | `NULL` | Encrypted. Wiped 30 days after settlement |
 | `status` | `bid_status` | ✓ | — | `valid` · `invalid` · `late` · `under_reserve` |
-| `invalid_reason` | `TEXT` | | `NULL` | `bad_memo`, `wrong_auction` (set by the scanner from the raw memo), `before_open`, `duplicate_commitment` (set at close by `sealforge-core::selection`) |
+| `invalid_reason` | `TEXT` | | `NULL` | `bad_memo`, `wrong_auction` (set by the scanner from the raw memo), `before_open`, `duplicate_commitment` (set at close by `sealforge-core::selection`), `fee_buffer` (the organiser's fee deposit, memo `SF1FEE:<code>`: never refunded, left out of clearing, added to `auctions.fee_buffer_zat`) |
 | `leaf_hash` | `BYTEA` | | `NULL` | Merkle leaf (valid bids only) |
 | `is_winner` | `BOOLEAN` | | `NULL` | Set at clearing |
 | `price_paid_zat` | `BIGINT` | | `NULL` | Winners only |
