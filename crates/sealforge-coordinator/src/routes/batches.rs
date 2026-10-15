@@ -187,7 +187,8 @@ pub async fn commit(
         "UPDATE tx_batches SET signer_slots = (
             SELECT array_agg(slot ORDER BY submitted_at, slot) FROM (
               SELECT t.slot, s.submitted_at FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id
-              WHERE s.batch_id = $1 AND s.commitments_json IS NOT NULL ORDER BY s.submitted_at, t.slot LIMIT 2) x)
+              WHERE s.batch_id = $1 AND s.commitments_json IS NOT NULL ORDER BY s.submitted_at, t.slot LIMIT 2) x),
+           signers_selected_at = now()
          WHERE id = $1 AND signer_slots IS NULL AND (
             SELECT count(*) FROM signature_shares WHERE batch_id = $1 AND commitments_json IS NOT NULL) >= 2",
     )
@@ -300,4 +301,45 @@ pub async fn list_for_organiser(
             })
             .collect(),
     ))
+}
+
+/// Reset signing rounds whose chosen signers haven't both sent shares within
+/// `timeout` (a trustee went offline, or lost their nonces). Commitments and
+/// shares are discarded and every trustee commits again with fresh nonces,
+/// which FROST allows. Returns the number of batches reset.
+pub async fn reset_stalled(
+    state: &AppState,
+    timeout: std::time::Duration,
+) -> Result<u64, ApiError> {
+    let mut tx = state.db.begin().await?;
+    let stalled: Vec<(Uuid, Uuid)> = sqlx::query_as(
+        "SELECT id, auction_id FROM tx_batches WHERE status = 'awaiting_signatures' \
+         AND signers_selected_at < now() - make_interval(secs => $1) FOR UPDATE SKIP LOCKED",
+    )
+    .bind(timeout.as_secs_f64())
+    .fetch_all(&mut *tx)
+    .await?;
+    for (id, auction_id) in &stalled {
+        sqlx::query("DELETE FROM signature_shares WHERE batch_id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "UPDATE tx_batches SET signer_slots = NULL, signers_selected_at = NULL WHERE id = $1",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+        crate::db::audit(
+            &mut *tx,
+            Some(*auction_id),
+            "system",
+            None,
+            "batch.signing_reset",
+            serde_json::json!({ "batch": id.to_string() }),
+        )
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(stalled.len() as u64)
 }

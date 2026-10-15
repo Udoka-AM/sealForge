@@ -74,6 +74,65 @@ pub fn sign(
     Ok(share)
 }
 
+/// One trustee's round 1 for a whole batch: serialized nonces (secret, keep
+/// until round 2, then delete) and commitments (public), one per spend.
+pub struct BatchCommit {
+    pub nonces: Vec<Vec<u8>>,
+    pub commitments: Vec<Vec<u8>>,
+}
+
+/// Round 1 for a batch of `spends` escrow spends.
+pub fn commit_batch<R: RngCore + CryptoRng>(
+    key_package: &KeyPackage,
+    spends: usize,
+    rng: &mut R,
+) -> Result<BatchCommit, EscrowError> {
+    let mut out = BatchCommit {
+        nonces: Vec::with_capacity(spends),
+        commitments: Vec::with_capacity(spends),
+    };
+    for _ in 0..spends {
+        let (n, c) = commit(key_package, rng);
+        out.nonces.push(n.serialize()?);
+        out.commitments.push(c.serialize()?);
+    }
+    Ok(out)
+}
+
+/// Round 2 for a batch: one serialized signature share per spend, in order.
+/// `signer_commitments` holds both chosen signers' round 1 commitments by slot,
+/// and `nonces` this trustee's round 1 nonces.
+pub fn sign_batch(
+    key_package: &KeyPackage,
+    sighash: [u8; 32],
+    alphas: &[[u8; 32]],
+    signer_commitments: &BTreeMap<u16, Vec<Vec<u8>>>,
+    nonces: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, EscrowError> {
+    if nonces.len() != alphas.len() {
+        return Err(EscrowError::BatchShape);
+    }
+    let mut shares = Vec::with_capacity(alphas.len());
+    for (i, alpha) in alphas.iter().enumerate() {
+        let request = SpendAuthRequest {
+            sighash,
+            alpha: *alpha,
+        };
+        let mut commitments = BTreeMap::new();
+        for (slot, values) in signer_commitments {
+            let c = values.get(i).ok_or(EscrowError::BatchShape)?;
+            commitments.insert(
+                crate::dkg::identifier(*slot)?,
+                SigningCommitments::deserialize(c)?,
+            );
+        }
+        let package = signing_package(&request, commitments);
+        let nonces = SigningNonces::deserialize(&nonces[i])?;
+        shares.push(sign(&request, &package, &nonces, key_package)?.serialize());
+    }
+    Ok(shares)
+}
+
 /// Coordinator: aggregate shares into a 64-byte RedPallas `SpendAuth` signature.
 pub fn aggregate(
     request: &SpendAuthRequest,
@@ -106,7 +165,7 @@ pub fn verify_spend_auth(
         .map_err(|_| EscrowError::BadSignature)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "address"))]
 mod tests {
     use rand::{rngs::OsRng, RngCore};
     use zcash_protocol::consensus::TEST_NETWORK;

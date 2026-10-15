@@ -1,5 +1,5 @@
 mod auctions;
-mod batches;
+pub mod batches;
 mod dkg;
 mod organisers;
 mod results;

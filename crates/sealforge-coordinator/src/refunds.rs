@@ -29,6 +29,9 @@ use uuid::Uuid;
 
 use crate::{db, error::ApiError, AppState};
 
+/// A chosen signer gets this long to send their shares before the round restarts.
+pub const SIGNING_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+
 /// Plan refunds for every published auction. Returns the auction codes planned.
 pub async fn plan_published(
     state: &AppState,
@@ -243,6 +246,11 @@ pub async fn run(state: AppState, paused: bool) {
         tick.tick().await;
         if let Err(err) = plan_published(&state, &policy).await {
             tracing::warn!(error = %err, "refund planning failed");
+        }
+        match crate::routes::batches::reset_stalled(&state, SIGNING_TIMEOUT).await {
+            Ok(0) => {}
+            Ok(n) => tracing::warn!(batches = n, "reset stalled signing rounds"),
+            Err(err) => tracing::warn!(error = %err, "resetting stalled signing rounds failed"),
         }
         if let Err(err) = plan_late(&state, &policy).await {
             tracing::warn!(error = %err, "late refund planning failed");

@@ -291,6 +291,46 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         signing::verify_spend_auth(&ak, &request, sig).unwrap();
     }
 
+    // A round where a chosen signer disappears is reset, and two others finish it.
+    let stalled: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO tx_batches (auction_id, kind, status, sighash, spend_auth, total_out_zat, output_count) \
+         SELECT id, 'refund', 'awaiting_signatures', $2, $3, 5000000, 1 FROM auctions WHERE code = $1 RETURNING id",
+    )
+    .bind(&code)
+    .bind(&sighash[..])
+    .bind(serde_json::to_value(&spends[..1]).unwrap())
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    for i in [0, 1, 0] {
+        trustee::sign_step(&trustees[i], &url, &code).await.unwrap();
+    }
+    // Trustee 2 committed and was chosen, then went quiet for an hour.
+    sqlx::query(
+        "UPDATE tx_batches SET signers_selected_at = now() - interval '1 hour' WHERE id = $1",
+    )
+    .bind(stalled)
+    .execute(&db)
+    .await
+    .unwrap();
+    let reset = sealforge_coordinator::routes::batches::reset_stalled(
+        &state,
+        std::time::Duration::from_secs(1800),
+    )
+    .await
+    .unwrap();
+    assert_eq!(reset, 1);
+    for i in [2, 1, 2, 1] {
+        trustee::sign_step(&trustees[i], &url, &code).await.unwrap();
+    }
+    let (status, slots): (String, Vec<i16>) =
+        sqlx::query_as("SELECT status::text, signer_slots FROM tx_batches WHERE id = $1")
+            .bind(stalled)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!((status.as_str(), slots), ("signed", vec![3, 2]));
+
     // And the organiser can open it.
     state.set_chain_tip(3_900_000);
     let opened = organiser::auction_open(&org, &url, &code).await.unwrap();

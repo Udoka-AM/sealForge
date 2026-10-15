@@ -12,6 +12,7 @@
 //! Ironwood (NU6.3) reuses Orchard keys and receivers, so the escrow is an
 //! Orchard-key wallet whose notes live in the Ironwood pool.
 
+#[cfg(feature = "address")]
 pub mod address;
 pub mod dkg;
 pub mod signing;
@@ -50,4 +51,6 @@ pub enum EscrowError {
     Encoding(String),
     #[error("signature does not verify against the randomized spend key")]
     BadSignature,
+    #[error("batch values don't line up with its spends")]
+    BatchShape,
 }
