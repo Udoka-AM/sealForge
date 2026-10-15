@@ -12,7 +12,7 @@ sealForge is an open-source kit for running private, verifiable sales:
 
 Built for the [Zecathon](https://thezecathon.com) **Private Markets** track (Oct 6–28, 2026).
 
-> **Status:** scaffold. The build follows [docs/06-IMPLEMENTATION-PLAN.md](docs/06-IMPLEMENTATION-PLAN.md).
+> **Status:** in active build. Core auction logic, the FROST 2-of-3 escrow, close/publish, receipts, the WASM auditor and refund planning work end to end locally. On-chain scanning and refund signing follow once the testnet node is up. Run your own: [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 ## Architecture
 
@@ -42,7 +42,7 @@ Details: [docs/02-TRD.md §2.6](docs/02-TRD.md#26-architecture).
 | Single rogue trustee | ✅ | FROST 2-of-3 |
 | Refund correlation (amount + timing) | ✅ Mitigated | Canonical notes, random delays and cross-bidder batching. Measured: 0.1% of refunds linkable at the exit vs 100% for naive refunds ([evidence](docs/evidence/linkability.md)) |
 
-Full version: [docs/PRODUCT.md](docs/PRODUCT.md#threat-model-put-this-in-the-readme-judges-reward-honesty).
+Full version, with where each protection is enforced and the known limits: [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md).
 
 ## Repository layout
 
