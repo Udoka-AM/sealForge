@@ -17,7 +17,7 @@ use sealforge_core::{
     memo::BidMemo,
     merkle::{leaf_hash, verify_proof, MerkleTree},
     receipt::{commitment, Receipt},
-    refunds::split_refund,
+    refunds::{refund_dust, split_refund},
     result::compute_result,
     selection::{included_bids, BidWindow, Payment},
     Zatoshi,
@@ -188,6 +188,8 @@ pub struct ReceiptCheck {
     pub refund_due_zat: u64,
     /// How the refund will arrive (canonical denominations).
     pub refund_notes_zat: Vec<u64>,
+    /// Part of the refund below 0.0001 ZEC, which is not sent (worth less than the fee).
+    pub dust_zat: u64,
 }
 
 /// Check a receipt against a published result.
@@ -209,6 +211,7 @@ pub fn verify_receipt(published: &PublishedResult, receipt: &Receipt) -> Receipt
         price_paid_zat: 0,
         refund_due_zat: 0,
         refund_notes_zat: Vec::new(),
+        dust_zat: 0,
     };
     let Some(bid) = bid else { return check };
 
@@ -236,6 +239,7 @@ pub fn verify_receipt(published: &PublishedResult, receipt: &Receipt) -> Receipt
         .into_iter()
         .map(|z| z.0)
         .collect();
+    check.dust_zat = refund_dust(Zatoshi(bid.refund_due_zat)).0;
     check
 }
 
@@ -374,7 +378,10 @@ mod tests {
             "uniform price: lowest winning bid of 2 lots"
         );
         assert_eq!(check.refund_due_zat, 1_000_000);
-        assert_eq!(check.refund_notes_zat.iter().sum::<u64>(), 1_000_000);
+        assert_eq!(
+            check.refund_notes_zat.iter().sum::<u64>() + check.dust_zat,
+            1_000_000
+        );
     }
 
     #[test]

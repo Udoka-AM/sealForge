@@ -217,6 +217,14 @@ function Outcome({
         </div>
       ) : null}
 
+      {check.dust_zat > 0 ? (
+        <p className="text-sm text-muted">
+          Plus <span className="num">{check.dust_zat.toLocaleString("en-US")}</span> zatoshi below
+          the smallest note (0.0001 ZEC). It isn&rsquo;t sent: it costs more in network fees than
+          it&rsquo;s worth, and an odd-sized note would make your refund traceable.
+        </p>
+      ) : null}
+
       {!check.amount_matches && check.amount_zat !== null ? (
         <p className="text-sm text-warning">
           The chain shows {zec(check.amount_zat)}, but your receipt says {zec(receipt.amount_zat)}.

@@ -83,4 +83,6 @@ export interface ReceiptCheck {
   price_paid_zat: number;
   refund_due_zat: number;
   refund_notes_zat: number[];
+  /** Part of the refund below 0.0001 ZEC, which is not sent. */
+  dust_zat: number;
 }

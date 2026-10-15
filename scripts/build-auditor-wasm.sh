@@ -28,6 +28,7 @@ cat > "$out/BUILD.json" <<JSON
   "crate": "sealforge-auditor",
   "version": "$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)",
   "git_commit": "$(git rev-parse HEAD)",
+  "source_dirty": $(git diff --quiet HEAD -- crates Cargo.toml Cargo.lock && echo false || echo true),
   "rustc": "$(rustc --version)",
   "wasm_bindgen": "$want",
   "wasm_sha256": "$(shasum -a 256 "$out/sealforge_auditor_bg.wasm" | cut -d' ' -f1)"
