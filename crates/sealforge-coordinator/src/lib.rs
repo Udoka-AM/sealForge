@@ -11,6 +11,7 @@ pub mod lifecycle;
 pub mod refunds;
 pub mod routes;
 pub mod scanner;
+pub mod signing;
 pub mod validate;
 
 use std::sync::{

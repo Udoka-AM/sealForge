@@ -3229,6 +3229,7 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "http-body-util",
+ "pasta_curves 0.6.1",
  "rand 0.8.8",
  "sealforge-api",
  "sealforge-chain",
