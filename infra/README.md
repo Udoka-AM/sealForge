@@ -31,4 +31,37 @@ docker compose -f infra/docker-compose.yml --profile node --profile app up -d
 
 ## Backups (task 5.6)
 
-TODO: nightly `pg_dump` + WAL archiving to a Hetzner Storage Box (14-day retention), plus the restore drill runbook.
+**What matters most:** each escrow's UFVK. It is stored only in Postgres, encrypted with `SF_DATA_KEY`, and the trustees' FROST shares can't spend without it. Losing both the database and every backup, or losing `SF_DATA_KEY`, leaves escrowed bids unrefundable. Everything else can be rebuilt: payments and memos by rescanning with the UFVK, and published results from the chain plus the published bid set.
+
+| What | How | Where | Kept |
+|---|---|---|---|
+| Postgres | `scripts/backup.sh` nightly at 03:15 UTC (`pg_dump -Fc`) | VM `/var/backups/sealforge`, plus the Storage Box via `BACKUP_REMOTE` | 14 days |
+| Escrow wallet files (`SF_WALLET_DIR`) | Same script, tarball | Same | 14 days |
+| `SF_DATA_KEY` | Never in a backup. Team password manager, plus a paper copy with the organiser | Offline | Forever |
+| Backup encryption | `AGE_RECIPIENT` (age public key). The private key is held like `SF_DATA_KEY` | Offline | Forever |
+
+```bash
+# /etc/cron.d/sealforge-backup
+15 3 * * * sealforge DATABASE_URL=... BACKUP_REMOTE=u123@u123.your-storagebox.de:sealforge AGE_RECIPIENT=age1... /opt/sealforge/scripts/backup.sh >> /var/log/sealforge-backup.log 2>&1
+```
+
+The RPO is 24 h. Funds never depend on data newer than the last backup: a lost day of DB rows is recovered by the scanner (payments) and by trustees re-signing any batch that wasn't confirmed.
+
+### Restore drill (monthly, and before mainnet)
+
+```bash
+age -d -i key.txt sealforge-<stamp>.dump.age > /tmp/drill.dump
+ADMIN_URL=postgres://sealforge:...@localhost:5432/postgres \
+SOURCE_URL=$DATABASE_URL SF_DATA_KEY=... \
+  scripts/restore-drill.sh /tmp/drill.dump
+```
+
+The drill restores into a scratch database, `sealforge_restore_drill`, and never into the live one. It checks that every migration is present, that row counts match the source, and that **every escrow UFVK and refund address decrypts** with `SF_DATA_KEY`. Then boot a coordinator on the scratch DB with `SF_REFUNDS_PAUSED=true` and `SF_DEV_CHAIN_HEIGHT` set (so it doesn't scan or spend), and compare a published result with production. Record the run in `docs/evidence/backup-drill.md`.
+
+### Real restore
+
+1. Stop the coordinator: `docker compose ... stop coordinator`.
+2. Restore the latest dump into a fresh `sealforge` database with `pg_restore --no-owner`, and restore the wallet tarball into `SF_WALLET_DIR`.
+3. Start with `SF_REFUNDS_PAUSED=true`. Check `/readyz` and let the scanner catch up (`scanner_lag_blocks` ≤ 4).
+4. Batches left `awaiting_signatures` restart their signing round on their own. Batches marked `broadcast` are confirmed by the scanner once mined.
+5. Unpause refunds.
