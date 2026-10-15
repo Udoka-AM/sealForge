@@ -24,6 +24,7 @@ pub struct AuctionRow {
     pub reserve_zat: i64,
     pub open_height: Option<i32>,
     pub close_height: i32,
+    pub reveal_close_height: Option<i32>,
     pub escrow_ua: Option<String>,
     pub payout_ua: String,
     pub fee_buffer_zat: i64,
@@ -34,7 +35,8 @@ pub struct AuctionRow {
 macro_rules! auction_columns {
     () => {
         "id, code, organiser_id, title, description, lot_image_url, network, mode, \
-     bid_mode, quantity, reserve_zat, open_height, close_height, escrow_ua, payout_ua, fee_buffer_zat, status"
+     bid_mode, quantity, reserve_zat, open_height, close_height, reveal_close_height, escrow_ua, payout_ua, \
+     fee_buffer_zat, status"
     };
 }
 
@@ -118,6 +120,7 @@ pub async fn auction_view(
         reserve_zat: row.reserve_zat as u64,
         open_height: row.open_height.map(|h| h as u32),
         close_height: row.close_height as u32,
+        reveal_close_height: row.reveal_close_height.map(|h| h as u32),
         status: row.status,
         escrow_ua: row.escrow_ua.clone(),
         trustees: trustees

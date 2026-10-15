@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use sealforge_api::types::{AuctionStatus, PublishedResult, ResultBid, ResultRules};
+use sealforge_api::types::{AuctionStatus, BidMode, PublishedResult, ResultBid, ResultRules};
 use sqlx::FromRow;
 
 use crate::{db, error::ApiError, refunds, AppState};
@@ -27,6 +27,7 @@ struct LeafRow {
     output_index: i32,
     block_height: i32,
     amount_zat: i64,
+    reveal_price_zat: Option<i64>,
     commitment: Option<Vec<u8>>,
     leaf_hash: Vec<u8>,
     is_winner: Option<bool>,
@@ -60,7 +61,7 @@ pub async fn result(
     .fetch_one(&state.db)
     .await?;
     let leaves: Vec<LeafRow> = sqlx::query_as(
-        "SELECT txid, output_index, block_height, amount_zat, commitment, leaf_hash, is_winner, price_paid_zat, \
+        "SELECT txid, output_index, block_height, amount_zat, reveal_price_zat, commitment, leaf_hash, is_winner, price_paid_zat, \
          refund_due_zat FROM bids \
          WHERE auction_id = $1 AND leaf_hash IS NOT NULL ORDER BY leaf_hash",
     )
@@ -75,6 +76,9 @@ pub async fn result(
             mode: auction.mode,
             quantity: auction.quantity as u32,
             reserve_zat: auction.reserve_zat as u64,
+            bid_mode: auction.bid_mode,
+            close_height: (auction.bid_mode == BidMode::CommitReveal)
+                .then_some(auction.close_height as u32),
         },
         scan_from_height: r.scan_from_height as u32,
         scan_to_height: r.scan_to_height as u32,
@@ -91,7 +95,9 @@ pub async fn result(
                 txid: hex::encode(l.txid),
                 output_index: l.output_index as u32,
                 block_height: l.block_height as u32,
-                amount_zat: l.amount_zat as u64,
+                // Commit-reveal: the bid is the revealed price; the payment was the deposit.
+                amount_zat: l.reveal_price_zat.unwrap_or(l.amount_zat) as u64,
+                deposit_zat: l.reveal_price_zat.map(|_| l.amount_zat as u64),
                 commitment: hex::encode(l.commitment.unwrap_or_default()),
                 leaf_hash: hex::encode(l.leaf_hash),
                 is_winner: l.is_winner.unwrap_or(false),

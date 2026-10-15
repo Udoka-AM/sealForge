@@ -103,8 +103,8 @@ pub async fn create(
         let code = codes::auction_code();
         let id: Option<Uuid> = sqlx::query_scalar(
             "INSERT INTO auctions (code, organiser_id, title, description, lot_image_url, network, mode, bid_mode, \
-             quantity, reserve_zat, close_height, payout_ua) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
+             quantity, reserve_zat, close_height, payout_ua, reveal_close_height) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
              ON CONFLICT (code) DO NOTHING RETURNING id",
         )
         .bind(&code)
@@ -119,6 +119,7 @@ pub async fn create(
         .bind(input.reserve_zat as i64)
         .bind(input.close_height as i32)
         .bind(&input.payout_ua)
+        .bind(input.reveal_close_height.map(|h| h as i32))
         .fetch_optional(&mut *tx)
         .await?;
         if let Some(id) = id {
