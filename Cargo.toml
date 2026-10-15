@@ -7,6 +7,7 @@ members = [
   "crates/sealforge-auditor",
   "crates/sealforge-cli",
   "crates/sealforge-api",
+  "crates/sealforge-chain",
   "tools/linkability-harness",
 ]
 
@@ -34,7 +35,7 @@ clap = { version = "4.5", features = ["derive", "env"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 axum = "0.8"
 tower-http = { version = "0.6", features = ["trace", "cors"] }
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "migrate", "macros"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "migrate", "macros"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4", "serde"] }
@@ -52,7 +53,10 @@ sealforge-coordinator = { path = "crates/sealforge-coordinator" }
 
 # Zcash / FROST (task 1.2, verified 2026-10-14; see docs/VERSIONS.md).
 # Pre-releases are pinned exactly: they are the first with Ironwood (NU6.3) and NU7 support.
-zcash_protocol = "=0.11.0-pre.1"
+zcash_protocol = { version = "=0.11.0-pre.1", features = ["local-consensus"] }
+zcash_client_backend = "=0.25.0-pre.2"
+zcash_client_sqlite = "=0.23.0-pre.2"
+tonic = "0.14"
 zcash_keys = { version = "=0.17.0-pre.2", features = ["orchard", "unstable-frost"] }
 pczt = "=0.10.0-pre.2"
 orchard = { version = "0.16", default-features = false, features = ["std"] }

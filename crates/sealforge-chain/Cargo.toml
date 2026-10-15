@@ -1,0 +1,26 @@
+[package]
+name = "sealforge-chain"
+description = "Chain access for sealForge: escrow wallets synced from a lightwalletd/Zaino server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait = "0.1"
+tokio.workspace = true
+tracing.workspace = true
+tonic.workspace = true
+rusqlite = "0.37"
+rand10 = { package = "rand", version = "0.10", features = ["sys_rng"] }
+zcash_client_backend = { workspace = true, features = ["lightwalletd-tonic-transport", "sync", "orchard"] }
+zcash_client_sqlite = { workspace = true, features = ["orchard"] }
+zcash_keys.workspace = true
+zcash_primitives = "=0.31.0-pre.2"
+zcash_protocol.workspace = true
+
+[dev-dependencies]
+sealforge-escrow.workspace = true

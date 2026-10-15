@@ -30,8 +30,13 @@ pub struct AuctionRow {
     pub status: AuctionStatus,
 }
 
-const AUCTION_COLUMNS: &str = "id, code, organiser_id, title, description, lot_image_url, network, mode, \
-     bid_mode, quantity, reserve_zat, open_height, close_height, escrow_ua, payout_ua, fee_buffer_zat, status";
+/// Column list for `AuctionRow`, spliced in at compile time so queries stay static strings.
+macro_rules! auction_columns {
+    () => {
+        "id, code, organiser_id, title, description, lot_image_url, network, mode, \
+     bid_mode, quantity, reserve_zat, open_height, close_height, escrow_ua, payout_ua, fee_buffer_zat, status"
+    };
+}
 
 #[derive(Debug, FromRow)]
 struct TrusteeRow {
@@ -44,8 +49,10 @@ pub async fn auction_by_code(
     db: impl PgExecutor<'_>,
     code: &str,
 ) -> Result<Option<AuctionRow>, ApiError> {
-    Ok(sqlx::query_as(&format!(
-        "SELECT {AUCTION_COLUMNS} FROM auctions WHERE code = $1"
+    Ok(sqlx::query_as(concat!(
+        "SELECT ",
+        auction_columns!(),
+        " FROM auctions WHERE code = $1"
     ))
     .bind(code)
     .fetch_optional(db)
@@ -56,8 +63,10 @@ pub async fn auctions_where_status(
     db: &PgPool,
     statuses: &[AuctionStatus],
 ) -> Result<Vec<AuctionRow>, ApiError> {
-    Ok(sqlx::query_as(&format!(
-        "SELECT {AUCTION_COLUMNS} FROM auctions WHERE status = ANY($1) ORDER BY created_at DESC LIMIT 200"
+    Ok(sqlx::query_as(concat!(
+        "SELECT ",
+        auction_columns!(),
+        " FROM auctions WHERE status = ANY($1) ORDER BY created_at DESC LIMIT 200"
     ))
     .bind(statuses)
     .fetch_all(db)
@@ -68,8 +77,10 @@ pub async fn auctions_for_organiser(
     db: &PgPool,
     organiser_id: Uuid,
 ) -> Result<Vec<AuctionRow>, ApiError> {
-    Ok(sqlx::query_as(&format!(
-        "SELECT {AUCTION_COLUMNS} FROM auctions WHERE organiser_id = $1 ORDER BY created_at DESC"
+    Ok(sqlx::query_as(concat!(
+        "SELECT ",
+        auction_columns!(),
+        " FROM auctions WHERE organiser_id = $1 ORDER BY created_at DESC"
     ))
     .bind(organiser_id)
     .fetch_all(db)
