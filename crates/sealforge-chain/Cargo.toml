@@ -33,3 +33,9 @@ dev-wallet = ["dep:zcash_proofs", "dep:zip321", "dep:zcash_address"]
 
 [dev-dependencies]
 sealforge-escrow.workspace = true
+sealforge-core.workspace = true
+hex.workspace = true
+
+[[example]]
+name = "regtest_bid"
+required-features = ["dev-wallet"]

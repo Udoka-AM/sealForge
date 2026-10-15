@@ -3166,8 +3166,10 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "hex",
  "rand 0.10.3",
  "rusqlite",
+ "sealforge-core",
  "sealforge-escrow",
  "secrecy",
  "tokio",
