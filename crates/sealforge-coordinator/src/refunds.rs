@@ -29,6 +29,9 @@ use uuid::Uuid;
 
 use crate::{db, error::ApiError, AppState};
 
+/// A chosen signer gets this long to send their shares before the round restarts.
+pub const SIGNING_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+
 /// Plan refunds for every published auction. Returns the auction codes planned.
 pub async fn plan_published(
     state: &AppState,
@@ -232,17 +235,21 @@ pub async fn batch_due(
 }
 
 /// Background loop: plan new refunds and batch due notes every minute.
-pub async fn run(state: AppState, paused: bool) {
+pub async fn run(state: AppState, paused: bool, policy: RefundPolicy) {
     if paused {
         tracing::warn!("refunds paused (SF_REFUNDS_PAUSED)");
         return;
     }
-    let policy = RefundPolicy::default();
     let mut tick = tokio::time::interval(Duration::from_secs(60));
     loop {
         tick.tick().await;
         if let Err(err) = plan_published(&state, &policy).await {
             tracing::warn!(error = %err, "refund planning failed");
+        }
+        match crate::routes::batches::reset_stalled(&state, SIGNING_TIMEOUT).await {
+            Ok(0) => {}
+            Ok(n) => tracing::warn!(batches = n, "reset stalled signing rounds"),
+            Err(err) => tracing::warn!(error = %err, "resetting stalled signing rounds failed"),
         }
         if let Err(err) = plan_late(&state, &policy).await {
             tracing::warn!(error = %err, "late refund planning failed");
@@ -267,7 +274,7 @@ pub struct RefundProgress {
 pub async fn progress(state: &AppState, auction_id: Uuid) -> Result<RefundProgress, ApiError> {
     let row: (i64, i64, i64, i64) = sqlx::query_as(
         "SELECT count(*), count(*) FILTER (WHERE status = 'planned'), count(*) FILTER (WHERE status = 'batched'), \
-         count(*) FILTER (WHERE status IN ('broadcast', 'confirmed')) FROM refund_notes WHERE auction_id = $1",
+         count(*) FILTER (WHERE status IN ('broadcast', 'confirmed')) FROM refund_notes WHERE auction_id = $1 AND kind = 'refund'",
     )
     .bind(auction_id)
     .fetch_one(&state.db)

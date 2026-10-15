@@ -8,16 +8,20 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+default = ["address"]
+# Escrow viewing keys and addresses. Off for the browser signer, which only signs.
+address = ["dep:orchard", "dep:zcash_keys", "dep:zcash_protocol"]
+
 [dependencies]
-sealforge-core.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 hex.workspace = true
-orchard.workspace = true
+orchard = { workspace = true, optional = true }
 pasta_curves.workspace = true
 rand.workspace = true
 reddsa.workspace = true
 reddsa-frost.workspace = true
 frost-rerandomized.workspace = true
-zcash_keys.workspace = true
-zcash_protocol.workspace = true
+zcash_keys = { workspace = true, optional = true }
+zcash_protocol = { workspace = true, optional = true }

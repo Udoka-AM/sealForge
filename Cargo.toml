@@ -8,6 +8,7 @@ members = [
   "crates/sealforge-cli",
   "crates/sealforge-api",
   "crates/sealforge-chain",
+  "crates/sealforge-signer-wasm",
   "tools/linkability-harness",
 ]
 
@@ -21,7 +22,7 @@ authors = ["Udoka-AM"]
 
 [workspace.dependencies]
 sealforge-core = { path = "crates/sealforge-core" }
-sealforge-escrow = { path = "crates/sealforge-escrow" }
+sealforge-escrow = { path = "crates/sealforge-escrow", default-features = false }
 sealforge-auditor = { path = "crates/sealforge-auditor" }
 sealforge-api = { path = "crates/sealforge-api" }
 

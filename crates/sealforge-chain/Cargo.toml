@@ -36,7 +36,7 @@ dev-wallet = ["dep:zcash_proofs"]
 
 [dev-dependencies]
 rand.workspace = true
-sealforge-escrow.workspace = true
+sealforge-escrow = { workspace = true, features = ["address"] }
 sealforge-core.workspace = true
 hex.workspace = true
 serde_json.workspace = true

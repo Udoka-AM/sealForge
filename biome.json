@@ -11,7 +11,8 @@
       "!**/migrations/meta",
       "!**/public/artifacts",
       "!**/tests/fixtures",
-      "!**/public/auditor"
+      "!**/public/auditor",
+      "!**/public/signer"
     ]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },

@@ -350,10 +350,7 @@ pub fn key_share(store: &Keystore, code: &str) -> anyhow::Result<(KeyPackage, Pu
 // Signing escrow batches (task 3.9).
 
 use sealforge_api::types::{BatchView, PostCommitments, PostShares};
-use sealforge_escrow::{
-    frost::round1::{SigningCommitments, SigningNonces},
-    signing::{self, SpendAuthRequest},
-};
+use sealforge_escrow::signing;
 
 /// What one `sign_step` did for a batch.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -403,12 +400,13 @@ fn hex32(value: &str) -> anyhow::Result<[u8; 32]> {
 /// One-line summary trustees review before signing.
 pub fn describe_batch(b: &BatchView) -> String {
     format!(
-        "{} batch {}: {} output(s), {} ZEC total, {} escrow spend(s) to authorize",
+        "{} batch {}: {} output(s), {} ZEC total, {} escrow spend(s) to authorize, sighash {}",
         b.kind,
         &b.id[..8],
         b.output_count,
         sealforge_core::zip321::format_zec(sealforge_core::Zatoshi(b.total_out_zat)),
-        b.spends.len()
+        b.spends.len(),
+        &b.sighash[..b.sighash.len().min(16)]
     )
 }
 
@@ -432,13 +430,11 @@ pub async fn sign_step(
         }
         if !batch.i_committed {
             // Round 1: fresh nonces per spend, saved (owner-only) before anything is sent.
-            let mut nonces = Vec::new();
-            let mut commitments = Vec::new();
-            for _ in &batch.spends {
-                let (n, c) = signing::commit(&key_package, &mut OsRng);
-                nonces.push(hex::encode(n.serialize()?));
-                commitments.push(hex::encode(c.serialize()?));
-            }
+            let round1 = signing::commit_batch(&key_package, batch.spends.len(), &mut OsRng)?;
+            let nonces: Vec<String> = round1.nonces.iter().map(hex::encode).collect();
+            let commitments: Vec<String> = round1.commitments.iter().map(hex::encode).collect();
+            // Nonces from a round the coordinator reset are discarded, never reused.
+            std::fs::remove_file(store.trustee_dir(code).join(nonces_file(&batch.id))).ok();
             store.write(
                 code,
                 &nonces_file(&batch.id),
@@ -476,27 +472,38 @@ pub async fn sign_step(
             serde_json::from_slice(&store.read(code, &nonces_file(&batch.id))?.ok_or_else(
                 || anyhow!("nonces for batch {} are missing on this machine", batch.id),
             )?)?;
-        let sighash = hex32(&batch.sighash)?;
-        let mut shares = Vec::new();
-        for (i, spend) in batch.spends.iter().enumerate() {
-            let request = SpendAuthRequest {
-                sighash,
-                alpha: hex32(&spend.alpha)?,
-            };
-            let mut commitments = BTreeMap::new();
-            for (slot, values) in &batch.signer_commitments {
-                let c = values.get(i).ok_or_else(|| anyhow!("missing commitment"))?;
-                commitments.insert(
-                    dkg::identifier(*slot)?,
-                    SigningCommitments::deserialize(&hex::decode(c)?)?,
-                );
-            }
-            let package = signing::signing_package(&request, commitments);
-            let nonces = SigningNonces::deserialize(&hex::decode(&nonce_hex[i])?)?;
-            shares.push(hex::encode(
-                signing::sign(&request, &package, &nonces, &key_package)?.serialize(),
-            ));
-        }
+        let alphas = batch
+            .spends
+            .iter()
+            .map(|s| hex32(&s.alpha))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        let commitments = batch
+            .signer_commitments
+            .iter()
+            .map(|(slot, values)| {
+                Ok((
+                    *slot,
+                    values
+                        .iter()
+                        .map(hex::decode)
+                        .collect::<Result<Vec<_>, _>>()?,
+                ))
+            })
+            .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
+        let nonces = nonce_hex
+            .iter()
+            .map(hex::decode)
+            .collect::<Result<Vec<_>, _>>()?;
+        let shares: Vec<String> = signing::sign_batch(
+            &key_package,
+            hex32(&batch.sighash)?,
+            &alphas,
+            &commitments,
+            &nonces,
+        )?
+        .iter()
+        .map(hex::encode)
+        .collect();
         let _: BatchView = client
             .post(
                 &format!("/v1/batches/{}/shares", batch.id),

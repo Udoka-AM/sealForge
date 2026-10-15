@@ -137,6 +137,16 @@ fn require_dkg(auction: &AuctionRow) -> Result<(), ApiError> {
     }
 }
 
+/// Serialize DKG writes per auction. Trustees run concurrently; without this,
+/// two finishing at once each hold their own row and wait on the other's.
+async fn lock_auction(tx: &mut sqlx::PgConnection, auction_id: Uuid) -> Result<(), ApiError> {
+    sqlx::query("SELECT 1 FROM auctions WHERE id = $1 FOR UPDATE")
+        .bind(auction_id)
+        .execute(&mut *tx)
+        .await?;
+    Ok(())
+}
+
 async fn system_transition(
     tx: &mut sqlx::PgConnection,
     auction: &AuctionRow,
@@ -357,6 +367,7 @@ pub async fn round1(
     }
 
     let mut tx = state.db.begin().await?;
+    lock_auction(&mut tx, auction.id).await?;
     store_package(&mut tx, auction.id, 1, me.slot, None, &payload, &signature).await?;
     sqlx::query(
         "UPDATE trustees SET dkg_status = 'round1' WHERE id = $1 AND dkg_status = 'invited'",
@@ -402,6 +413,7 @@ pub async fn round2(
     }
 
     let mut tx = state.db.begin().await?;
+    lock_auction(&mut tx, auction.id).await?;
     for package in &input.packages {
         let payload = decode_payload(&package.payload)?;
         let signature = decode_hex::<64>(&package.signature, "signature")?;
@@ -457,6 +469,7 @@ pub async fn complete(
         .ok_or_else(|| ApiError::Unavailable("SF_DATA_KEY is not configured".into()))?;
 
     let mut tx = state.db.begin().await?;
+    lock_auction(&mut tx, auction.id).await?;
     sqlx::query(
         "UPDATE trustees SET dkg_status = 'complete', public_key_package = $1 WHERE id = $2",
     )

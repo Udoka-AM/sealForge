@@ -1,0 +1,27 @@
+[package]
+name = "sealforge-signer-wasm"
+description = "Trustee batch signing (2-of-3 FROST) for the browser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+sealforge-escrow.workspace = true
+hex.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+wasm-bindgen.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# Browser randomness (crypto.getRandomValues) for FROST nonces.
+getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+pasta_curves.workspace = true

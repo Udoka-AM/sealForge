@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ConsoleNavLink } from "./console-nav-link";
 
 const NAV = [
   { href: "/", label: "Auctions", mobile: true },
@@ -24,6 +25,7 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
+          <ConsoleNavLink />
         </nav>
       </div>
     </header>

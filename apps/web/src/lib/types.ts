@@ -34,6 +34,85 @@ export interface AuctionView {
   status: AuctionStatus;
   escrow_ua: string | null;
   trustees: TrusteeView[];
+  /** Only in the organiser's own view (GET /v1/console/...). */
+  owner?: { payout_ua: string; fee_buffer_zat: number };
+}
+
+export interface TrusteeInvite {
+  slot: number;
+  label: string;
+  invite_code: string;
+}
+
+/** POST /v1/auctions */
+export interface CreateAuction {
+  title: string;
+  description: string;
+  lot_image_url: string | null;
+  network: Network;
+  mode: AuctionMode;
+  quantity: number;
+  reserve_zat: number;
+  close_height: number;
+  payout_ua: string;
+  trustees: { slot: number; label: string }[];
+}
+
+export interface CreatedAuction {
+  auction: AuctionView;
+  trustee_invites: TrusteeInvite[];
+}
+
+/** GET /v1/chain */
+export interface ChainView {
+  tip: number | null;
+}
+
+/** GET /v1/auctions/{code}/refunds (aggregates only). */
+export interface RefundProgress {
+  notes_total: number;
+  notes_planned: number;
+  notes_batched: number;
+  notes_sent: number;
+  batches: number;
+  needs_manual_review: number;
+}
+
+export type BatchStatus =
+  | "building"
+  | "awaiting_signatures"
+  | "signed"
+  | "broadcast"
+  | "confirmed"
+  | "failed";
+
+/** GET /v1/console/auctions/{code}/batches */
+export interface ConsoleBatch {
+  id: string;
+  kind: "refund" | "payout";
+  status: BatchStatus;
+  output_count: number | null;
+  total_out_zat: number | null;
+  committed: number;
+  signed: number;
+  txid: string | null;
+  confirmed_height: number | null;
+}
+
+/** GET /v1/auctions/{code}/batches (trustee view). */
+export interface TrusteeBatch {
+  id: string;
+  auction_code: string;
+  kind: "refund" | "payout";
+  status: BatchStatus;
+  sighash: string;
+  spends: { action_index: number; alpha: string }[];
+  total_out_zat: number;
+  output_count: number;
+  signer_slots: number[];
+  signer_commitments: Record<string, string[]>;
+  i_committed: boolean;
+  i_shared: boolean;
 }
 
 /** GET /v1/auctions/{code}/result (sealforge-api PublishedResult). */

@@ -308,7 +308,8 @@ pub async fn open(
             "the trustees have not finished key generation",
         ));
     }
-    // TODO(2.5): also require the fee buffer to be funded, once the scanner can see it.
+    // The fee buffer is optional (PRD Q8): fees come out of the escrow and the payout
+    // sweep absorbs them. It only matters for an auction that may end with no winners.
     let tip = state
         .chain_tip()
         .ok_or_else(|| ApiError::Unavailable("chain height unknown; is the node synced?".into()))?;

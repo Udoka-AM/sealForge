@@ -1,0 +1,9 @@
+{
+  "crate": "sealforge-signer-wasm",
+  "version": "0.0.1",
+  "git_commit": "f3309c3e89ec2d63b185770465349528e233383f",
+  "source_dirty": true,
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "wasm_bindgen": "0.2.129",
+  "wasm_sha256": "a961b4a4e28cacbd754537198a834b1cb79a171040696b14604131e4b9a825d5"
+}
