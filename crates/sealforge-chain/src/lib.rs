@@ -9,6 +9,7 @@ pub mod cache;
 #[cfg(feature = "dev-wallet")]
 pub mod dev;
 pub mod params;
+pub mod spend;
 pub mod wallet;
 
 pub use params::ChainParams;

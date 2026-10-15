@@ -89,6 +89,18 @@ impl EscrowWallet {
         })
     }
 
+    pub(crate) fn db(&self) -> &Db {
+        &self.db
+    }
+
+    pub(crate) fn db_mut(&mut self) -> &mut Db {
+        &mut self.db
+    }
+
+    pub(crate) fn params(&self) -> ChainParams {
+        self.params
+    }
+
     pub fn open(path: &Path, params: ChainParams) -> anyhow::Result<Self> {
         Ok(Self {
             db: Self::open_db(path, params)?,
@@ -184,6 +196,8 @@ async fn enhance(db: &mut Db, params: ChainParams, client: &mut Client) -> anyho
             let txid = match &request {
                 TransactionDataRequest::GetStatus(txid)
                 | TransactionDataRequest::Enhancement(txid) => *txid,
+                // Transparent address queries don't apply: escrows are shielded only.
+                _ => continue,
             };
             let raw = client
                 .get_transaction(TxFilter {

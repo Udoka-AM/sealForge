@@ -1,6 +1,6 @@
 # Spike: FROST 2-of-3 escrow for Ironwood spends (task 1.5)
 
-**Status (2026-10-14):** cryptography proven off-chain. On-chain spend pending a synced NU7 testnet node (task 1.3).
+**Status (2026-10-15):** ✅ done. A real 2-of-3 FROST spend from the escrow was mined on a local Zcash chain (Zebra 7.0.0-rc.0 regtest with Ironwood, via `scripts/regtest.sh`). A single trustee is refused before signing.
 
 ## Result
 
@@ -14,7 +14,8 @@
 | Every 2-of-3 subset can sign | ✅ | {1,2}, {1,3}, {2,3} |
 | One trustee alone cannot sign | ✅ | test `one_trustee_cannot_sign_alone` |
 | Signature bound to α and sighash | ✅ | Changing either fails verification |
-| Real testnet transaction spending from the escrow | ⏳ | Needs Zebra + Zaino on NU7 testnet and testnet ZEC |
+| Real transaction spending from the escrow | ✅ | Regtest txid `8367e1c6ca8ef305678a7179faf3d161647f90da40bb5462ecc6dc6275ec016f`, mined at height 437 (2 Ironwood actions). Trustees 1 and 3 signed. The recipient received 1 ZEC with memo "sealForge escrow payout (2-of-3 FROST)" |
+| One trustee alone can't spend on chain | ✅ | Same flow with only trustee 1: refused at FROST signing ("Incorrect number of commitments"), so nothing is broadcast |
 
 Try it:
 
@@ -32,12 +33,12 @@ cargo run -p sealforge-cli -- escrow local-dkg --out ./escrow-testnet   # prints
 - **Signing with a fixed α:** Orchard fixes the spend randomizer in the PCZT, so we call `frost_rerandomized::sign` with `Randomizer::deserialize(α)`. Upstream deprecated it in favour of seed-derived randomizers, which doesn't fit Orchard. The call is `#[allow(deprecated)]` with a comment.
 - **Two reddsa versions:** 0.5.2 (FROST) and 0.6.1 (what `orchard 0.16` verifies with). They interoperate through 32-byte keys and 64-byte signatures, and the tests verify FROST output with 0.6.1.
 
-## On-chain plan (unblocks when the testnet node is up)
+## On-chain flow (as built, `sealforge-chain::spend`)
 
-1. `sealforge escrow local-dkg` → fund the printed `utest1…` UA from a faucet or a team wallet.
-2. Scan the escrow with its UFVK (`zcash_client_sqlite` + Zaino) until the note is spendable.
-3. Build a proposal paying a team wallet, then `create_pczt_from_proposal`.
-4. IO finalizer + prover (Orchard proving key) on the PCZT.
-5. `pczt::roles::signer::Signer::shielded_sighash()` + each action's α → `sealforge_escrow::signing` with trustees 1 and 3 → `apply_ironwood_signature`.
-6. Spend finalizer → tx extractor → broadcast via Zaino. Record the txid here.
-7. Negative check: the same flow with one share must fail before broadcast.
+1. `EscrowWallet` (view-only `zcash_client_sqlite` account from the escrow UFVK) syncs from Zaino.
+2. `build_payment`: `propose_transfer`, then `create_pczt_from_proposal`, then IO finalizer, then the Ironwood proof (`PostNu6_3` circuit). Returns the shielded sighash and, for each escrow spend, the action index and α (read through `pczt::roles::low_level_signer`).
+3. Trustees sign each `(sighash, α)` with `sealforge_escrow::signing` (2-of-3 rerandomized FROST).
+4. `apply_signatures` checks each signature against the action's `rk` and applies it.
+5. `finalize` (`extract_and_store_transaction_from_pczt`), then `broadcast`.
+
+Reproduce: `cargo run -p sealforge-chain --example escrow_spend -- <escrow.sqlite> <local-dkg dir> <to-ua> <zat> 1,3`.

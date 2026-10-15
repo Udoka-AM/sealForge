@@ -16,22 +16,26 @@ tracing.workspace = true
 tonic.workspace = true
 rusqlite = "0.37"
 rand10 = { package = "rand", version = "0.10", features = ["sys_rng"] }
-zcash_client_backend = { workspace = true, features = ["lightwalletd-tonic-transport", "sync", "orchard"] }
-zcash_client_sqlite = { workspace = true, features = ["orchard"] }
+zcash_client_backend = { workspace = true, features = ["lightwalletd-tonic-transport", "sync", "orchard", "pczt"] }
+pczt = { workspace = true, features = ["orchard", "io-finalizer", "prover", "signer", "spend-finalizer", "tx-extractor"] }
+orchard = { workspace = true, features = ["circuit"] }
+pasta_curves.workspace = true
+zip321 = { version = "=0.10.0-pre.2" }
+zcash_address = { version = "=0.14.0-pre.2" }
+zcash_client_sqlite = { workspace = true, features = ["orchard", "transparent-inputs", "serde"] }
 zcash_keys.workspace = true
 zcash_primitives = "=0.31.0-pre.2"
 zcash_proofs = { version = "=0.31.0-pre.2", features = ["bundled-prover"], optional = true }
-zip321 = { version = "=0.10.0-pre.2", optional = true }
-zcash_address = { version = "=0.14.0-pre.2", optional = true }
 secrecy = "0.8"
 zip32 = "0.3"
 zcash_protocol.workspace = true
 
 [features]
 # Spending dev wallet for local regtest testing (bundles the Sapling proving parameters).
-dev-wallet = ["dep:zcash_proofs", "dep:zip321", "dep:zcash_address"]
+dev-wallet = ["dep:zcash_proofs"]
 
 [dev-dependencies]
+rand.workspace = true
 sealforge-escrow.workspace = true
 sealforge-core.workspace = true
 hex.workspace = true
@@ -40,3 +44,6 @@ serde_json.workspace = true
 [[example]]
 name = "regtest_bid"
 required-features = ["dev-wallet"]
+
+[[example]]
+name = "escrow_spend"
