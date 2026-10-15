@@ -133,6 +133,26 @@ export function ConsoleAuction({ code }: { code: string }) {
 
       {auction.escrow_ua ? <Escrow auction={auction} /> : null}
 
+      {auction.status !== "draft" && auction.status !== "cancelled" ? (
+        <section aria-labelledby="embed" className="space-y-3">
+          <h2 id="embed" className={h2}>
+            Embed on your site
+          </h2>
+          <div className={`${card} space-y-3 text-sm`}>
+            <p className="text-muted">
+              Paste this where the auction should appear. It shows a live card with a link to bid
+              here, and sets no cookies.
+            </p>
+            <HashChip
+              value={`<script src="${typeof window === "undefined" ? "" : window.location.origin}/embed.js" data-auction="${auction.code}" async></script>`}
+              label="embed snippet"
+              head={40}
+              tail={20}
+            />
+          </div>
+        </section>
+      ) : null}
+
       {progress ? (
         <Refunds progress={progress} batches={batches.filter((b) => b.kind === "refund")} />
       ) : null}

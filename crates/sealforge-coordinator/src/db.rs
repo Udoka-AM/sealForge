@@ -102,7 +102,8 @@ pub async fn auction_view(
     .fetch_all(db)
     .await?;
     let bids: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM bids WHERE auction_id = $1 AND invalid_reason IS DISTINCT FROM 'fee_buffer'",
+        "SELECT count(*) FROM bids WHERE auction_id = $1 \
+         AND coalesce(invalid_reason, '') NOT IN ('fee_buffer', 'reveal')",
     )
     .bind(row.id)
     .fetch_one(db)

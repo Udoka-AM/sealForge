@@ -135,6 +135,9 @@ async fn deposits_are_budgets_and_reveals_set_prices(db: PgPool) {
         c.reveal_payment(24, 253, c.price),
     ];
     scanner::ingest(&state, &auction, &reveals).await.unwrap();
+    // Reveals are not bids: the count covers the 4 deposits only.
+    let view = db::auction_view(&db, &auction, true).await.unwrap();
+    assert_eq!(view.bid_count, Some(4));
 
     // Not due until the reveal window has 10 confirmations.
     let at = |h: i32| {

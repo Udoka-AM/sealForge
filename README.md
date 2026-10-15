@@ -66,7 +66,7 @@ Full version, including what is **not** protected: [docs/THREAT-MODEL.md](docs/T
 
 | Done | Waiting on |
 |---|---|
-| FROST 2-of-3 escrow, on-chain spends · bid flow and receipts · scanner · close/publish · Merkle receipts · chain auditor (CLI) and published-list auditor (WASM) · unlinkable refunds and payout · organiser console · browser trustee signing · sealed-reveal mode · security, accessibility, performance, backups | **Testnet and mainnet runs** (hosted node) · **ShieldRamp** cross-chain bidding via NEAR Intents (API access) · the live mainnet micro-auction |
+| FROST 2-of-3 escrow, on-chain spends · bid flow and receipts · scanner · close/publish · Merkle receipts · chain auditor (CLI) and published-list auditor (WASM) · unlinkable refunds and payout · organiser console · browser trustee signing · sealed-reveal mode · embeddable auction card (`<script src=…/embed.js data-auction=CODE>`) · security, accessibility, performance, backups | **Testnet and mainnet runs** (hosted node) · **ShieldRamp** cross-chain bidding via NEAR Intents (API access) · the live mainnet micro-auction |
 
 ## Architecture
 
