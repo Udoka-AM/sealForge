@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { buttonClass } from "@/components/button";
 import { downloadReceipt, listReceipts, markBackedUp, type StoredReceipt } from "@/lib/receipts";
+import { RevealPanel } from "./reveal-panel";
 
 export function MyBids() {
   const [receipts, setReceipts] = useState<StoredReceipt[] | null>(null);
@@ -55,6 +56,12 @@ export function MyBids() {
               {r.title}
             </Link>
             <p className="text-sm text-muted">
+              {r.price_zat !== undefined ? (
+                <>
+                  Bid <span className="num">{formatZec(BigInt(r.price_zat))} ZEC</span> (sealed),
+                  deposit{" "}
+                </>
+              ) : null}
               <span className="num">{formatZec(BigInt(r.amount_zat))} ZEC</span> ·{" "}
               {new Date(r.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
               {r.backed_up ? null : <span className="text-warning"> · Not backed up</span>}
@@ -76,6 +83,19 @@ export function MyBids() {
           >
             <Download size={16} aria-hidden="true" /> Receipt
           </button>
+          {r.price_zat !== undefined ? (
+            <RevealPanel
+              receipt={r}
+              onSent={() =>
+                setReceipts(
+                  (all) =>
+                    all?.map((x) =>
+                      x.commitment === r.commitment ? { ...x, reveal_sent: true } : x,
+                    ) ?? null,
+                )
+              }
+            />
+          ) : null}
         </li>
       ))}
     </ul>

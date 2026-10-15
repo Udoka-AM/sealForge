@@ -1,5 +1,5 @@
 import "server-only";
-import type { AuctionView, PublishedResult } from "./types";
+import type { AuctionView, ChainView, PublishedResult } from "./types";
 
 /** Server-side base URL of the sealForge coordinator. */
 function baseUrl(): string {
@@ -37,4 +37,26 @@ export async function getAuction(code: string): Promise<AuctionView | null> {
 export async function getResult(code: string): Promise<PublishedResult | null> {
   if (!/^[0-9A-HJKMNP-TV-Z]{10}$/.test(code)) return null;
   return get<PublishedResult>(`/v1/auctions/${code}/result`);
+}
+
+/** The coordinator's chain tip, or null when it isn't known. Never throws. */
+export async function getChainTip(): Promise<number | null> {
+  try {
+    return (await get<ChainView>("/v1/chain"))?.tip ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a payment sent now can still count as a bid. The auction stays
+ * `open` for a while after its close height (confirmations, and the reveal
+ * window in commit-reveal mode), but a payment mined after the close is late.
+ */
+export function acceptingBids(auction: AuctionView, tip: number | null): boolean {
+  return (
+    auction.status === "open" &&
+    Boolean(auction.escrow_ua) &&
+    (tip === null || tip < auction.close_height)
+  );
 }

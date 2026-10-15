@@ -27,6 +27,8 @@ export interface AuctionView {
   network: Network;
   mode: AuctionMode;
   bid_mode: "deposit" | "commit_reveal";
+  /** Commit-reveal only: last block for reveals. */
+  reveal_close_height: number | null;
   quantity: number;
   reserve_zat: number;
   open_height: number | null;
@@ -53,6 +55,8 @@ export interface CreateAuction {
   lot_image_url: string | null;
   network: Network;
   mode: AuctionMode;
+  bid_mode: "deposit" | "commit_reveal";
+  reveal_close_height: number | null;
   quantity: number;
   reserve_zat: number;
   close_height: number;

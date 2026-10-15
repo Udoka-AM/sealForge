@@ -11,6 +11,8 @@ export interface StoredReceipt extends Receipt {
   title: string;
   created_at: string;
   backed_up: boolean;
+  /** Commit-reveal: the bidder said they sent the reveal (we can't see it on chain here). */
+  reveal_sent?: boolean;
 }
 
 const store = () => createStore("sealforge", "receipts");
@@ -26,6 +28,11 @@ export async function saveReceipt(receipt: StoredReceipt): Promise<void> {
 export async function markBackedUp(commitment: string): Promise<void> {
   const existing = await get<StoredReceipt>(commitment, store());
   if (existing) await set(commitment, { ...existing, backed_up: true }, store());
+}
+
+export async function markRevealSent(commitment: string): Promise<void> {
+  const existing = await get<StoredReceipt>(commitment, store());
+  if (existing) await set(commitment, { ...existing, reveal_sent: true }, store());
 }
 
 export async function listReceipts(): Promise<StoredReceipt[]> {

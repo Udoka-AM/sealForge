@@ -34,6 +34,9 @@ export function CreateAuctionForm({ defaultNetwork }: { defaultNetwork: Network 
   const [tip, setTip] = useState<number | null>(null);
   const [network, setNetwork] = useState<Network>(defaultNetwork);
   const [mode, setMode] = useState<AuctionMode>("uniform_price");
+  const [sealed, setSealed] = useState(false);
+  const [revealHours, setRevealHours] = useState("6");
+  const [revealHours, setRevealHours] = useState("6");
   const [hours, setHours] = useState("24");
   const [manualClose, setManualClose] = useState("");
   const [trustees, setTrustees] = useState(DEFAULT_TRUSTEES);
@@ -64,12 +67,17 @@ export function CreateAuctionForm({ defaultNetwork }: { defaultNetwork: Network 
       return setError(`Bidding must stay open for at least ${MIN_WINDOW_HOURS} hours.`);
     if (!closeHeight || closeHeight <= 0)
       return setError("Enter the block height bidding closes at.");
+    const revealBlocks = Math.round(Number(revealHours) * BLOCKS_PER_HOUR);
+    if (sealed && !(revealBlocks >= MIN_WINDOW_HOURS * BLOCKS_PER_HOUR))
+      return setError(`The reveal window must be at least ${MIN_WINDOW_HOURS} hours.`);
     const body: CreateAuction = {
       title: String(form.get("title") ?? "").trim(),
       description: String(form.get("description") ?? "").trim(),
       lot_image_url: null,
       network,
       mode,
+      bid_mode: sealed ? "commit_reveal" : "deposit",
+      reveal_close_height: sealed ? closeHeight + revealBlocks : null,
       quantity: Number(form.get("quantity")),
       reserve_zat: Number(reserve),
       close_height: closeHeight,
@@ -197,6 +205,39 @@ export function CreateAuctionForm({ defaultNetwork }: { defaultNetwork: Network 
               <option value="regtest">Regtest (local)</option>
             </select>
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={sealed}
+              onChange={(e) => setSealed(e.target.checked)}
+              className="mt-1 size-4 accent-[var(--primary)]"
+            />
+            <span>
+              <span className={label}>Sealed reveal</span>
+              <span className={`block ${hint}`}>
+                Bidders deposit a budget and reveal their bid after the close, so nobody (trustees
+                included) sees bid amounts while bidding is open. Bidders need one extra step.
+              </span>
+            </span>
+          </label>
+          {sealed ? (
+            <div className="space-y-1.5 pl-7">
+              <label htmlFor="reveal-hours" className={label}>
+                Reveal window (hours)
+              </label>
+              <input
+                id="reveal-hours"
+                inputMode="decimal"
+                value={revealHours}
+                onChange={(e) => setRevealHours(e.target.value)}
+                className={`${field} num max-w-[200px]`}
+              />
+              <p className={hint}>Bids that aren&rsquo;t revealed by then don&rsquo;t count.</p>
+            </div>
+          ) : null}
         </div>
 
         {tip !== null ? (

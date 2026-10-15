@@ -156,6 +156,9 @@ function Outcome({
         If you paid, the payment either arrived outside the bidding window, reused a commitment, or
         had an unreadable memo. Payments like that are refunded in full to the refund address in
         your memo. If you never sent the payment, there&rsquo;s nothing to refund.
+        {receipt.price_zat !== undefined
+          ? " This was a sealed bid: if it wasn't revealed within the reveal window, it didn't count and the deposit is refunded in full."
+          : null}
       </Problem>
     );
   }
