@@ -57,7 +57,15 @@ async fn main() -> anyhow::Result<()> {
             config.wallet_dir.clone(),
         ));
     }
-    tokio::spawn(refunds::run(state.clone(), config.refunds_paused));
+    let policy = config.refund_policy()?;
+    if config.refund_delay_secs.is_some() {
+        tracing::warn!(
+            min = policy.min_delay_secs,
+            max = policy.max_delay_secs,
+            "regtest refund delays"
+        );
+    }
+    tokio::spawn(refunds::run(state.clone(), config.refunds_paused, policy));
 
     let app = routes::router(state);
     let listener = tokio::net::TcpListener::bind(&config.listen_addr).await?;

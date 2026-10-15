@@ -400,12 +400,13 @@ fn hex32(value: &str) -> anyhow::Result<[u8; 32]> {
 /// One-line summary trustees review before signing.
 pub fn describe_batch(b: &BatchView) -> String {
     format!(
-        "{} batch {}: {} output(s), {} ZEC total, {} escrow spend(s) to authorize",
+        "{} batch {}: {} output(s), {} ZEC total, {} escrow spend(s) to authorize, sighash {}",
         b.kind,
         &b.id[..8],
         b.output_count,
         sealforge_core::zip321::format_zec(sealforge_core::Zatoshi(b.total_out_zat)),
-        b.spends.len()
+        b.spends.len(),
+        &b.sighash[..b.sighash.len().min(16)]
     )
 }
 

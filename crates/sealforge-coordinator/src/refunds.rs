@@ -235,12 +235,11 @@ pub async fn batch_due(
 }
 
 /// Background loop: plan new refunds and batch due notes every minute.
-pub async fn run(state: AppState, paused: bool) {
+pub async fn run(state: AppState, paused: bool, policy: RefundPolicy) {
     if paused {
         tracing::warn!("refunds paused (SF_REFUNDS_PAUSED)");
         return;
     }
-    let policy = RefundPolicy::default();
     let mut tick = tokio::time::interval(Duration::from_secs(60));
     loop {
         tick.tick().await;
