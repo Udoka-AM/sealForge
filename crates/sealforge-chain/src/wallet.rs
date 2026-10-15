@@ -97,6 +97,10 @@ impl EscrowWallet {
         &mut self.db
     }
 
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub(crate) fn params(&self) -> ChainParams {
         self.params
     }

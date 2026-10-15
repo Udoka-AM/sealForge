@@ -280,3 +280,35 @@ pub fn apply_signatures(
         .map_err(anyhow::Error::from)?
         .finish())
 }
+
+impl EscrowWallet {
+    /// Height a stored transaction was mined at, if it has been.
+    pub fn mined_height(&self, txid: &[u8; 32]) -> anyhow::Result<Option<u32>> {
+        let conn = rusqlite::Connection::open_with_flags(
+            self.path(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )?;
+        let height: Option<Option<u32>> = conn
+            .query_row(
+                "SELECT mined_height FROM transactions WHERE txid = ?1",
+                [&txid[..]],
+                |row| row.get(0),
+            )
+            .map(Some)
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                other => Err(other),
+            })?;
+        Ok(height.flatten())
+    }
+}
+
+/// Serialize a PCZT for storage between signing rounds.
+pub fn pczt_to_bytes(pczt: Pczt) -> anyhow::Result<Vec<u8>> {
+    pczt.serialize()
+        .map_err(|e| anyhow!("encoding PCZT: {e:?}"))
+}
+
+pub fn pczt_from_bytes(bytes: &[u8]) -> anyhow::Result<Pczt> {
+    Pczt::parse(bytes).map_err(|e| anyhow!("bad PCZT: {e:?}"))
+}
