@@ -10,7 +10,8 @@
       "!**/pkg",
       "!**/migrations/meta",
       "!**/public/artifacts",
-      "!**/tests/fixtures"
+      "!**/tests/fixtures",
+      "!**/public/auditor"
     ]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },

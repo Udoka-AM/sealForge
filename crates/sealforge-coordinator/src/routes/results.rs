@@ -23,6 +23,11 @@ struct ResultRow {
 
 #[derive(Debug, FromRow)]
 struct LeafRow {
+    txid: Vec<u8>,
+    output_index: i32,
+    block_height: i32,
+    amount_zat: i64,
+    commitment: Option<Vec<u8>>,
     leaf_hash: Vec<u8>,
     is_winner: Option<bool>,
     price_paid_zat: Option<i64>,
@@ -55,7 +60,8 @@ pub async fn result(
     .fetch_one(&state.db)
     .await?;
     let leaves: Vec<LeafRow> = sqlx::query_as(
-        "SELECT leaf_hash, is_winner, price_paid_zat, refund_due_zat FROM bids \
+        "SELECT txid, output_index, block_height, amount_zat, commitment, leaf_hash, is_winner, price_paid_zat, \
+         refund_due_zat FROM bids \
          WHERE auction_id = $1 AND leaf_hash IS NOT NULL ORDER BY leaf_hash",
     )
     .bind(auction.id)
@@ -82,6 +88,11 @@ pub async fn result(
         bids: leaves
             .into_iter()
             .map(|l| ResultBid {
+                txid: hex::encode(l.txid),
+                output_index: l.output_index as u32,
+                block_height: l.block_height as u32,
+                amount_zat: l.amount_zat as u64,
+                commitment: hex::encode(l.commitment.unwrap_or_default()),
                 leaf_hash: hex::encode(l.leaf_hash),
                 is_winner: l.is_winner.unwrap_or(false),
                 price_paid_zat: l.price_paid_zat.unwrap_or(0) as u64,
