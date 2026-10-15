@@ -24,6 +24,7 @@ zcash_proofs = { version = "=0.31.0-pre.2", features = ["bundled-prover"], optio
 zip321 = { version = "=0.10.0-pre.2", optional = true }
 zcash_address = { version = "=0.14.0-pre.2", optional = true }
 secrecy = "0.8"
+zip32 = "0.3"
 zcash_protocol.workspace = true
 
 [features]

@@ -6,6 +6,8 @@
 //! refunds (task 3.9).
 
 pub mod cache;
+#[cfg(feature = "dev-wallet")]
+pub mod dev;
 pub mod params;
 pub mod wallet;
 
