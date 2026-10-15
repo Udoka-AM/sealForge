@@ -106,8 +106,14 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     let mut fingerprints = BTreeMap::new();
     let mut escrow = None;
     for _ in 0..10 {
-        for (i, store) in trustees.iter().enumerate() {
-            match trustee::dkg_step(store, &url, &code).await.unwrap() {
+        // All three at once, as on real machines: this is where DKG writes race.
+        let (a, b, c) = tokio::join!(
+            trustee::dkg_step(&trustees[0], &url, &code),
+            trustee::dkg_step(&trustees[1], &url, &code),
+            trustee::dkg_step(&trustees[2], &url, &code),
+        );
+        for (i, progress) in [a, b, c].into_iter().enumerate() {
+            match progress.unwrap() {
                 DkgProgress::Completed {
                     fingerprint,
                     escrow_ua,
