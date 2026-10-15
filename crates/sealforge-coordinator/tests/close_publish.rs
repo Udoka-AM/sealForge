@@ -9,9 +9,10 @@ use ed25519_dalek::SigningKey;
 use http_body_util::BodyExt;
 use rand::rngs::OsRng;
 use sealforge_api::{auth::sign_request, types::PublishedResult};
-use sealforge_coordinator::{closer, routes, AppState, Settings};
+use sealforge_coordinator::{closer, refunds, routes, AppState, Settings};
 use sealforge_core::{
     clearing::{AuctionMode, AuctionRules},
+    refunds::RefundPolicy,
     result::{compute_result, ScannedBid},
     Zatoshi,
 };
@@ -364,4 +365,94 @@ async fn closes_at_close_height_and_publishes_an_auditable_result(db: PgPool) {
     };
     let recomputed = compute_result(&rules, &included).unwrap();
     assert_eq!(published.merkle_root, hex::encode(recomputed.merkle_root));
+
+    // ---- Refund planning (task 3.9). The scanner stores each memo's refund
+    // address; bid G (wrong auction) stands in for one we couldn't read.
+    sqlx::query(
+        "UPDATE bids SET refund_ua_enc = pgp_sym_encrypt('utest1refund', $1) WHERE txid <> $2",
+    )
+    .bind(DATA_KEY)
+    .bind(&[7u8; 32][..])
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let policy = RefundPolicy::default();
+    let before = chrono::Utc::now();
+    assert_eq!(
+        refunds::plan_published(&state, &policy).await.unwrap(),
+        vec![code.clone()]
+    );
+    assert!(
+        refunds::plan_published(&state, &policy)
+            .await
+            .unwrap()
+            .is_empty(),
+        "planned once"
+    );
+    let status: String = sqlx::query_scalar("SELECT status::text FROM auctions WHERE code = $1")
+        .bind(&code)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(status, "refunding");
+
+    // Every planned bid's notes add up to its refund (minus dust), within the delay window.
+    let sums: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT b.refund_due_zat, sum(n.denomination_zat)::bigint FROM refund_notes n JOIN bids b ON b.id = n.bid_id \
+         GROUP BY b.id, b.refund_due_zat",
+    )
+    .fetch_all(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        sums.len(),
+        6,
+        "every refundable bid except the unreadable one (C won with no refund)"
+    );
+    for (due, total) in &sums {
+        assert_eq!(*total, due - due % 10_000);
+    }
+    let (min_at, max_at): (chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>) =
+        sqlx::query_as("SELECT min(not_before), max(not_before) FROM refund_notes")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert!(min_at >= before + chrono::Duration::seconds(policy.min_delay_secs as i64));
+    assert!(max_at <= chrono::Utc::now() + chrono::Duration::seconds(policy.max_delay_secs as i64));
+
+    let (status, progress) = call(
+        &app,
+        None,
+        Method::GET,
+        &format!("/v1/auctions/{code}/refunds"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(progress["needs_manual_review"], 1);
+    assert_eq!(progress["notes_planned"], progress["notes_total"]);
+
+    // Nothing is due yet; five hours later everything is, in batches of at most 20.
+    assert_eq!(
+        refunds::batch_due(&state, &policy, chrono::Utc::now())
+            .await
+            .unwrap(),
+        0
+    );
+    let later = chrono::Utc::now() + chrono::Duration::hours(5);
+    assert!(refunds::batch_due(&state, &policy, later).await.unwrap() > 0);
+    let unbatched: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM refund_notes WHERE status <> 'batched'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(unbatched, 0);
+    let largest: i64 = sqlx::query_scalar(
+        "SELECT max(c) FROM (SELECT count(*) AS c FROM refund_notes GROUP BY batch_id) x",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert!(largest <= policy.max_outputs_per_batch as i64);
 }
