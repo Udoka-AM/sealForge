@@ -137,9 +137,16 @@ open() {
   code=$(cat "$STATE/code")
   [[ $(status) == ready ]] && $SF --home "$ORGANISER_HOME" auction open "$code" > /dev/null
   log "open at $(tip): escrow $(field escrow_ua | cut -c1-24)…"
-  if [[ ! -f "$STATE/fee-buffer" ]]; then
-    $WALLET testnet "$FUNDER_DB" "$FUNDER_SEED" send "$(field escrow_ua)" "$FEE_BUFFER_ZAT" "SF1FEE:$code" |
-      tee "$STATE/fee-buffer"
+  if [[ ! -s "$STATE/fee-buffer" ]]; then
+    local out escrow
+    escrow=$(field escrow_ua)
+    # The funder's change from funding the bidders may still be confirming.
+    until out=$($WALLET testnet "$FUNDER_DB" "$FUNDER_SEED" send "$escrow" "$FEE_BUFFER_ZAT" "SF1FEE:$code" 2>&1); do
+      grep -qE "Insufficient balance|connecting to" <<< "$out" || { echo "$out" >&2; return 1; }
+      sleep 20
+    done
+    echo "$out" > "$STATE/fee-buffer"
+    log "fee buffer sent: $FEE_BUFFER_ZAT zat"
   fi
 }
 
