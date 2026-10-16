@@ -79,7 +79,7 @@ export default async function AuctionPage({ params }: Props) {
             </div>
             <div>
               <dt className="text-sm text-muted">Reserve</dt>
-              <dd className="num">{zec(auction.reserve_zat)}</dd>
+              <dd className="num">{zec(auction.reserve_zat, auction.network)}</dd>
             </div>
             <div>
               <dt className="text-sm text-muted">Closes at block</dt>

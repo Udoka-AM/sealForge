@@ -7,6 +7,7 @@ import { useEffect, useId, useState } from "react";
 import { HashChip } from "@/components/hash-chip";
 import { SealMark } from "@/components/seal-mark";
 import { checkReceipt } from "@/lib/auditor";
+import { networkOfUa, unit, zec } from "@/lib/format";
 import { listReceipts, type StoredReceipt } from "@/lib/receipts";
 import type { PublishedResult, ReceiptCheck } from "@/lib/types";
 
@@ -19,8 +20,6 @@ type State =
   | { kind: "unpublished"; code: string }
   | { kind: "error"; message: string }
   | { kind: "done"; check: ReceiptCheck; result: PublishedResult; receipt: Loaded };
-
-const zec = (zat: number) => `${formatZec(BigInt(zat))} ZEC`;
 
 export function VerifyReceipt() {
   const fileId = useId();
@@ -73,7 +72,9 @@ export function VerifyReceipt() {
                 <li key={r.commitment} className="flex items-center justify-between gap-3 py-3">
                   <span className="min-w-0">
                     <span className="block truncate">{r.title}</span>
-                    <span className="num text-sm text-muted">{zec(r.amount_zat)}</span>
+                    <span className="num text-sm text-muted">
+                      {zec(r.amount_zat, networkOfUa(r.refund_ua))}
+                    </span>
                   </span>
                   <button
                     type="button"
@@ -189,7 +190,7 @@ function Outcome({
             {check.is_winner ? (
               <span className="inline-flex items-center gap-2">
                 <CircleCheck size={18} className="text-success" aria-hidden="true" /> Won at{" "}
-                {zec(check.price_paid_zat)}
+                {zec(check.price_paid_zat, result.network)}
               </span>
             ) : (
               "Not a winner"
@@ -198,7 +199,7 @@ function Outcome({
         </div>
         <div>
           <dt className="text-sm text-muted">Refund due</dt>
-          <dd className="num text-[18px]">{zec(check.refund_due_zat)}</dd>
+          <dd className="num text-[18px]">{zec(check.refund_due_zat, result.network)}</dd>
         </div>
       </dl>
 
@@ -223,15 +224,16 @@ function Outcome({
       {check.dust_zat > 0 ? (
         <p className="text-sm text-muted">
           Plus <span className="num">{check.dust_zat.toLocaleString("en-US")}</span> zatoshi below
-          the smallest note (0.0001 ZEC). It isn&rsquo;t sent: it costs more in network fees than
-          it&rsquo;s worth, and an odd-sized note would make your refund traceable.
+          the smallest note (0.0001 {unit(result.network)}). It isn&rsquo;t sent: it costs more in
+          network fees than it&rsquo;s worth, and an odd-sized note would make your refund
+          traceable.
         </p>
       ) : null}
 
       {!check.amount_matches && check.amount_zat !== null ? (
         <p className="text-sm text-warning">
-          The chain shows {zec(check.amount_zat)}, but your receipt says {zec(receipt.amount_zat)}.
-          The on-chain amount is what counted.
+          The chain shows {zec(check.amount_zat, result.network)}, but your receipt says{" "}
+          {zec(receipt.amount_zat, result.network)}. The on-chain amount is what counted.
         </p>
       ) : null}
 

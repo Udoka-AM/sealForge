@@ -141,7 +141,7 @@ function AuctionRow({ auction: a, tip }: { auction: AuctionView; tip: number | n
           </div>
           <div>
             <dt className="text-muted">Reserve</dt>
-            <dd className="num">{zec(a.reserve_zat)}</dd>
+            <dd className="num">{zec(a.reserve_zat, a.network)}</dd>
           </div>
           <div>
             <dt className="text-muted">Closes</dt>

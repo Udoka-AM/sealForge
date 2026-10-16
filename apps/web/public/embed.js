@@ -18,12 +18,13 @@
   script.after(host);
   const root = host.attachShadow({ mode: "open" });
 
-  const zec = (zat) => {
+  const zec = (zat, network) => {
+    const unit = network === "mainnet" ? "ZEC" : "TAZ";
     const whole = Math.floor(zat / 1e8);
     const frac = String(zat % 1e8)
       .padStart(8, "0")
       .replace(/0+$/, "");
-    return frac ? `${whole}.${frac} ZEC` : `${whole} ZEC`;
+    return frac ? `${whole}.${frac} ${unit}` : `${whole} ${unit}`;
   };
   const eta = (blocks, network) => {
     const mins = Math.round((blocks * (network === "testnet" ? 25 : 75)) / 60);
@@ -72,7 +73,7 @@ p.note{font-size:12px;color:var(--muted);margin:10px 0 0}`,
           "dl",
           {},
           el("div", {}, el("dt", {}, "Lots"), el("dd", {}, String(a.quantity))),
-          el("div", {}, el("dt", {}, "Reserve"), el("dd", {}, zec(a.reserve_zat))),
+          el("div", {}, el("dt", {}, "Reserve"), el("dd", {}, zec(a.reserve_zat, a.network))),
           el("div", {}, el("dt", {}, "Closes"), el("dd", {}, closes)),
         ),
       );

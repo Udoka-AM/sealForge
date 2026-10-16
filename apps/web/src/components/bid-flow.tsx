@@ -19,6 +19,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button, buttonClass } from "@/components/button";
 import { HashChip } from "@/components/hash-chip";
 import { SealMark } from "@/components/seal-mark";
+import { unit } from "@/lib/format";
 import { downloadReceipt, markBackedUp, type StoredReceipt, saveReceipt } from "@/lib/receipts";
 import type { AuctionView } from "@/lib/types";
 
@@ -148,11 +149,13 @@ function AmountStep({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const next: typeof errors = {};
-    if (parsed === null || parsed <= 0n) next.amount = "Enter an amount in ZEC.";
+    if (parsed === null || parsed <= 0n)
+      next.amount = `Enter an amount in ${unit(auction.network)}.`;
     // Bids in whole 0.0001 ZEC steps leave no refund dust (see docs/evidence/linkability.md).
     else if (parsed % MIN_DENOMINATION !== 0n)
-      next.amount = "Use at most 4 decimal places (0.0001 ZEC).";
-    else if (parsed < reserve) next.amount = `Below the ${formatZec(reserve)} ZEC reserve.`;
+      next.amount = `Use at most 4 decimal places (0.0001 ${unit(auction.network)}).`;
+    else if (parsed < reserve)
+      next.amount = `Below the ${formatZec(reserve)} ${unit(auction.network)} reserve.`;
     const refundUa = refund.trim();
     if (!looksLikeUnifiedAddress(refundUa, auction.network))
       next.refund = `Paste a Unified Address for ${auction.network} (it starts with ${
@@ -210,7 +213,7 @@ function AmountStep({
             aria-describedby={`${amountId}-help`}
             className="num h-full w-full bg-transparent px-4 text-[24px] outline-none"
           />
-          <span className="pr-4 text-muted">ZEC</span>
+          <span className="pr-4 text-muted">{unit(auction.network)}</span>
         </div>
         <p
           id={`${amountId}-help`}
@@ -218,8 +221,8 @@ function AmountStep({
         >
           {errors.amount ??
             (sealedMode
-              ? `Reserve ${formatZec(reserve)} ZEC. You don't send this amount: it stays in your receipt until you reveal it after bidding closes.`
-              : `Reserve ${formatZec(reserve)} ZEC. You send this amount now; anything above the price you pay comes back.`)}
+              ? `Reserve ${formatZec(reserve)} ${unit(auction.network)}. You don't send this amount: it stays in your receipt until you reveal it after bidding closes.`
+              : `Reserve ${formatZec(reserve)} ${unit(auction.network)}. You send this amount now; anything above the price you pay comes back.`)}
         </p>
         {suggestions.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -236,7 +239,7 @@ function AmountStep({
                 }}
                 className="num rounded-[var(--radius-chip)] border border-border px-2.5 py-1 text-[13px] transition-colors duration-150 hover:border-primary hover:text-primary"
               >
-                {formatZec(d)} ZEC
+                {formatZec(d)} {unit(auction.network)}
               </button>
             ))}
           </div>
@@ -266,7 +269,7 @@ function AmountStep({
                   onChange={() => setDeposit(d)}
                   className="sr-only"
                 />
-                {formatZec(d)} ZEC
+                {formatZec(d)} {unit(auction.network)}
               </label>
             ))}
           </div>
@@ -360,7 +363,7 @@ function PayStep({
           // biome-ignore lint/performance/noImgElement: a local data-URI SVG; next/image adds nothing here
           <img
             src={qr}
-            alt={`Payment QR code for ${formatZec(BigInt(bid.receipt.amount_zat))} ZEC with the bid memo`}
+            alt={`Payment QR code for ${formatZec(BigInt(bid.receipt.amount_zat))} ${unit(auction.network)} with the bid memo`}
             className="mx-auto aspect-square w-full max-w-[280px]"
           />
         ) : (
@@ -379,7 +382,9 @@ function PayStep({
           <dt className="text-muted">
             {auction.bid_mode === "commit_reveal" ? "Deposit" : "Amount"}
           </dt>
-          <dd className="num text-[18px]">{formatZec(BigInt(bid.receipt.amount_zat))} ZEC</dd>
+          <dd className="num text-[18px]">
+            {formatZec(BigInt(bid.receipt.amount_zat))} {unit(auction.network)}
+          </dd>
         </div>
         <div className="space-y-1.5">
           <dt className="text-muted">Payment request</dt>
@@ -459,7 +464,9 @@ function SealedStep({
           <dt className="text-muted">
             {auction.bid_mode === "commit_reveal" ? "Deposit" : "Amount"}
           </dt>
-          <dd className="num">{formatZec(BigInt(receipt.amount_zat))} ZEC</dd>
+          <dd className="num">
+            {formatZec(BigInt(receipt.amount_zat))} {unit(auction.network)}
+          </dd>
         </div>
         <div className="flex items-center justify-between gap-4">
           <dt className="text-muted">Commitment</dt>
