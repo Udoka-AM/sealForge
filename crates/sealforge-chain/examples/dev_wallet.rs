@@ -131,7 +131,10 @@ async fn main() -> anyhow::Result<()> {
             let txid = wallet
                 .send(&mut client, escrow, deposit, Some(&memo))
                 .await?;
-            write_private(Path::new(receipt_path), &serde_json::to_vec_pretty(&receipt)?)?;
+            write_private(
+                Path::new(receipt_path),
+                &serde_json::to_vec_pretty(&receipt)?,
+            )?;
             println!("bid sent: {txid}");
         }
         "reveal" => {

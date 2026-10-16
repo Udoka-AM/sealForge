@@ -70,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!(
             min = policy.min_delay_secs,
             max = policy.max_delay_secs,
-            "regtest refund delays"
+            "shortened refund delays (test network)"
         );
     }
     tokio::spawn(refunds::run(state.clone(), config.refunds_paused, policy));
