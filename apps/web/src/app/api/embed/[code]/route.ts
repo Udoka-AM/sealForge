@@ -21,6 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       {
         code: auction.code,
         title: auction.title,
+        network: auction.network,
         status: auction.status,
         accepting_bids: acceptingBids(auction, tip),
         sealed_reveal: auction.bid_mode === "commit_reveal",

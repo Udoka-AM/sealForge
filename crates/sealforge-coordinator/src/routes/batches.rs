@@ -173,6 +173,7 @@ pub async fn commit(
     })?;
 
     let mut tx = state.db.begin().await?;
+    lock(&mut tx, row.id).await?;
     sqlx::query(
         "INSERT INTO signature_shares (batch_id, trustee_id, commitments_json) VALUES ($1, $2, $3) \
          ON CONFLICT (batch_id, trustee_id) DO NOTHING",
@@ -182,7 +183,27 @@ pub async fn commit(
     .bind(serde_json::json!(input.commitments))
     .execute(&mut *tx)
     .await?;
-    // The first two trustees to commit become the signer set.
+    advance(&mut tx, row.id).await?;
+    tx.commit().await?;
+    let row = load(&state, &id).await?;
+    Ok(Json(view(&state, &row, trustee_id).await?))
+}
+
+/// `POST /v1/batches/{id}/shares` (round 2, signers only).
+/// Trustees sign at the same moment: each commit/share transaction holds the
+/// batch row, so the counts below see every earlier submission.
+pub async fn lock(tx: &mut sqlx::PgConnection, batch: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query("SELECT 1 FROM tx_batches WHERE id = $1 FOR UPDATE")
+        .bind(batch)
+        .execute(tx)
+        .await
+        .map(|_| ())
+}
+
+/// Move a batch along once enough trustees have submitted: the first two to
+/// commit become the signer set, and both of their shares make it `signed`.
+/// Idempotent; the scanner also runs it, so a batch never stalls on a lost update.
+pub async fn advance(tx: &mut sqlx::PgConnection, batch: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE tx_batches SET signer_slots = (
             SELECT array_agg(slot ORDER BY submitted_at, slot) FROM (
@@ -192,15 +213,20 @@ pub async fn commit(
          WHERE id = $1 AND signer_slots IS NULL AND (
             SELECT count(*) FROM signature_shares WHERE batch_id = $1 AND commitments_json IS NOT NULL) >= 2",
     )
-    .bind(row.id)
+    .bind(batch)
     .execute(&mut *tx)
     .await?;
-    tx.commit().await?;
-    let row = load(&state, &id).await?;
-    Ok(Json(view(&state, &row, trustee_id).await?))
+    sqlx::query(
+        "UPDATE tx_batches SET status = 'signed' WHERE id = $1 AND status = 'awaiting_signatures' AND (
+            SELECT count(*) FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id
+            WHERE s.batch_id = $1 AND s.shares_json IS NOT NULL AND t.slot = ANY(tx_batches.signer_slots)) = 2",
+    )
+    .bind(batch)
+    .execute(&mut *tx)
+    .await?;
+    Ok(())
 }
 
-/// `POST /v1/batches/{id}/shares` (round 2, signers only).
 pub async fn share(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -226,20 +252,14 @@ pub async fn share(
     })?;
 
     let mut tx = state.db.begin().await?;
+    lock(&mut tx, row.id).await?;
     sqlx::query("UPDATE signature_shares SET shares_json = $3 WHERE batch_id = $1 AND trustee_id = $2 AND shares_json IS NULL")
         .bind(row.id)
         .bind(trustee_id)
         .bind(serde_json::json!(input.shares))
         .execute(&mut *tx)
         .await?;
-    sqlx::query(
-        "UPDATE tx_batches SET status = 'signed' WHERE id = $1 AND status = 'awaiting_signatures' AND (
-            SELECT count(*) FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id
-            WHERE s.batch_id = $1 AND s.shares_json IS NOT NULL AND t.slot = ANY(tx_batches.signer_slots)) = 2",
-    )
-    .bind(row.id)
-    .execute(&mut *tx)
-    .await?;
+    advance(&mut tx, row.id).await?;
     tx.commit().await?;
     let row = load(&state, &id).await?;
     Ok(Json(view(&state, &row, trustee_id).await?))

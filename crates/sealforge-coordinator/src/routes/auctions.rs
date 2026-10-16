@@ -18,7 +18,7 @@ use crate::{
     db::{self, AuctionRow},
     error::ApiError,
     lifecycle::{can_transition, is_editable, is_public, Actor},
-    validate::{self, MIN_OPEN_BLOCKS},
+    validate::{self, min_window_blocks},
     AppState,
 };
 
@@ -314,10 +314,11 @@ pub async fn open(
     let tip = state
         .chain_tip()
         .ok_or_else(|| ApiError::Unavailable("chain height unknown; is the node synced?".into()))?;
-    if (row.close_height as u32) < tip + MIN_OPEN_BLOCKS {
+    let min = min_window_blocks();
+    if (row.close_height as u32) < tip + min {
         return Err(ApiError::Validation(format!(
-            "close height must be at least {} (current height {tip} + {MIN_OPEN_BLOCKS} blocks)",
-            tip + MIN_OPEN_BLOCKS
+            "close height must be at least {} (current height {tip} + {min} blocks)",
+            tip + min
         )));
     }
     transition(

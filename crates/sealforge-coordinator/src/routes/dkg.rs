@@ -191,7 +191,7 @@ pub async fn join(
     let mut tx = state.db.begin().await?;
     let slot: Option<(Uuid, Uuid, i16, String)> = sqlx::query_as(
         "SELECT t.id, t.auction_id, t.slot, t.label FROM trustees t JOIN auctions a ON a.id = t.auction_id \
-         WHERE t.invite_code_hash = $1 AND t.pubkey IS NULL AND a.status = 'draft' FOR UPDATE OF t",
+         WHERE t.invite_code_hash = $1 AND t.pubkey IS NULL AND a.status = 'draft' FOR UPDATE OF t, a",
     )
     .bind(codes::sha256(&input.invite_code))
     .fetch_optional(&mut *tx)

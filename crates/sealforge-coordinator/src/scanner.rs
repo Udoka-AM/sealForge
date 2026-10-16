@@ -245,6 +245,10 @@ async fn scan_auction(
     Ok(())
 }
 
+/// Smallest fee buffer worth sweeping back on an auction without proceeds
+/// (twice the ZIP-317 minimum fee).
+const MIN_SWEEP_ZAT: i64 = 20_000;
+
 /// A batch both signers have signed, ready to finalize.
 #[derive(sqlx::FromRow)]
 struct SignedBatch {
@@ -292,6 +296,20 @@ async fn process_batches(
                 .await?;
             tracing::info!(code = %auction.code, height, "escrow batch confirmed");
         }
+    }
+
+    // Catch up any batch whose signer set or signatures are complete.
+    let waiting: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM tx_batches WHERE auction_id = $1 AND status = 'awaiting_signatures'",
+    )
+    .bind(auction.id)
+    .fetch_all(&state.db)
+    .await?;
+    for id in waiting {
+        let mut tx = state.db.begin().await?;
+        crate::routes::batches::lock(&mut tx, id).await?;
+        crate::routes::batches::advance(&mut tx, id).await?;
+        tx.commit().await?;
     }
 
     // Finalize batches both signers have signed.
@@ -465,33 +483,35 @@ async fn process_batches(
     .bind(auction.id)
     .fetch_one(&state.db)
     .await?;
-    if open_refunds == 0 && payout_notes == 0 {
-        let proceeds: i64 = sqlx::query_scalar(
-            "SELECT COALESCE(sum(price_paid_zat), 0)::bigint FROM bids WHERE auction_id = $1",
+    let proceeds: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(sum(price_paid_zat), 0)::bigint FROM bids WHERE auction_id = $1",
+    )
+    .bind(auction.id)
+    .fetch_one(&state.db)
+    .await?;
+    // With no winners the organiser still gets their fee buffer back, unless
+    // too little is left to pay a transaction fee; then there's nothing to send.
+    let to_pay = proceeds > 0 || auction.fee_buffer_zat >= MIN_SWEEP_ZAT;
+    if open_refunds == 0 && payout_notes == 0 && to_pay {
+        let mut tx = state.db.begin().await?;
+        let batch_id: Uuid = sqlx::query_scalar(
+            "INSERT INTO tx_batches (auction_id, kind, status) VALUES ($1, 'payout', 'building') RETURNING id",
         )
         .bind(auction.id)
-        .fetch_one(&state.db)
+        .fetch_one(&mut *tx)
         .await?;
-        if proceeds > 0 {
-            let mut tx = state.db.begin().await?;
-            let batch_id: Uuid = sqlx::query_scalar(
-                "INSERT INTO tx_batches (auction_id, kind, status) VALUES ($1, 'payout', 'building') RETURNING id",
-            )
-            .bind(auction.id)
-            .fetch_one(&mut *tx)
-            .await?;
-            sqlx::query(
-                "INSERT INTO refund_notes (auction_id, kind, denomination_zat, not_before, batch_id, status) \
-                 VALUES ($1, 'payout', $2, now(), $3, 'batched')",
-            )
-            .bind(auction.id)
-            .bind(proceeds)
-            .bind(batch_id)
-            .execute(&mut *tx)
-            .await?;
-            tx.commit().await?;
-            tracing::info!(code = %auction.code, proceeds, "payout batch planned");
-        }
+        sqlx::query(
+            "INSERT INTO refund_notes (auction_id, kind, denomination_zat, not_before, batch_id, status) \
+             VALUES ($1, 'payout', $2, now(), $3, 'batched')",
+        )
+        .bind(auction.id)
+        // Planned amount; building the sweep records what's actually left.
+        .bind(proceeds + auction.fee_buffer_zat)
+        .bind(batch_id)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        tracing::info!(code = %auction.code, proceeds, "payout batch planned");
     } else if open_refunds == 0 && open_payout == 0 {
         let moved = sqlx::query(
             "UPDATE auctions SET status = 'settled', settled_at = now(), updated_at = now() WHERE id = $1 AND status = 'refunding'",

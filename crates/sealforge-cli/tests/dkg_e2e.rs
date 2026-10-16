@@ -69,13 +69,17 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     let code = created.auction.code.clone();
     assert_eq!(created.trustee_invites.len(), 3);
 
-    // Trustees join. An invite works once.
-    for (store, invite) in trustees.iter().zip(&created.trustee_invites) {
-        let joined = trustee::join(store, &url, &invite.invite_code)
-            .await
-            .unwrap();
-        assert_eq!(joined.slot, invite.slot);
+    // Trustees join, all at once: the last join must still start the DKG.
+    let invites = &created.trustee_invites;
+    let (a, b, c) = tokio::join!(
+        trustee::join(&trustees[0], &url, &invites[0].invite_code),
+        trustee::join(&trustees[1], &url, &invites[1].invite_code),
+        trustee::join(&trustees[2], &url, &invites[2].invite_code),
+    );
+    for (joined, invite) in [a, b, c].into_iter().zip(invites) {
+        assert_eq!(joined.unwrap().slot, invite.slot);
     }
+    // An invite works once.
     let intruder = Keystore::new(root.join("intruder"));
     let reuse = trustee::join(&intruder, &url, &created.trustee_invites[0].invite_code).await;
     assert!(reuse.is_err(), "a used invite must not work twice");
@@ -217,9 +221,14 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
             batch: batch.clone()
         }]
     );
-    for i in [1, 2] {
+    // Both signers post their shares at the same moment; the batch must still become `signed`.
+    let (s1, s2) = tokio::join!(
+        trustee::sign_step(&trustees[1], &url, &code),
+        trustee::sign_step(&trustees[2], &url, &code),
+    );
+    for (i, progress) in [(1, s1), (2, s2)] {
         assert_eq!(
-            trustee::sign_step(&trustees[i], &url, &code).await.unwrap(),
+            progress.unwrap(),
             vec![SignProgress::Signed {
                 batch: batch.clone()
             }]

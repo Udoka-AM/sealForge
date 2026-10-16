@@ -58,11 +58,19 @@ async fn main() -> anyhow::Result<()> {
         ));
     }
     let policy = config.refund_policy()?;
+    if let Some(blocks) = config.min_window_blocks {
+        anyhow::ensure!(
+            config.network != "mainnet",
+            "SF_MIN_WINDOW_BLOCKS is not allowed on mainnet"
+        );
+        sealforge_coordinator::validate::set_min_window_blocks(blocks);
+        tracing::warn!(blocks, "shortened minimum auction window (test network)");
+    }
     if config.refund_delay_secs.is_some() {
         tracing::warn!(
             min = policy.min_delay_secs,
             max = policy.max_delay_secs,
-            "regtest refund delays"
+            "shortened refund delays (test network)"
         );
     }
     tokio::spawn(refunds::run(state.clone(), config.refunds_paused, policy));

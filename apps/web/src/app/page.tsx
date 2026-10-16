@@ -149,7 +149,7 @@ function AuctionRow({ auction: a, tip }: { auction: AuctionView; tip: number | n
               {left === null
                 ? `block ${a.close_height.toLocaleString("en-US")}`
                 : left > 0
-                  ? `in ${blocksEta(left)}`
+                  ? `in ${blocksEta(left, a.network)}`
                   : "closing"}
             </dd>
           </div>

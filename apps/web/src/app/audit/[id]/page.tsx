@@ -12,9 +12,13 @@ import type { AuctionView, PublishedResult } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Audit" };
 
-/** Default gRPC-web lightwallet endpoint offered for the browser rescan. */
+/** Default gRPC-web lightwallet endpoint offered for the browser rescan (read at request time). */
 function lightwalletd(): string {
-  return process.env.NEXT_PUBLIC_LIGHTWALLETD_GRPCWEB ?? "http://localhost:8081";
+  return (
+    process.env.LIGHTWALLETD_GRPCWEB ??
+    process.env.NEXT_PUBLIC_LIGHTWALLETD_GRPCWEB ??
+    "http://localhost:8081"
+  );
 }
 
 export default async function AuditPage({ params }: { params: Promise<{ id: string }> }) {

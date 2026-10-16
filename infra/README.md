@@ -20,6 +20,27 @@ cargo run -p sealforge-coordinator
 psql "$DATABASE_URL" -f seed/dev.sql
 ```
 
+## Temporary hosting from a laptop
+
+Until a server exists, `scripts/host-local.sh start` runs the public site from this machine, against a public lightwallet server, so no node has to sync:
+
+| Piece | Where |
+|---|---|
+| Coordinator | `127.0.0.1:8090`, local only (the website proxies to it) |
+| Website | a public `https://…trycloudflare.com` URL (Cloudflare quick tunnel: no account, no router ports) |
+| gRPC-web for the browser audit | a second tunnel → Envoy (`infra/envoy-tls.yaml`) → `zec.rocks:443` over TLS |
+| State | `~/.sealforge-host/<network>/` (0700). `host.env` holds `SF_DATA_KEY`: back it up |
+
+`scripts/host-local.sh status` shows what's running and the URLs; `stop` stops everything.
+
+**Fixed hostnames.** With a Cloudflare named tunnel (`cloudflared tunnel login`, then `cloudflared tunnel create sealforge` and `cloudflared tunnel route dns sealforge <host>` for the site and the gRPC-web host), put `SF_HOST_TUNNEL`, `SF_HOST_WEB_HOST` and `SF_HOST_LWD_HOST` in `~/.sealforge-host/<network>/tunnel.env`. The script then serves both through that tunnel. The live instance uses `sealforge.udokaam.dev` and `sealforge-lwd.udokaam.dev`.
+
+**Test-network wallet.** `cargo run --release -p sealforge-chain --features dev-wallet --example dev_wallet -- testnet <wallet.sqlite> <seed-file> address|balance|send|pay-many|bid|reveal` is a small wallet for faucet TAZ and demo bids. `bid` builds the same memo and receipt as the browser (sealed when given a price) with the wallet's own address for refunds, so run one wallet per simulated bidder; `pay-many` funds them in one transaction. It refuses mainnet.
+
+**An auction in an hour (test networks).** Mainnet keeps 144-block windows and hours-long refund delays. On testnet (25-second blocks) put `SF_MIN_WINDOW_BLOCKS=30` and `SF_REFUND_DELAY_SECS=20,120` in `~/.sealforge-host/testnet/demo.env`: the coordinator then accepts 12-minute bidding and reveal windows and sends refunds within two minutes of publishing. Both settings are refused on mainnet.
+
+Limits of laptop hosting: the URLs change on every start, nothing is served while the machine sleeps (the script runs `caffeinate`, but a closed lid on battery still sleeps), and `zec.rocks` is trusted for liveness only. It can't move funds, and a hidden payment fails the audit against any other server. Check a lightwallet server first with `cargo run --release -p sealforge-chain --example probe_lightwalletd -- https://zec.rocks:443` (mainnet is on Ironwood, branch id `37a5165b`).
+
 ## Deploy (task 6.2)
 
 ```bash

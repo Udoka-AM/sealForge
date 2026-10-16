@@ -38,10 +38,15 @@ pub struct Config {
     #[arg(long, env = "SF_WALLET_DIR", default_value = "data/wallets")]
     pub wallet_dir: std::path::PathBuf,
 
-    /// Regtest only: refund delays as "min,max" seconds instead of 10–240 minutes,
-    /// so a local end-to-end run doesn't wait hours. Ignored on other networks.
+    /// Test networks only: refund delays as "min,max" seconds instead of 10–240
+    /// minutes, so a demo auction fits in an hour. Refused on mainnet.
     #[arg(long, env = "SF_REFUND_DELAY_SECS")]
     pub refund_delay_secs: Option<String>,
+
+    /// Test networks only: the shortest bidding and reveal window in blocks
+    /// (default 144). Refused on mainnet.
+    #[arg(long, env = "SF_MIN_WINDOW_BLOCKS")]
+    pub min_window_blocks: Option<u32>,
 
     /// Development only: pretend the chain tip is at this height (when no node is available).
     #[arg(long, env = "SF_DEV_CHAIN_HEIGHT")]
@@ -55,8 +60,8 @@ impl Config {
         let Some(spec) = &self.refund_delay_secs else {
             return Ok(policy);
         };
-        if self.network != "regtest" {
-            anyhow::bail!("SF_REFUND_DELAY_SECS is only allowed with SF_NETWORK=regtest");
+        if self.network == "mainnet" {
+            anyhow::bail!("SF_REFUND_DELAY_SECS is not allowed on mainnet");
         }
         let (min, max) = spec
             .split_once(',')

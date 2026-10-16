@@ -12,6 +12,19 @@ use crate::error::ApiError;
 /// Minimum blocks between opening and closing (≈ 1 h at NU7's 25 s blocks).
 pub const MIN_OPEN_BLOCKS: u32 = 144;
 
+static MIN_WINDOW: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+
+/// Shortest bidding (and reveal) window, in blocks: [`MIN_OPEN_BLOCKS`] unless a
+/// test network set a shorter one at startup (`SF_MIN_WINDOW_BLOCKS`).
+pub fn min_window_blocks() -> u32 {
+    *MIN_WINDOW.get().unwrap_or(&MIN_OPEN_BLOCKS)
+}
+
+/// Called once at startup. Mainnet always keeps the default.
+pub fn set_min_window_blocks(blocks: u32) {
+    let _ = MIN_WINDOW.set(blocks.max(1));
+}
+
 /// Address-encoding parameters for an auction's network.
 pub type AddressParams = sealforge_escrow::address::EncodingParams;
 
@@ -133,18 +146,18 @@ pub fn create_auction(input: &CreateAuction) -> Result<(), ApiError> {
     trustees(&input.trustees)
 }
 
-/// Blocks bidders get to reveal in commit-reveal mode (about 3 hours at 75 s).
-pub const MIN_REVEAL_BLOCKS: u32 = 144;
-
 fn reveal_window(mode: BidMode, close: u32, reveal_close: Option<u32>) -> Result<(), ApiError> {
     match (mode, reveal_close) {
         (BidMode::Deposit, None) => Ok(()),
         (BidMode::Deposit, Some(_)) => Err(ApiError::Validation(
             "a reveal close height only applies to commit-reveal auctions".into(),
         )),
-        (BidMode::CommitReveal, Some(r)) if r >= close.saturating_add(MIN_REVEAL_BLOCKS) => Ok(()),
+        (BidMode::CommitReveal, Some(r)) if r >= close.saturating_add(min_window_blocks()) => {
+            Ok(())
+        }
         (BidMode::CommitReveal, _) => Err(ApiError::Validation(format!(
-            "commit-reveal auctions need a reveal close height at least {MIN_REVEAL_BLOCKS} blocks after the close"
+            "commit-reveal auctions need a reveal close height at least {} blocks after the close",
+            min_window_blocks()
         ))),
     }
 }
