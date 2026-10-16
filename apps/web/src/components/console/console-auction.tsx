@@ -8,7 +8,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Button, ButtonLink, buttonClass } from "@/components/button";
 import { HashChip } from "@/components/hash-chip";
 import { StatusPill } from "@/components/status-pill";
-import { modeLabel, zec } from "@/lib/format";
+import { blocksEta, modeLabel, zec } from "@/lib/format";
 import { ApiError, api, type StoredSigner } from "@/lib/sfsig";
 import type {
   AuctionView,
@@ -18,16 +18,6 @@ import type {
   TrusteeView,
 } from "@/lib/types";
 import { usePolling, useSigner } from "./use-signer";
-
-const BLOCK_SECS = 75;
-
-function eta(blocks: number): string {
-  if (blocks <= 0) return "now";
-  const mins = Math.round((blocks * BLOCK_SECS) / 60);
-  if (mins < 60) return `~${mins} min`;
-  const h = Math.floor(mins / 60);
-  return `~${h} h ${mins % 60} min`;
-}
 
 const card = "rounded-[var(--radius-card)] border border-border bg-surface p-5";
 const h2 = "text-[18px] leading-6 font-semibold";
@@ -231,7 +221,8 @@ function NextAction({
           <p className="text-sm text-muted">
             Opening publishes the escrow address and starts accepting bids until block{" "}
             {auction.close_height.toLocaleString("en-US")}
-            {blocksLeft !== null ? ` (${eta(blocksLeft)})` : ""}. The rules can't change after this.
+            {blocksLeft !== null ? ` (${blocksEta(blocksLeft, auction.network)})` : ""}. The rules
+            can't change after this.
           </p>
         </>
       );
@@ -247,7 +238,7 @@ function NextAction({
           <p className="font-medium">Bidding is open</p>
           <p className="text-sm text-muted">
             Closes automatically at block {auction.close_height.toLocaleString("en-US")}
-            {blocksLeft !== null ? ` (${eta(blocksLeft)})` : ""}
+            {blocksLeft !== null ? ` (${blocksEta(blocksLeft, auction.network)})` : ""}
             {auction.bid_mode === "commit_reveal" && auction.reveal_close_height
               ? `. Bids are sealed: bidders reveal them until block ${auction.reveal_close_height.toLocaleString("en-US")}, then the result is computed after 10 confirmations.`
               : ", then waits 10 confirmations before computing the result."}

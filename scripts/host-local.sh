@@ -16,6 +16,8 @@
 #   SF_HOST_TUNNEL=<named tunnel>      (cloudflared tunnel create …; route dns for both hosts)
 #   SF_HOST_WEB_HOST=sealforge.example.com
 #   SF_HOST_LWD_HOST=sealforge-lwd.example.com
+# Test networks only: put SF_MIN_WINDOW_BLOCKS / SF_REFUND_DELAY_SECS in
+# ~/.sealforge-host/testnet/demo.env to fit a whole auction into about an hour.
 # State lives in ~/.sealforge-host/<network>/ (0700): host.env holds the data
 # key and organiser invite. Back up SF_DATA_KEY: escrows can't be spent without it.
 set -euo pipefail
@@ -49,6 +51,13 @@ source "$ENVFILE"
 # shellcheck disable=SC1090
 [[ -f "$DIR/tunnel.env" ]] && source "$DIR/tunnel.env"
 SF_HOST_TUNNEL=${SF_HOST_TUNNEL:-}
+DEMO_ENV=()
+if [[ -f "$DIR/demo.env" ]]; then
+  [[ "$NETWORK" == mainnet ]] && { echo "demo.env is for test networks only" >&2; exit 1; }
+  while IFS= read -r line; do
+    [[ "$line" =~ ^(SF_MIN_WINDOW_BLOCKS|SF_REFUND_DELAY_SECS)=[0-9,]+$ ]] && DEMO_ENV+=("$line")
+  done < "$DIR/demo.env"
+fi
 
 running() { [[ -f "$DIR/pids/$1.pid" ]] && kill -0 "$(cat "$DIR/pids/$1.pid")" 2>/dev/null; }
 
@@ -81,7 +90,7 @@ start() {
   launch coordinator env DATABASE_URL="postgres://sealforge:sealforge@localhost:5432/$DB" \
     SF_LISTEN_ADDR=127.0.0.1:$COORD_PORT SF_NETWORK="$NETWORK" SF_ZAINO_URL="https://$LWD:443" \
     SF_WALLET_DIR="$DIR/wallets" SF_DATA_KEY="$SF_DATA_KEY" SF_INVITE_CODES="$SF_INVITE_CODES" \
-    RUST_LOG=info ./target/release/sealforge-coordinator
+    ${DEMO_ENV[@]+"${DEMO_ENV[@]}"} RUST_LOG=info ./target/release/sealforge-coordinator
 
   local envoy_cfg="$DIR/envoy.yaml"
   sed "s|UPSTREAM_HOST|$LWD|g" infra/envoy-tls.yaml > "$envoy_cfg"

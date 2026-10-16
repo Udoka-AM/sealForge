@@ -25,8 +25,8 @@
       .replace(/0+$/, "");
     return frac ? `${whole}.${frac} ZEC` : `${whole} ZEC`;
   };
-  const eta = (blocks) => {
-    const mins = Math.round((blocks * 75) / 60);
+  const eta = (blocks, network) => {
+    const mins = Math.round((blocks * (network === "testnet" ? 25 : 75)) / 60);
     if (mins < 60) return `~${mins} min`;
     return `~${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ""}`;
   };
@@ -65,7 +65,7 @@ p.note{font-size:12px;color:var(--muted);margin:10px 0 0}`,
       const closes = a.accepting_bids
         ? a.blocks_left === null
           ? `block ${a.close_height}`
-          : `in ${eta(a.blocks_left)}`
+          : `in ${eta(a.blocks_left, a.network)}`
         : "closed";
       card.append(
         el(

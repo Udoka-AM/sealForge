@@ -135,19 +135,33 @@ impl DevWallet {
         amount_zat: u64,
         memo: Option<&str>,
     ) -> anyhow::Result<String> {
-        let payment = Payment::new(
-            ZcashAddress::from_str(to).map_err(|e| anyhow!("bad recipient: {e}"))?,
-            Some(Zatoshis::from_u64(amount_zat).map_err(|_| anyhow!("bad amount"))?),
-            memo.map(|m| Memo::from_str(m).map(MemoBytes::from))
-                .transpose()
-                .map_err(|e| anyhow!("bad memo: {e:?}"))?,
-            None,
-            None,
-            vec![],
-        )
-        .map_err(|e| anyhow!("payment: {e:?}"))?;
-        let request =
-            TransactionRequest::new(vec![payment]).map_err(|e| anyhow!("request: {e:?}"))?;
+        self.send_many(client, &[(to, amount_zat, memo)]).await
+    }
+
+    /// Several payments in one transaction (e.g. splitting the balance into
+    /// notes so back-to-back demo payments don't wait for change).
+    pub async fn send_many(
+        &mut self,
+        client: &mut Client,
+        outputs: &[(&str, u64, Option<&str>)],
+    ) -> anyhow::Result<String> {
+        let payments = outputs
+            .iter()
+            .map(|(to, amount_zat, memo)| {
+                Payment::new(
+                    ZcashAddress::from_str(to).map_err(|e| anyhow!("bad recipient: {e}"))?,
+                    Some(Zatoshis::from_u64(*amount_zat).map_err(|_| anyhow!("bad amount"))?),
+                    memo.map(|m| Memo::from_str(m).map(MemoBytes::from))
+                        .transpose()
+                        .map_err(|e| anyhow!("bad memo: {e:?}"))?,
+                    None,
+                    None,
+                    vec![],
+                )
+                .map_err(|e| anyhow!("payment: {e:?}"))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        let request = TransactionRequest::new(payments).map_err(|e| anyhow!("request: {e:?}"))?;
 
         let change = MultiOutputChangeStrategy::new(
             StandardFeeRule::Zip317,

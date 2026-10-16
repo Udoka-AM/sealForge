@@ -6,16 +6,16 @@ import Link from "next/link";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button, ButtonLink } from "@/components/button";
 import { HashChip } from "@/components/hash-chip";
+import { blockSeconds } from "@/lib/format";
 import { ApiError, api } from "@/lib/sfsig";
 import type { AuctionMode, ChainView, CreateAuction, CreatedAuction, Network } from "@/lib/types";
 import { useSigner } from "./use-signer";
 
-/** Zcash targets 75 s blocks: 48 per hour. */
-const BLOCKS_PER_HOUR = 48;
-/** Time for the trustees to finish key generation before opening. */
-const SETUP_BLOCKS = BLOCKS_PER_HOUR;
+/** Blocks per hour on each network (75 s blocks; testnet 25 s since NU7). */
+const blocksPerHour = (network: Network) => Math.round(3600 / blockSeconds(network));
 /** The coordinator refuses to open with fewer blocks left than this (MIN_OPEN_BLOCKS). */
-const MIN_WINDOW_HOURS = 3;
+/** Mainnet keeps 3-hour minimum windows; test networks let the coordinator decide. */
+const minWindowHours = (network: Network) => (network === "mainnet" ? 3 : 0.1);
 
 const field =
   "h-11 w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-[15px] placeholder:text-muted/70";
@@ -52,7 +52,7 @@ export function CreateAuctionForm({ defaultNetwork }: { defaultNetwork: Network 
   const windowHours = Number(hours);
   const computedClose =
     tip !== null && Number.isFinite(windowHours) && windowHours > 0
-      ? tip + SETUP_BLOCKS + Math.round(windowHours * BLOCKS_PER_HOUR)
+      ? tip + blocksPerHour(network) + Math.round(windowHours * blocksPerHour(network))
       : null;
   const closeHeight = tip === null ? Number(manualClose) : computedClose;
 
@@ -62,13 +62,13 @@ export function CreateAuctionForm({ defaultNetwork }: { defaultNetwork: Network 
     const form = new FormData(e.currentTarget);
     const reserve = parseZec(String(form.get("reserve") ?? "0") || "0");
     if (reserve === null) return setError("Enter the reserve in ZEC, for example 0.01.");
-    if (tip !== null && windowHours < MIN_WINDOW_HOURS)
-      return setError(`Bidding must stay open for at least ${MIN_WINDOW_HOURS} hours.`);
+    if (tip !== null && windowHours < minWindowHours(network))
+      return setError(`Bidding must stay open for at least ${minWindowHours(network)} hours.`);
     if (!closeHeight || closeHeight <= 0)
       return setError("Enter the block height bidding closes at.");
-    const revealBlocks = Math.round(Number(revealHours) * BLOCKS_PER_HOUR);
-    if (sealed && !(revealBlocks >= MIN_WINDOW_HOURS * BLOCKS_PER_HOUR))
-      return setError(`The reveal window must be at least ${MIN_WINDOW_HOURS} hours.`);
+    const revealBlocks = Math.round(Number(revealHours) * blocksPerHour(network));
+    if (sealed && !(revealBlocks >= minWindowHours(network) * blocksPerHour(network)))
+      return setError(`The reveal window must be at least ${minWindowHours(network)} hours.`);
     const body: CreateAuction = {
       title: String(form.get("title") ?? "").trim(),
       description: String(form.get("description") ?? "").trim(),
@@ -272,7 +272,7 @@ export function CreateAuctionForm({ defaultNetwork }: { defaultNetwork: Network 
             />
             <p className={hint}>
               The chain height isn't available right now. Bidding closes when this block is mined
-              (about 48 blocks per hour).
+              (about {blocksPerHour(network)} blocks per hour).
             </p>
           </div>
         )}
