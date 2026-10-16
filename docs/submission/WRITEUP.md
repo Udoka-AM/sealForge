@@ -35,6 +35,7 @@ Full threat model: `docs/THREAT-MODEL.md`. Security review and the bugs it caugh
 
 ## Proven
 
+- The first auction on public Zcash testnet (`KE5DFF4PDA`, live on the hosted instance): seven sealed bids from seven separate wallets, one deliberately unrevealed and one under the reserve. Uniform price 0.07 TAZ, four winners. Two refund transactions and the payout were each co-signed by a different pair of the three trustees, and the auction settled. The chain audit matches, from the command line and from the browser (`docs/evidence/testnet-genesis.md`). Getting there found and fixed three concurrency and edge-case bugs in the coordinator.
 - Full auctions on a Zcash regtest chain with Ironwood active: deposit mode, a run driven entirely from the browser console, and sealed-reveal mode. Each was bid, closed, published, refunded with 2-of-3 signatures, paid out and settled. The chain audit matches byte for byte (`docs/evidence/`).
 - _Mainnet micro-auction: code, bids, settlement, outside auditor's statement._
 

@@ -16,10 +16,11 @@ Built for the [Zecathon](https://thezecathon.com) **Private Markets** track (Oct
 
 ## See it work
 
-Everything below ran on a real (local) Zcash chain: Zebra with Ironwood active, Zaino, real shielded transactions, real FROST signatures.
+Everything below ran on real Zcash chains with real shielded transactions and real FROST signatures: public **testnet**, and a local regtest chain (Zebra with Ironwood active, Zaino).
 
 | Claim | Evidence |
 |---|---|
+| **The first auction on public testnet**, live at [sealforge.udokaam.dev](https://sealforge.udokaam.dev/audit/KE5DFF4PDA): 7 sealed bids, reveals, uniform price, 2 refund transactions and a payout, each signed by a different pair of trustees, settled, with the chain audit matching from the CLI and in the browser | [docs/evidence/testnet-genesis.md](docs/evidence/testnet-genesis.md) |
 | A whole auction: bids → auto-close → publish → 2-of-3 signed refunds → payout → settled | [docs/evidence/regtest-e2e.md](docs/evidence/regtest-e2e.md) |
 | The same lifecycle driven from the browser console, with a trustee signing in the browser (FROST in WebAssembly) | [regtest-e2e.md › console](docs/evidence/regtest-e2e.md#the-whole-lifecycle-from-the-console-task-310) |
 | Sealed bids: only budgets visible while bidding was open; reveals after close; audit match | [regtest-e2e.md › sealed bids](docs/evidence/regtest-e2e.md#sealed-bids-commit-reveal-task-46) |
