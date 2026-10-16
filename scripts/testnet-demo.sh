@@ -46,7 +46,7 @@ field() { # field <json-key> from the organiser's view of the auction
   $SF --home "$ORGANISER_HOME" auction show "$(cat "$STATE/code")" |
     python3 -c "import sys,json;v=json.load(sys.stdin).get('$1');print('' if v is None else v)"
 }
-status() { field status; }
+status() { field status 2>/dev/null || echo unknown; } # unknown while the coordinator restarts
 thome() { echo "$STATE/trustee-$(echo "$1" | tr '[:upper:]' '[:lower:]')"; }
 wait_height() { local h=$1; until [[ $(tip) -ge $h ]]; do sleep 10; done; }
 wait_status() { until [[ " $* " == *" $(status) "* ]]; do sleep 10; done; }
@@ -195,7 +195,7 @@ publish() {
   wait_status closed published refunding settled
   [[ $(status) == closed ]] && $SF --home "$ORGANISER_HOME" auction publish "$code" | tee -a "$STATE/log/demo.log"
   curl -sf "$COORDINATOR/v1/auctions/$code/result" > "$STATE/result.json"
-  log "published: $(python3 -c 'import json,sys;r=json.load(open(sys.argv[1]));print({k:r.get(k) for k in ("clearing_price_zat","volume_zat","winner_count")})' "$STATE/result.json")"
+  log "published: $(python3 -c 'import json,sys;r=json.load(open(sys.argv[1]));print({k:r.get(k) for k in ("clearing_price_zat","total_volume_zat","winner_count","valid_bid_count")})' "$STATE/result.json")"
 }
 
 sign_until_settled() {
