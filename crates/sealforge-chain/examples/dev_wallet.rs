@@ -4,7 +4,7 @@
 //!   dev_wallet <network> <wallet.sqlite> <seed-file> address
 //!   dev_wallet <network> <wallet.sqlite> <seed-file> balance
 //!   dev_wallet <network> <wallet.sqlite> <seed-file> send <to-ua> <zat> <memo>
-//!   dev_wallet <network> <wallet.sqlite> <seed-file> fan-out <zat-each> <to-ua>…
+//!   dev_wallet <network> <wallet.sqlite> <seed-file> pay-many <zat> <to-ua> [<zat> <to-ua>]…
 //!   dev_wallet <network> <wallet.sqlite> <seed-file> bid <receipt.json> <code> <escrow-ua> <deposit-zat> [price-zat]
 //!   dev_wallet <network> <wallet.sqlite> <seed-file> reveal <receipt.json> <escrow-ua>
 //!
@@ -87,12 +87,14 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
             println!("sent: {txid}");
         }
-        "fan-out" => {
-            let [zat, to @ ..] = rest else {
-                bail!("fan-out <zat-each> <to-ua>…");
-            };
-            let zat: u64 = zat.parse()?;
-            let outputs: Vec<_> = to.iter().map(|t| (t.as_str(), zat, None)).collect();
+        "pay-many" => {
+            if rest.is_empty() || rest.len() % 2 != 0 {
+                bail!("pay-many <zat> <to-ua> [<zat> <to-ua>]…");
+            }
+            let outputs = rest
+                .chunks(2)
+                .map(|pair| Ok((pair[1].as_str(), pair[0].parse::<u64>()?, None)))
+                .collect::<anyhow::Result<Vec<_>>>()?;
             wallet.sync(&mut client).await?;
             println!("sent: {}", wallet.send_many(&mut client, &outputs).await?);
         }

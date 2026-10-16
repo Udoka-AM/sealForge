@@ -221,9 +221,14 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
             batch: batch.clone()
         }]
     );
-    for i in [1, 2] {
+    // Both signers post their shares at the same moment; the batch must still become `signed`.
+    let (s1, s2) = tokio::join!(
+        trustee::sign_step(&trustees[1], &url, &code),
+        trustee::sign_step(&trustees[2], &url, &code),
+    );
+    for (i, progress) in [(1, s1), (2, s2)] {
         assert_eq!(
-            trustee::sign_step(&trustees[i], &url, &code).await.unwrap(),
+            progress.unwrap(),
             vec![SignProgress::Signed {
                 batch: batch.clone()
             }]

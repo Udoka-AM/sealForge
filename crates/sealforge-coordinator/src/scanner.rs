@@ -294,6 +294,20 @@ async fn process_batches(
         }
     }
 
+    // Catch up any batch whose signer set or signatures are complete.
+    let waiting: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM tx_batches WHERE auction_id = $1 AND status = 'awaiting_signatures'",
+    )
+    .bind(auction.id)
+    .fetch_all(&state.db)
+    .await?;
+    for id in waiting {
+        let mut tx = state.db.begin().await?;
+        crate::routes::batches::lock(&mut tx, id).await?;
+        crate::routes::batches::advance(&mut tx, id).await?;
+        tx.commit().await?;
+    }
+
     // Finalize batches both signers have signed.
     let signed: Vec<SignedBatch> = sqlx::query_as(
         "SELECT id, pczt, sighash, spend_auth, signer_slots FROM tx_batches WHERE auction_id = $1 AND status = 'signed'",
