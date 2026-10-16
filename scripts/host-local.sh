@@ -12,6 +12,10 @@
 #
 # Settings: SF_HOST_NETWORK (mainnet | testnet, default mainnet),
 #           SF_HOST_LIGHTWALLETD (default zec.rocks / testnet.zec.rocks).
+# Fixed hostnames instead of quick tunnels: put these in ~/.sealforge-host/<network>/tunnel.env
+#   SF_HOST_TUNNEL=<named tunnel>      (cloudflared tunnel create …; route dns for both hosts)
+#   SF_HOST_WEB_HOST=sealforge.example.com
+#   SF_HOST_LWD_HOST=sealforge-lwd.example.com
 # State lives in ~/.sealforge-host/<network>/ (0700): host.env holds the data
 # key and organiser invite. Back up SF_DATA_KEY: escrows can't be spent without it.
 set -euo pipefail
@@ -42,6 +46,9 @@ EOF
 fi
 # shellcheck disable=SC1090
 source "$ENVFILE"
+# shellcheck disable=SC1090
+[[ -f "$DIR/tunnel.env" ]] && source "$DIR/tunnel.env"
+SF_HOST_TUNNEL=${SF_HOST_TUNNEL:-}
 
 running() { [[ -f "$DIR/pids/$1.pid" ]] && kill -0 "$(cat "$DIR/pids/$1.pid")" 2>/dev/null; }
 
@@ -82,11 +89,27 @@ start() {
   docker run -d --name "$ENVOY" -p 127.0.0.1:$ENVOY_PORT:8081 \
     -v "$envoy_cfg:/etc/envoy/envoy.yaml:ro" envoyproxy/envoy:v1.31-latest >/dev/null
 
-  launch tunnel-web cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$WEB_PORT"
-  launch tunnel-grpc cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$ENVOY_PORT"
   local web_url grpc_url
-  web_url=$(tunnel_url tunnel-web)
-  grpc_url=$(tunnel_url tunnel-grpc)
+  if [[ -n "$SF_HOST_TUNNEL" ]]; then
+    # Named tunnel: fixed hostnames, one cloudflared process.
+    cat > "$DIR/cloudflared.yml" <<EOF
+tunnel: $SF_HOST_TUNNEL
+ingress:
+  - hostname: $SF_HOST_WEB_HOST
+    service: http://127.0.0.1:$WEB_PORT
+  - hostname: $SF_HOST_LWD_HOST
+    service: http://127.0.0.1:$ENVOY_PORT
+  - service: http_status:404
+EOF
+    launch tunnel-web cloudflared tunnel --no-autoupdate --config "$DIR/cloudflared.yml" run "$SF_HOST_TUNNEL"
+    web_url="https://$SF_HOST_WEB_HOST"
+    grpc_url="https://$SF_HOST_LWD_HOST"
+  else
+    launch tunnel-web cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$WEB_PORT"
+    launch tunnel-grpc cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$ENVOY_PORT"
+    web_url=$(tunnel_url tunnel-web)
+    grpc_url=$(tunnel_url tunnel-grpc)
+  fi
 
   pnpm --filter @sealforge/web build >/dev/null
   launch web env COORDINATOR_URL="http://127.0.0.1:$COORD_PORT" LIGHTWALLETD_GRPCWEB="$grpc_url" \

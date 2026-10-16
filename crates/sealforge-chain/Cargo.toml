@@ -50,4 +50,8 @@ name = "regtest_bid"
 required-features = ["dev-wallet"]
 
 [[example]]
+name = "dev_wallet"
+required-features = ["dev-wallet"]
+
+[[example]]
 name = "escrow_spend"
