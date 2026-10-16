@@ -6,7 +6,8 @@ import type { NextConfig } from "next";
 // Dev mode needs eval for React Refresh, so the policy applies to production builds only.
 function lightwalletdOrigin(): string {
   try {
-    return new URL(process.env.NEXT_PUBLIC_LIGHTWALLETD_GRPCWEB ?? "").origin;
+    const url = process.env.LIGHTWALLETD_GRPCWEB ?? process.env.NEXT_PUBLIC_LIGHTWALLETD_GRPCWEB;
+    return new URL(url ?? "").origin;
   } catch {
     return "";
   }

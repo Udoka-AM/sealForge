@@ -9,6 +9,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 sealforge-scan.workspace = true
 prost = "0.14"
 anyhow.workspace = true
@@ -18,7 +19,7 @@ tracing.workspace = true
 tonic.workspace = true
 rusqlite = "0.37"
 rand10 = { package = "rand", version = "0.10", features = ["sys_rng"] }
-zcash_client_backend = { workspace = true, features = ["lightwalletd-tonic-transport", "sync", "orchard", "pczt"] }
+zcash_client_backend = { workspace = true, features = ["lightwalletd-tonic-transport", "lightwalletd-tonic-tls-webpki-roots", "sync", "orchard", "pczt"] }
 pczt = { workspace = true, features = ["orchard", "io-finalizer", "prover", "signer", "spend-finalizer", "tx-extractor"] }
 orchard = { workspace = true, features = ["circuit"] }
 pasta_curves.workspace = true

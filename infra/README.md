@@ -20,6 +20,19 @@ cargo run -p sealforge-coordinator
 psql "$DATABASE_URL" -f seed/dev.sql
 ```
 
+## Temporary hosting from a laptop
+
+Until a server exists, `scripts/host-local.sh start` runs the public site from this machine, against a public lightwallet server, so no node has to sync:
+
+| Piece | Where |
+|---|---|
+| Coordinator | `127.0.0.1:8090`, local only (the website proxies to it) |
+| Website | a public `https://…trycloudflare.com` URL (Cloudflare quick tunnel: no account, no router ports) |
+| gRPC-web for the browser audit | a second tunnel → Envoy (`infra/envoy-tls.yaml`) → `zec.rocks:443` over TLS |
+| State | `~/.sealforge-host/<network>/` (0700). `host.env` holds `SF_DATA_KEY`: back it up |
+
+`scripts/host-local.sh status` shows what's running and the URLs; `stop` stops everything. Limits: the URLs change on every start, nothing is served while the machine sleeps (the script runs `caffeinate`, but a closed lid on battery still sleeps), and `zec.rocks` is trusted for liveness only. It can't move funds, and a hidden payment fails the audit against any other server. Check a lightwallet server first with `cargo run --release -p sealforge-chain --example probe_lightwalletd -- https://zec.rocks:443` (mainnet is on Ironwood, branch id `37a5165b`).
+
 ## Deploy (task 6.2)
 
 ```bash

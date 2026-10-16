@@ -20,10 +20,16 @@ use zcash_client_backend::proto::service::compact_tx_streamer_client::CompactTxS
 pub type Client = CompactTxStreamerClient<tonic::transport::Channel>;
 
 /// Connect to a lightwalletd-compatible gRPC server, e.g. `http://127.0.0.1:8137`.
+/// `https://` endpoints (public lightwallet servers) use TLS with the webpki roots.
 pub async fn connect(url: &str) -> anyhow::Result<Client> {
-    let channel = tonic::transport::Channel::from_shared(url.to_owned())?
-        .connect()
-        .await?;
+    let mut endpoint = tonic::transport::Channel::from_shared(url.to_owned())?;
+    if url.starts_with("https://") {
+        // Several TLS backends are compiled in across the workspace; pick one.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        endpoint =
+            endpoint.tls_config(tonic::transport::ClientTlsConfig::new().with_webpki_roots())?;
+    }
+    let channel = endpoint.connect().await?;
     Ok(CompactTxStreamerClient::new(channel))
 }
 
