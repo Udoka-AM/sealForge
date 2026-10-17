@@ -21,6 +21,7 @@ Everything below ran on real Zcash chains with real shielded transactions and re
 | Claim | Evidence |
 |---|---|
 | **The first auction on public testnet**, live at [sealforge.udokaam.dev](https://sealforge.udokaam.dev/audit/KE5DFF4PDA): 7 sealed bids, reveals, uniform price, 2 refund transactions and a payout, each signed by a different pair of trustees, settled, with the chain audit matching from the CLI and in the browser | [docs/evidence/testnet-genesis.md](docs/evidence/testnet-genesis.md) |
+| **25 sealed bids on testnet**, settled, plus the test plan run: 12 of 14 acceptance criteria pass, and the two ShieldRamp criteria aren't built | [docs/evidence/test-run.md](docs/evidence/test-run.md) |
 | A whole auction: bids → auto-close → publish → 2-of-3 signed refunds → payout → settled | [docs/evidence/regtest-e2e.md](docs/evidence/regtest-e2e.md) |
 | The same lifecycle driven from the browser console, with a trustee signing in the browser (FROST in WebAssembly) | [regtest-e2e.md › console](docs/evidence/regtest-e2e.md#the-whole-lifecycle-from-the-console-task-310) |
 | Sealed bids: only budgets visible while bidding was open; reveals after close; audit match | [regtest-e2e.md › sealed bids](docs/evidence/regtest-e2e.md#sealed-bids-commit-reveal-task-46) |

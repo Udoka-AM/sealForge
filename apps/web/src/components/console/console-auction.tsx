@@ -14,6 +14,7 @@ import type {
   AuctionView,
   ChainView,
   ConsoleBatch,
+  Network,
   RefundProgress,
   TrusteeView,
 } from "@/lib/types";
@@ -100,7 +101,7 @@ export function ConsoleAuction({ code }: { code: string }) {
         <h1 className="text-[28px] leading-[34px] font-semibold tracking-tight">{auction.title}</h1>
         <p className="text-sm text-muted">
           {modeLabel(auction.mode)} · {auction.quantity} {auction.quantity === 1 ? "lot" : "lots"} ·
-          reserve {zec(auction.reserve_zat)} · closes at block{" "}
+          reserve {zec(auction.reserve_zat, auction.network)} · closes at block{" "}
           <span className="num">{auction.close_height.toLocaleString("en-US")}</span>
           {tip !== null ? (
             <>
@@ -144,7 +145,11 @@ export function ConsoleAuction({ code }: { code: string }) {
       ) : null}
 
       {progress ? (
-        <Refunds progress={progress} batches={batches.filter((b) => b.kind === "refund")} />
+        <Refunds
+          progress={progress}
+          batches={batches.filter((b) => b.kind === "refund")}
+          network={auction.network}
+        />
       ) : null}
 
       {auction.owner ? (
@@ -404,7 +409,7 @@ function Escrow({ auction }: { auction: AuctionView }) {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-muted">Fee buffer</span>
-          <span className="num">{zec(buffer)}</span>
+          <span className="num">{zec(buffer, auction.network)}</span>
         </div>
         <p className="text-muted">
           Refund and payout fees come out of the escrow and reduce your payout. A fee buffer is only
@@ -418,7 +423,7 @@ function Escrow({ auction }: { auction: AuctionView }) {
                   // biome-ignore lint/performance/noImgElement: a local data-URI SVG
                   <img
                     src={qr}
-                    alt="QR code to send 0.001 ZEC to the escrow as a fee buffer"
+                    alt={`QR code to send ${zec(100_000, auction.network)} to the escrow as a fee buffer`}
                     className="aspect-square w-full"
                   />
                 ) : (
@@ -427,8 +432,8 @@ function Escrow({ auction }: { auction: AuctionView }) {
               </div>
               <div className="space-y-3">
                 <p>
-                  Send <span className="num">{zec(100_000)}</span> from a shielded wallet with memo{" "}
-                  <code className="num">SF1FEE:{auction.code}</code>.
+                  Send <span className="num">{zec(100_000, auction.network)}</span> from a shielded
+                  wallet with memo <code className="num">SF1FEE:{auction.code}</code>.
                 </p>
                 <a href={uri} className={buttonClass({ variant: "secondary" })}>
                   <ExternalLink size={16} aria-hidden="true" /> Open in wallet
@@ -472,7 +477,15 @@ function BatchStatusCell({ b }: { b: ConsoleBatch }) {
   );
 }
 
-function Refunds({ progress, batches }: { progress: RefundProgress; batches: ConsoleBatch[] }) {
+function Refunds({
+  progress,
+  batches,
+  network,
+}: {
+  progress: RefundProgress;
+  batches: ConsoleBatch[];
+  network: Network;
+}) {
   const pct = progress.notes_total
     ? Math.round((progress.notes_sent / progress.notes_total) * 100)
     : 100;
@@ -551,7 +564,7 @@ function Refunds({ progress, batches }: { progress: RefundProgress; batches: Con
                       ) : null}
                     </td>
                     <td className="num py-2.5 pr-4 text-right">
-                      {b.total_out_zat !== null ? zec(b.total_out_zat) : "…"}
+                      {b.total_out_zat !== null ? zec(b.total_out_zat, network) : "…"}
                     </td>
                     <td className="py-2.5">{Math.min(b.signed, 2)} of 2 signed</td>
                   </tr>
@@ -584,12 +597,12 @@ function PayoutStatus({ auction, batches }: { auction: AuctionView; batches: Con
       <p>
         {auction.status === "settled" && payout.confirmed_height ? (
           <>
-            Paid <span className="num">{zec(payout.total_out_zat ?? 0)}</span> at block{" "}
-            <span className="num">{payout.confirmed_height.toLocaleString("en-US")}</span>
+            Paid <span className="num">{zec(payout.total_out_zat ?? 0, auction.network)}</span> at
+            block <span className="num">{payout.confirmed_height.toLocaleString("en-US")}</span>
           </>
         ) : (
           <>
-            <span className="num">{zec(payout.total_out_zat ?? 0)}</span> ·{" "}
+            <span className="num">{zec(payout.total_out_zat ?? 0, auction.network)}</span> ·{" "}
             {BATCH_LABEL[payout.status]} · {Math.min(payout.signed, 2)} of 2 signed
           </>
         )}

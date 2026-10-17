@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { buttonClass } from "@/components/button";
+import { networkOfUa, unit } from "@/lib/format";
 import { downloadReceipt, listReceipts, markBackedUp, type StoredReceipt } from "@/lib/receipts";
 import { RevealPanel } from "./reveal-panel";
 
@@ -58,12 +59,17 @@ export function MyBids() {
             <p className="text-sm text-muted">
               {r.price_zat !== undefined ? (
                 <>
-                  Bid <span className="num">{formatZec(BigInt(r.price_zat))} ZEC</span> (sealed),
-                  deposit{" "}
+                  Bid{" "}
+                  <span className="num">
+                    {formatZec(BigInt(r.price_zat))} {unit(networkOfUa(r.refund_ua))}
+                  </span>{" "}
+                  (sealed), deposit{" "}
                 </>
               ) : null}
-              <span className="num">{formatZec(BigInt(r.amount_zat))} ZEC</span> ·{" "}
-              {new Date(r.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
+              <span className="num">
+                {formatZec(BigInt(r.amount_zat))} {unit(networkOfUa(r.refund_ua))}
+              </span>{" "}
+              · {new Date(r.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
               {r.backed_up ? null : <span className="text-warning"> · Not backed up</span>}
             </p>
           </div>

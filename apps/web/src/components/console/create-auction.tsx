@@ -6,7 +6,7 @@ import Link from "next/link";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button, ButtonLink } from "@/components/button";
 import { HashChip } from "@/components/hash-chip";
-import { blockSeconds } from "@/lib/format";
+import { blockSeconds, unit } from "@/lib/format";
 import { ApiError, api } from "@/lib/sfsig";
 import type { AuctionMode, ChainView, CreateAuction, CreatedAuction, Network } from "@/lib/types";
 import { useSigner } from "./use-signer";
@@ -61,7 +61,8 @@ export function CreateAuctionForm({ defaultNetwork }: { defaultNetwork: Network 
     if (state.kind !== "ready") return;
     const form = new FormData(e.currentTarget);
     const reserve = parseZec(String(form.get("reserve") ?? "0") || "0");
-    if (reserve === null) return setError("Enter the reserve in ZEC, for example 0.01.");
+    if (reserve === null)
+      return setError(`Enter the reserve in ${unit(network)}, for example 0.01.`);
     if (tip !== null && windowHours < minWindowHours(network))
       return setError(`Bidding must stay open for at least ${minWindowHours(network)} hours.`);
     if (!closeHeight || closeHeight <= 0)
@@ -177,7 +178,7 @@ export function CreateAuctionForm({ defaultNetwork }: { defaultNetwork: Network 
           </div>
           <div className="space-y-1.5">
             <label htmlFor="reserve" className={label}>
-              Reserve (ZEC)
+              Reserve ({unit(network)})
             </label>
             <input
               id="reserve"
