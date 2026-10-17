@@ -1,0 +1,47 @@
+[package]
+name = "sealforge-wallet"
+description = "The bidder's in-browser wallet: BIP-39 keys, compact-block sync with witnesses, and Ironwood payments built with librustzcash. No I/O: the browser fetches blocks and broadcasts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+sealforge-scan.workspace = true
+bip0039 = { version = "0.14", default-features = false, features = ["std"] }
+orchard = { workspace = true, features = ["circuit"] }
+zcash_client_backend = { version = "=0.25.0-pre.2", default-features = false, features = ["orchard"] }
+zcash_keys = { version = "=0.17.0-pre.2", default-features = false, features = ["orchard"] }
+zcash_primitives = { version = "=0.31.0-pre.2", default-features = false, features = ["std", "circuits"] }
+zcash_protocol.workspace = true
+zcash_address = "=0.14.0-pre.2"
+zcash_note_encryption = "0.5"
+pczt = { version = "=0.10.0-pre.2", features = ["orchard", "io-finalizer", "prover", "signer", "tx-extractor", "zcp-builder"] }
+incrementalmerkletree = { version = "0.9", features = ["legacy-api"] }
+zip32 = "0.3"
+rand10 = { package = "rand", version = "0.10", features = ["sys_rng"] }
+serde.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+prost = "0.14"
+wasm-bindgen = { workspace = true, optional = true }
+
+[features]
+# Browser bindings for the wallet page (scripts/build-wallet-wasm.sh).
+wasm = ["dep:wasm-bindgen"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# Browser randomness for every getrandom version in the tree.
+getrandom = { version = "0.2", features = ["js"] }
+getrandom04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
+
+[dev-dependencies]
+sealforge-chain.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+rand.workspace = true
