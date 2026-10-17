@@ -12,7 +12,7 @@ import {
   prepareSealedBid,
   roundingOptions,
 } from "@sealforge/bid";
-import { ArrowLeft, Download, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, Wallet } from "lucide-react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useEffect, useId, useRef, useState } from "react";
@@ -20,8 +20,17 @@ import { Button, buttonClass } from "@/components/button";
 import { HashChip } from "@/components/hash-chip";
 import { SealMark } from "@/components/seal-mark";
 import { unit } from "@/lib/format";
-import { downloadReceipt, markBackedUp, type StoredReceipt, saveReceipt } from "@/lib/receipts";
+import {
+  downloadReceipt,
+  markBackedUp,
+  type StoredReceipt,
+  saveReceipt,
+  updateReceipt,
+} from "@/lib/receipts";
 import type { AuctionView } from "@/lib/types";
+import { InlineUnlock } from "./wallet/inline-unlock";
+import { PaymentStatus, WalletPay } from "./wallet/wallet-pay";
+import { useWallet } from "./wallet/wallet-provider";
 
 type Step = "amount" | "pay" | "sealed";
 
@@ -38,12 +47,13 @@ export function BidFlow({ auction }: { auction: AuctionView }) {
     heading.current?.focus();
   }, [step]);
 
-  async function sealed(prepared: PreparedBid) {
+  async function sealed(prepared: PreparedBid, walletAddressIndex?: number) {
     const receipt: StoredReceipt = {
       ...prepared.receipt,
       title: auction.title,
       created_at: new Date().toISOString(),
       backed_up: false,
+      ...(walletAddressIndex !== undefined ? { wallet_address_index: walletAddressIndex } : {}),
     };
     try {
       await saveReceipt(receipt);
@@ -54,6 +64,14 @@ export function BidFlow({ auction }: { auction: AuctionView }) {
     setBid(prepared);
     setStored(receipt);
     setStep("pay");
+  }
+
+  async function paidFromWallet(txid: string) {
+    if (!stored) return;
+    const updated = { ...stored, paid_txid: txid };
+    setStored(updated);
+    await updateReceipt(stored.commitment, { paid_txid: txid }).catch(() => {});
+    setStep("sealed");
   }
 
   async function download() {
@@ -86,6 +104,7 @@ export function BidFlow({ auction }: { auction: AuctionView }) {
           onDownload={download}
           onChangeAmount={() => setStep("amount")}
           onSent={() => setStep("sealed")}
+          onPaidFromWallet={paidFromWallet}
         />
       ) : null}
 
@@ -117,8 +136,13 @@ function AmountStep({
 }: {
   auction: AuctionView;
   heading: HeadingRef;
-  onSealed: (bid: PreparedBid) => void;
+  onSealed: (bid: PreparedBid, walletAddressIndex?: number) => void;
 }) {
+  const wallet = useWallet();
+  const walletReady = wallet.status === "unlocked" && wallet.network === auction.network;
+  const [refundTo, setRefundTo] = useState<"wallet" | "other">("wallet");
+  const useWalletRefund = walletReady && refundTo === "wallet";
+  const [busy, setBusy] = useState(false);
   const amountId = useId();
   const refundId = useId();
   const depositId = useId();
@@ -146,7 +170,7 @@ function AmountStep({
   const chosenDeposit =
     deposit !== null && depositChoices.includes(deposit) ? deposit : (depositChoices[0] ?? null);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     const next: typeof errors = {};
     if (parsed === null || parsed <= 0n)
@@ -156,8 +180,8 @@ function AmountStep({
       next.amount = `Use at most 4 decimal places (0.0001 ${unit(auction.network)}).`;
     else if (parsed < reserve)
       next.amount = `Below the ${formatZec(reserve)} ${unit(auction.network)} reserve.`;
-    const refundUa = refund.trim();
-    if (!looksLikeUnifiedAddress(refundUa, auction.network))
+    let refundUa = refund.trim();
+    if (!useWalletRefund && !looksLikeUnifiedAddress(refundUa, auction.network))
       next.refund = `Paste a Unified Address for ${auction.network} (it starts with ${
         auction.network === "mainnet"
           ? "u1"
@@ -167,6 +191,22 @@ function AmountStep({
       }).`;
     setErrors(next);
     if (next.amount || next.refund || parsed === null || !auction.escrow_ua) return;
+    // A fresh wallet address, used for this bid only, so its refunds can be recognised
+    // (and can't be linked to other bids or to the funding address).
+    let walletIndex: number | undefined;
+    if (useWalletRefund) {
+      setBusy(true);
+      try {
+        const fresh = await wallet.freshAddress();
+        refundUa = fresh.address;
+        walletIndex = fresh.index;
+      } catch (err) {
+        setBusy(false);
+        setErrors({ refund: (err as Error).message });
+        return;
+      }
+      setBusy(false);
+    }
     if (sealedMode) {
       if (chosenDeposit === null) return;
       onSealed(
@@ -177,6 +217,7 @@ function AmountStep({
           depositZat: chosenDeposit,
           refundUa,
         }),
+        walletIndex,
       );
       return;
     }
@@ -187,6 +228,7 @@ function AmountStep({
         amountZat: parsed,
         refundUa,
       }),
+      walletIndex,
     );
   }
 
@@ -281,34 +323,85 @@ function AmountStep({
         </fieldset>
       ) : null}
 
-      <div className="space-y-2">
-        <label htmlFor={refundId} className="block text-sm font-medium">
-          Refund address
-        </label>
-        <textarea
-          id={refundId}
-          rows={3}
-          spellCheck={false}
-          autoComplete="off"
-          value={refund}
-          onChange={(e) => {
-            setRefund(e.target.value);
-            setErrors((x) => ({ ...x, refund: undefined }));
-          }}
-          aria-invalid={Boolean(errors.refund)}
-          aria-describedby={`${refundId}-help`}
-          className="num w-full resize-none rounded-[var(--radius-control)] border border-border bg-surface-2 p-3 text-[13px] break-all outline-none focus:border-primary"
-        />
-        <p
-          id={`${refundId}-help`}
-          className={`text-sm ${errors.refund ? "text-danger" : "text-muted"}`}
-        >
-          {errors.refund ??
-            "A fresh Unified Address from your wallet, used only for this bid. Refunds and change arrive here."}
-        </p>
-      </div>
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">Refund address</legend>
+        {walletReady ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(
+              [
+                ["wallet", "My sealForge wallet", "A fresh address for this bid only"],
+                ["other", "Another wallet", "Paste a Unified Address"],
+              ] as const
+            ).map(([key, title, hint]) => (
+              <label
+                key={key}
+                className={`cursor-pointer rounded-[var(--radius-control)] border px-3 py-2.5 text-sm transition-colors duration-150 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary ${
+                  refundTo === key ? "border-primary" : "border-border hover:border-muted"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="refund-to"
+                  value={key}
+                  checked={refundTo === key}
+                  onChange={() => setRefundTo(key)}
+                  className="sr-only"
+                />
+                <span className="block font-medium">{title}</span>
+                <span className="block text-muted">{hint}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
+        {useWalletRefund ? (
+          <p className="flex items-start gap-2 text-sm text-muted">
+            <Wallet size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-primary" />
+            Refunds and change go to a new address in your wallet, used for nothing else. The wallet
+            shows them when they arrive.
+          </p>
+        ) : (
+          <>
+            <label htmlFor={refundId} className="sr-only">
+              Refund address
+            </label>
+            <textarea
+              id={refundId}
+              rows={3}
+              spellCheck={false}
+              autoComplete="off"
+              value={refund}
+              onChange={(e) => {
+                setRefund(e.target.value);
+                setErrors((x) => ({ ...x, refund: undefined }));
+              }}
+              aria-invalid={Boolean(errors.refund)}
+              aria-describedby={`${refundId}-help`}
+              className="num w-full resize-none rounded-[var(--radius-control)] border border-border bg-surface-2 p-3 text-[13px] break-all outline-none focus:border-primary"
+            />
+            <p
+              id={`${refundId}-help`}
+              className={`text-sm ${errors.refund ? "text-danger" : "text-muted"}`}
+            >
+              {errors.refund ??
+                "A fresh Unified Address from your wallet, used only for this bid. Refunds and change arrive here."}
+            </p>
+          </>
+        )}
+        {wallet.status === "locked" && wallet.network === auction.network ? (
+          <InlineUnlock prompt="Unlock your sealForge wallet to fill this in and pay in one step." />
+        ) : null}
+        {wallet.status === "none" && wallet.network === auction.network ? (
+          <p className="text-sm text-muted">
+            No Zcash wallet?{" "}
+            <Link href="/wallet" className="underline hover:text-text">
+              Create one here
+            </Link>{" "}
+            in a minute; your bid form keeps its place in this tab.
+          </p>
+        ) : null}
+      </fieldset>
 
-      <Button type="submit" size="lg" className="w-full">
+      <Button type="submit" size="lg" className="w-full" disabled={busy}>
         Continue
       </Button>
       <p className="text-[13px] text-muted">
@@ -327,6 +420,7 @@ function PayStep({
   onDownload,
   onChangeAmount,
   onSent,
+  onPaidFromWallet,
 }: {
   auction: AuctionView;
   bid: PreparedBid;
@@ -335,7 +429,10 @@ function PayStep({
   onDownload: () => void;
   onChangeAmount: () => void;
   onSent: () => void;
+  onPaidFromWallet: (txid: string) => void;
 }) {
+  const wallet = useWallet();
+  const walletReady = wallet.status === "unlocked" && wallet.network === auction.network;
   const [qr, setQr] = useState<string | null>(null);
   const [qrFailed, setQrFailed] = useState(false);
 
@@ -347,7 +444,9 @@ function PayStep({
 
   return (
     <div className="space-y-6">
-      <StepHeading heading={heading}>Send it from your wallet</StepHeading>
+      <StepHeading heading={heading}>
+        {walletReady ? "Pay your deposit" : "Send it from your wallet"}
+      </StepHeading>
 
       {storageFailed ? (
         <p
@@ -358,24 +457,40 @@ function PayStep({
         </p>
       ) : null}
 
-      <div className="rounded-[var(--radius-card)] bg-white p-4">
-        {qr ? (
-          // biome-ignore lint/performance/noImgElement: a local data-URI SVG; next/image adds nothing here
-          <img
-            src={qr}
-            alt={`Payment QR code for ${formatZec(BigInt(bid.receipt.amount_zat))} ${unit(auction.network)} with the bid memo`}
-            className="mx-auto aspect-square w-full max-w-[280px]"
-          />
-        ) : (
-          <div className="mx-auto flex aspect-square w-full max-w-[280px] items-center justify-center text-sm text-neutral-600">
-            {qrFailed ? "QR code unavailable. Use the button below." : "Preparing QR code…"}
-          </div>
-        )}
-      </div>
+      {walletReady && auction.escrow_ua ? (
+        <WalletPay
+          network={auction.network}
+          request={{
+            to: auction.escrow_ua,
+            amount_zat: bid.receipt.amount_zat,
+            memo: bid.memo,
+            label: `bid:${auction.code}`,
+          }}
+          closeHeight={auction.close_height}
+          onPaid={onPaidFromWallet}
+        />
+      ) : null}
 
-      <a href={bid.uri} className={`${buttonClass({ size: "lg" })} w-full`}>
-        <ExternalLink size={18} aria-hidden="true" /> Open in wallet
-      </a>
+      <QrPayment walletReady={walletReady}>
+        <div className="rounded-[var(--radius-card)] bg-white p-4">
+          {qr ? (
+            // biome-ignore lint/performance/noImgElement: a local data-URI SVG; next/image adds nothing here
+            <img
+              src={qr}
+              alt={`Payment QR code for ${formatZec(BigInt(bid.receipt.amount_zat))} ${unit(auction.network)} with the bid memo`}
+              className="mx-auto aspect-square w-full max-w-[280px]"
+            />
+          ) : (
+            <div className="mx-auto flex aspect-square w-full max-w-[280px] items-center justify-center text-sm text-neutral-600">
+              {qrFailed ? "QR code unavailable. Use the button below." : "Preparing QR code…"}
+            </div>
+          )}
+        </div>
+
+        <a href={bid.uri} className={`${buttonClass({ size: "lg" })} w-full`}>
+          <ExternalLink size={18} aria-hidden="true" /> Open in wallet
+        </a>
+      </QrPayment>
 
       <dl className="space-y-3 text-sm">
         <div className="flex items-baseline justify-between gap-4">
@@ -416,8 +531,13 @@ function PayStep({
       </p>
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        <Button type="button" onClick={onSent} className="flex-1">
-          I&rsquo;ve sent it
+        <Button
+          type="button"
+          variant={walletReady ? "secondary" : "primary"}
+          onClick={onSent}
+          className="flex-1"
+        >
+          {walletReady ? "I paid from another wallet" : "I\u2019ve sent it"}
         </Button>
         <Button type="button" variant="secondary" onClick={onDownload} className="flex-1">
           <Download size={16} aria-hidden="true" /> Download receipt
@@ -431,6 +551,19 @@ function PayStep({
         separately.
       </p>
     </div>
+  );
+}
+
+/** The QR / deep-link payment. Behind a disclosure when the built-in wallet can pay. */
+function QrPayment({ walletReady, children }: { walletReady: boolean; children: React.ReactNode }) {
+  if (!walletReady) return <>{children}</>;
+  return (
+    <details className="group space-y-4 rounded-[var(--radius-card)] border border-border p-4">
+      <summary className="cursor-pointer text-sm text-muted group-open:mb-4 hover:text-text">
+        Pay from another wallet instead (QR code)
+      </summary>
+      <div className="space-y-4">{children}</div>
+    </details>
   );
 }
 
@@ -454,6 +587,8 @@ function SealedStep({
           <p className="text-muted">The price will be public after close. You won&rsquo;t be.</p>
         </div>
       </div>
+
+      {receipt.paid_txid ? <PaymentStatus txid={receipt.paid_txid} /> : null}
 
       <dl className="space-y-3 rounded-[var(--radius-card)] border border-border bg-surface p-5 text-sm">
         <div className="flex items-baseline justify-between gap-4">

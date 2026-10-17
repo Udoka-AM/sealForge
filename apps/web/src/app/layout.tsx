@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { OfflineBanner } from "@/components/offline-banner";
 import { SiteHeader } from "@/components/site-header";
+import { WalletProvider } from "@/components/wallet/wallet-provider";
 import "./globals.css";
 
 // Self-hosted from @fontsource: no font requests to Google at build time or at runtime.
@@ -54,9 +55,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
       <body className="min-h-dvh antialiased">
-        <SiteHeader />
-        <OfflineBanner />
-        <main className="mx-auto w-full max-w-[1120px] px-4 py-8 md:px-6 md:py-12">{children}</main>
+        <WalletProvider>
+          <SiteHeader />
+          <OfflineBanner />
+          <main className="mx-auto w-full max-w-[1120px] px-4 py-8 md:px-6 md:py-12">
+            {children}
+          </main>
+        </WalletProvider>
       </body>
     </html>
   );

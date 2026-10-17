@@ -53,13 +53,14 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-bindgen-cli@0.2.129
-      - name: Build auditor, signer and scanner
+      - name: Build auditor, signer, scanner and wallet
         env:
           LLVM_BIN: /usr/lib/llvm-18/bin
         run: |
           scripts/build-auditor-wasm.sh
           scripts/build-signer-wasm.sh
           scripts/build-scanner-wasm.sh
+          scripts/build-wallet-wasm.sh
       - uses: actions/upload-artifact@v4
         with:
           name: wasm-modules
@@ -67,6 +68,7 @@ jobs:
             apps/web/public/auditor
             apps/web/public/signer
             apps/web/public/scanner
+            apps/web/public/wallet
 
   migrations:
     runs-on: ubuntu-latest

@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * Minimal gRPC-web client for the two lightwalletd calls the browser audit
- * needs (task 3.5): GetBlockRange (server stream of CompactBlock) and
- * GetTransaction. Messages are tiny, so they're encoded and decoded by hand;
- * CompactBlock bytes go straight to the WebAssembly scanner, which decodes them.
+ * Minimal gRPC-web client for the lightwalletd calls the browser needs: the
+ * audit (task 3.5) uses GetBlockRange and GetTransaction; the wallet (task 4.7)
+ * also uses GetLatestBlock, GetTreeState and SendTransaction. Messages are
+ * tiny, so they're encoded and decoded by hand; CompactBlock and TreeState
+ * bytes go straight to WebAssembly, which decodes them.
  */
 
 const SERVICE = "cash.z.wallet.sdk.rpc.CompactTxStreamer";
@@ -100,6 +101,73 @@ export async function getBlockRange(
 ): Promise<void> {
   const msg = [...bytesField(1, blockId(from)), ...bytesField(2, blockId(to))];
   await readFrames(await call(endpoint, "GetBlockRange", msg), onBlock);
+}
+
+/** Fields of a flat protobuf message: varints as bigint, length-delimited as bytes. */
+function decodeFields(m: Uint8Array): Map<number, bigint | Uint8Array> {
+  const out = new Map<number, bigint | Uint8Array>();
+  let i = 0;
+  const readVarint = (): bigint => {
+    let shift = 0n;
+    let v = 0n;
+    for (;;) {
+      const b = m[i++];
+      if (b === undefined) throw new GrpcError("Truncated message.");
+      v |= BigInt(b & 0x7f) << shift;
+      if (!(b & 0x80)) return v;
+      shift += 7n;
+    }
+  };
+  while (i < m.length) {
+    const key = Number(readVarint());
+    const wire = key & 7;
+    if (wire === 0) out.set(key >> 3, readVarint());
+    else if (wire === 2) {
+      const len = Number(readVarint());
+      out.set(key >> 3, m.slice(i, i + len));
+      i += len;
+    } else throw new GrpcError("Unexpected message encoding.");
+  }
+  return out;
+}
+
+async function unary(endpoint: string, method: string, message: number[]): Promise<Uint8Array> {
+  let reply: Uint8Array | null = null;
+  await readFrames(await call(endpoint, method, message), (m) => {
+    reply = m;
+  });
+  // An empty message is valid protobuf (all fields default).
+  return reply ?? new Uint8Array(0);
+}
+
+/** The server's chain tip (`GetLatestBlock`). */
+export async function getLatestHeight(endpoint: string): Promise<number> {
+  const height = decodeFields(await unary(endpoint, "GetLatestBlock", [])).get(1);
+  return typeof height === "bigint" ? Number(height) : 0;
+}
+
+/** The raw `TreeState` protobuf for block `height` (the wallet's birthday minus one). */
+export function getTreeState(endpoint: string, height: number): Promise<Uint8Array> {
+  return unary(endpoint, "GetTreeState", blockId(height));
+}
+
+/**
+ * Broadcast a raw transaction. Resolves with the server's verdict; a non-zero
+ * code means it was refused (nothing was sent).
+ */
+export async function sendTransaction(
+  endpoint: string,
+  raw: Uint8Array,
+): Promise<{ code: number; message: string }> {
+  const fields = decodeFields(await unary(endpoint, "SendTransaction", bytesField(1, raw)));
+  const code = fields.get(1);
+  const message = fields.get(2);
+  // error_code is an int32: negative codes arrive as 64-bit two's complement varints.
+  const signed = typeof code === "bigint" ? Number(BigInt.asIntN(32, code)) : 0;
+  return {
+    code: signed,
+    message: message instanceof Uint8Array ? new TextDecoder().decode(message) : "",
+  };
 }
 
 /** Field 1 (`data`) of a RawTransaction message. */
