@@ -59,3 +59,32 @@ When something can't be known, the page says so. Examples: the coordinator is un
 - Each bid gets a fresh refund address, so refunds can't be linked to each other or to the funding address. The amounts and timing of the funding payment can still link a bidder to their deposits. Funding well before bidding, in round amounts, helps.
 - The lightwallet server learns the IP address and when the wallet syncs. Use one you trust, or Tor.
 - Paying a bid from the wallet reveals nothing extra to the auction server: the bid is the same shielded payment and memo as from any wallet.
+
+## Verified (2026-10-17, testnet)
+
+- **Native harness** (`examples/wallet_testnet.rs`, same code as the browser): synced, then paid 0.035 TAZ spending two notes. The network accepted it, the wallet saw it confirm at block 4,510,054, and the exact change came back.
+- **Browser, full journey** (private coordinator, sealed auction `VRQA54RNWG`), each status from on-chain evidence:
+  1. Restored a wallet from its phrase twice: once from an exact birthday, once from "last day" (about 3,500 blocks in about 15 s).
+  2. Unlocked it inline and bid 0.004 TAZ hidden, 0.005 deposit. The refund went to a fresh wallet address.
+  3. Paid the deposit from the wallet: proved in the worker, confirmed at 4,510,116 (the coordinator recorded it at the same height).
+  4. Revealed from the wallet, confirmed at 4,510,148.
+  5. The result was published at a 0.004 TAZ price. The Merkle proof checked in the browser, and the bid won.
+  6. The 0.0011 TAZ refund arrived at the bid's address in 2 notes (4,510,169 and 4,510,177). My Bids showed "Won · settled".
+- **Production build** on `sealforge.udokaam.dev` (production CSP, public gRPC-web): created a wallet (phrase, three-word check, passphrase rules), and it synced.
+- **Errors:**
+  - A wrong passphrase, a wrong confirmation word and a short passphrase are all refused.
+  - A transient 503 from the lightwallet server is shown, then retried.
+  - The vault in IndexedDB holds only ciphertext.
+  - No wallet data reaches the sealForge server: only public GETs, checked in the network log.
+- **Tests:**
+  - `sealforge-wallet`: reorg, gap and tree-size refusals; payment refusals; address counter.
+  - `@sealforge/bid`: `receiptMemo` reproduces the original memo.
+
+## Known limits
+
+- Ironwood notes only are spent. Orchard-pool notes are shown, not spent.
+- No mempool view: incoming funds appear once mined. Paying is blocked during the first sync of a restore.
+- Payments from another wallet can't be seen by the page until the result is published.
+- The wallet locks on every full page load, because keys live only in memory. In-app navigation keeps it unlocked.
+- Proving takes about 30–40 s for the first payment in a page (building the proving key), then a few seconds.
+- ShieldRamp (USDC/ETH) is not built. The UI says so.
