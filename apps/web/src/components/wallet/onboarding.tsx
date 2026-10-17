@@ -132,8 +132,8 @@ function CreateWallet({ onBack }: { onBack: () => void }) {
   if (!phrase)
     return (
       <p className="flex items-center gap-2 text-muted">
-        <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> Making your recovery
-        phrase…
+        <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> Loading the wallet
+        (about 6 MB, only the first time) and making your recovery phrase…
       </p>
     );
 
