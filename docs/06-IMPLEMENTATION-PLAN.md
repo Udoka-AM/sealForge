@@ -71,7 +71,7 @@ Ordered by dependency: core logic → API → UI → refunds.
 | 4.3 | Linkability test harness + chart | C | 3.9 refunds, fixtures | `tools/linkability-harness`, `docs/evidence/linkability.svg` | AC13 (< 5% vs ~100%) | 3.9 |
 | 4.4 | Embeddable widget build (`@sealforge/shieldramp`) | B + Agent | 4.1 | ESM + UMD bundles, `<script>` embed | Embed works in a plain HTML page. ✅ Auction card done (`apps/web/public/embed.js` + `/api/embed/{code}`), tested on a third-party page; the ShieldRamp modal joins it with 4.1 | 4.1 |
 | 4.5 | "Run your own auction in 10 minutes" guide | C | M3 | `docs/QUICKSTART.md` | An outside tester finishes in ≤ 10 min | M3 |
-| 4.6 | Commit-reveal mode (stretch, only if M3 exited by Oct 19) | A + C | PRD F13 | `bid_mode = commit_reveal` | Reveal flow tested on testnet. ✅ Built and run end to end on the local chain (`docs/evidence/regtest-e2e.md`); testnet run pending the VM | M3 |
+| 4.6 | Commit-reveal mode (stretch, only if M3 exited by Oct 19) | A + C | PRD F13 | `bid_mode = commit_reveal` | Reveal flow tested on testnet. ✅ Built and run end to end on the local chain (`docs/evidence/regtest-e2e.md`) and on public testnet (`docs/evidence/testnet-genesis.md`, `docs/evidence/test-run.md`) | M3 |
 | 4.7 | Ephemeral wallet page S12 (export, send out) | B | 4.1 | Screen | Seed export + re-import works | 4.1 |
 
 ## Milestone 5: Quality (Oct 21–25)
@@ -89,7 +89,7 @@ Ordered by dependency: core logic → API → UI → refunds.
 
 | # | Task | Owner | Inputs | Output | Definition of done | Depends on |
 |---|---|---|---|---|---|---|
-| 6.1 | Test plan run (staging, testnet) | C | All ACs | `docs/evidence/test-run.md` | AC1–AC14 checked with evidence links | M5 |
+| 6.1 | Test plan run (staging, testnet) | C | All ACs | `docs/evidence/test-run.md` | AC1–AC14 checked with evidence links. ✅ Run on testnet: 12 of 14 pass, AC11–AC12 (ShieldRamp) not built | M5 |
 | 6.2 | Mainnet deploy | A | Release image, VM-2 synced | Production coordinator + Vercel prod | Health checks green. Monitoring on | 6.1 |
 | 6.3 | Live mainnet micro-auction | All | PRD Q5, Q6 | Settled auction | ≥ 25 bids, ≥ 3 via ShieldRamp, all refunds confirmed | 6.2 |
 | 6.4 | Outside re-verification | C | Published IVK | Statement or screenshot from an outside auditor | ≥ 1 independent match | 6.3 |
