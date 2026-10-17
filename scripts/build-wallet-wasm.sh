@@ -23,7 +23,9 @@ export CC_wasm32_unknown_unknown="$LLVM/clang" AR_wasm32_unknown_unknown="$LLVM/
 # Strip local paths from the binary so builds don't depend on where the repo lives.
 RUSTFLAGS="--cfg getrandom_backend=\"wasm_js\" --remap-path-prefix=$(pwd)=/sealforge --remap-path-prefix=$HOME/.cargo=/cargo" \
   cargo build --release -p sealforge-wallet --lib --target wasm32-unknown-unknown --features wasm
-rm -rf "$out"
+# Only the generated files: worker.js next to them is hand-written.
+mkdir -p "$out"
+rm -f "$out"/sealforge_wallet* "$out/BUILD.json"
 wasm-bindgen --target web --no-typescript --out-dir "$out" \
   target/wasm32-unknown-unknown/release/sealforge_wallet.wasm
 
