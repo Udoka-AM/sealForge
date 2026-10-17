@@ -120,6 +120,23 @@ export const walletTools = {
 /** Blocks per batch: small enough to save progress often, large enough to be quick. */
 const BATCH = 400;
 
+/**
+ * Public lightwallet servers return the odd 503 under load. Retry a network
+ * step a few times with backoff before reporting the sync as failed.
+ */
+async function withRetry<T>(step: () => Promise<T>, attempts = 4): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await step();
+    } catch (e) {
+      last = e;
+      await new Promise((r) => setTimeout(r, 1500 * 2 ** i));
+    }
+  }
+  throw last;
+}
+
 export interface SyncProgress {
   scanned: number;
   tip: number;
@@ -206,12 +223,16 @@ export class WalletSession {
 
   private async runSync(onProgress?: (p: SyncProgress) => void): Promise<WalletSummary> {
     let resets = 0;
-    let tip = await getLatestHeight(this.endpoint);
+    let tip = await withRetry(() => getLatestHeight(this.endpoint));
     let scanned = (await this.summary()).scannedHeight;
     while (scanned < tip) {
       const to = Math.min(tip, scanned + BATCH);
-      const blocks: Uint8Array[] = [];
-      await getBlockRange(this.endpoint, scanned + 1, to, (b) => blocks.push(b));
+      const from = scanned + 1;
+      const blocks = await withRetry(async () => {
+        const got: Uint8Array[] = [];
+        await getBlockRange(this.endpoint, from, to, (b) => got.push(b));
+        return got;
+      });
       const result = await worker().call<{ error: string | null; height: number }>(
         "scanBlocks",
         { blocks },
@@ -230,7 +251,7 @@ export class WalletSession {
       }
       await this.persist();
       onProgress?.({ scanned, tip });
-      if (scanned >= tip) tip = await getLatestHeight(this.endpoint);
+      if (scanned >= tip) tip = await withRetry(() => getLatestHeight(this.endpoint));
     }
     onProgress?.({ scanned, tip });
     return this.persist();

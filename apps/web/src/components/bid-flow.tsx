@@ -28,6 +28,7 @@ import {
   updateReceipt,
 } from "@/lib/receipts";
 import type { AuctionView } from "@/lib/types";
+import { InlineUnlock } from "./wallet/inline-unlock";
 import { PaymentStatus, WalletPay } from "./wallet/wallet-pay";
 import { useWallet } from "./wallet/wallet-provider";
 
@@ -387,13 +388,7 @@ function AmountStep({
           </>
         )}
         {wallet.status === "locked" && wallet.network === auction.network ? (
-          <p className="text-sm text-muted">
-            Have a sealForge wallet?{" "}
-            <Link href="/wallet" className="underline hover:text-text">
-              Unlock it
-            </Link>{" "}
-            to fill this in and pay in one step.
-          </p>
+          <InlineUnlock prompt="Unlock your sealForge wallet to fill this in and pay in one step." />
         ) : null}
         {wallet.status === "none" && wallet.network === auction.network ? (
           <p className="text-sm text-muted">

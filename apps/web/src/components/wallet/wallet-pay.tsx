@@ -39,6 +39,8 @@ export function WalletPay({
   const scanned = wallet.summary?.scannedHeight ?? 0;
   const tip = wallet.sync.progress?.tip ?? scanned;
   const late = closeHeight !== null && tip >= closeHeight;
+  // A payment needs a block or two to be mined; warn when the window is nearly over.
+  const tight = closeHeight !== null && !late && closeHeight - tip <= 2;
 
   // Ask the wallet for the exact fee whenever the spendable balance changes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-quote when the balance changes
@@ -101,6 +103,13 @@ export function WalletPay({
           <CircleAlert size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
           Bidding closed at block {closeHeight?.toLocaleString("en-US")}. A payment now
           wouldn&rsquo;t count.
+        </p>
+      ) : tight ? (
+        <p className="flex items-start gap-2 text-sm text-warning">
+          <CircleAlert size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+          Only {(closeHeight ?? 0) - tip} block{(closeHeight ?? 0) - tip === 1 ? "" : "s"} left
+          before block {closeHeight?.toLocaleString("en-US")}. A payment sent now may be mined too
+          late to count.
         </p>
       ) : shortfall ? (
         <div className="space-y-2 text-sm">

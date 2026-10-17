@@ -32,6 +32,7 @@ import type {
 } from "@/lib/types";
 import type { WalletSummary } from "@/lib/wallet/session";
 import { RevealPanel } from "./reveal-panel";
+import { InlineUnlock } from "./wallet/inline-unlock";
 import { PaymentStatus, WalletPay } from "./wallet/wallet-pay";
 import { useWallet } from "./wallet/wallet-provider";
 
@@ -127,11 +128,16 @@ function lifecycle(
     !revealed
   )
     return { label: "Reveal your bid", tone: "action", step: 2, group: "attention" };
+  const reveal = receipt.reveal_txid
+    ? summary?.sent.find((t) => t.txid === receipt.reveal_txid)
+    : null;
+  if (reveal && reveal.mined_height === null && !reveal.expired && !facts?.result)
+    return { label: "Reveal confirming", tone: "progress", step: 2, group: "active" };
   if (!facts?.result)
     return {
       label: "Waiting for the result",
       tone: "progress",
-      step: sealed ? 2 : 1,
+      step: sealed ? 3 : 1,
       group: "active",
     };
   if (!check) return { label: "Checking the result…", tone: "progress", step: 3, group: "active" };
@@ -262,15 +268,7 @@ export function MyBids() {
   return (
     <div className="space-y-8">
       {wallet.status === "locked" ? (
-        <p className="flex items-center gap-2 rounded-[var(--radius-control)] border border-border p-3 text-sm text-muted">
-          <Wallet size={16} aria-hidden="true" className="shrink-0" />
-          <span>
-            <Link href="/wallet" className="underline hover:text-text">
-              Unlock your wallet
-            </Link>{" "}
-            to see payment confirmations and refunds as they arrive.
-          </span>
-        </p>
+        <InlineUnlock prompt="Unlock your wallet to see payment confirmations and refunds as they arrive." />
       ) : null}
       {groups.map((g) => {
         const items = rows.filter((x) => x.life.group === g.key);
@@ -302,7 +300,9 @@ export function MyBids() {
 
 const STEPS = ["Paid", "Bidding", "Reveal", "Result", "Refund", "Settled"];
 
-function Steps({ step, sealed }: { step: number; sealed: boolean }) {
+function Steps({ step: current, sealed }: { step: number; sealed: boolean }) {
+  // Settled is the end: every step is done.
+  const step = current >= STEPS.length - 1 ? STEPS.length : current;
   const steps = STEPS.map((label, i) => ({ label, i })).filter((s) => sealed || s.i !== 2);
   return (
     <ol className="flex items-center gap-1.5" aria-label="Progress">
@@ -578,8 +578,9 @@ function RefundLine({
       )}
       {refunds ? (
         <p className="text-[13px] text-muted">
-          Auction-wide: {refunds.notes_sent} of {refunds.notes_total} refund notes sent so far
-          (counts for all bidders, nothing per bid).
+          {refunds.notes_total === 0
+            ? "Auction-wide: refunds are being planned."
+            : `Auction-wide: ${refunds.notes_sent} of ${refunds.notes_total} refund notes sent so far (counts for all bidders, nothing per bid).`}
         </p>
       ) : null}
     </div>

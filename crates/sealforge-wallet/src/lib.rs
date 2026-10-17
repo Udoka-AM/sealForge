@@ -623,3 +623,126 @@ fn try_decrypt<V: DomainVersion>(
         try_compact_note_decryption(&domain, ivk, &action).map(|(n, a)| (n, a, *scope))
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zcash_client_backend::proto::compact_formats::ChainMetadata;
+
+    fn wallet() -> Wallet {
+        let phrase = phrase_from_entropy([3; 32]).unwrap();
+        let keys = Keys::from_phrase(ChainParams::Testnet, &phrase).unwrap();
+        // An empty commitment tree just before block 100 (no notes yet).
+        let tree = TreeState {
+            network: "test".into(),
+            height: 99,
+            hash: hex::encode([9u8; 32]),
+            ..Default::default()
+        };
+        Wallet::new(keys, "testnet", 100, &tree).unwrap()
+    }
+
+    fn block(height: u64, prev: Vec<u8>, hash: u8) -> CompactBlock {
+        CompactBlock {
+            height,
+            hash: vec![hash; 32],
+            prev_hash: prev,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn scanning_follows_the_chain_and_refuses_gaps_and_reorgs() {
+        let mut w = wallet();
+        // The tree state's hash is display order; the block's prev_hash is internal order.
+        let mut prev = [9u8; 32].to_vec();
+        prev.reverse();
+        w.scan_block(&block(100, prev, 1)).unwrap();
+        assert_eq!(w.scanned_height(), 100);
+        assert_eq!(
+            w.scan_block(&block(102, vec![1; 32], 2)).unwrap_err(),
+            ScanError::OutOfOrder {
+                expected: 101,
+                got: 102
+            }
+        );
+        assert_eq!(
+            w.scan_block(&block(101, vec![7; 32], 2)).unwrap_err(),
+            ScanError::Reorg
+        );
+        // A block claiming a bigger Ironwood tree than we built: never spend on that.
+        let mut b = block(101, vec![1; 32], 2);
+        b.chain_metadata = Some(ChainMetadata {
+            ironwood_commitment_tree_size: 5,
+            ..Default::default()
+        });
+        assert_eq!(
+            w.scan_block(&b).unwrap_err(),
+            ScanError::TreeMismatch(Pool::Ironwood)
+        );
+        // After a reset it starts again from the birthday.
+        w.reset().unwrap();
+        assert_eq!(w.scanned_height(), 99);
+    }
+
+    #[test]
+    fn payments_are_refused_without_funds_keys_or_a_valid_recipient() {
+        let mut w = wallet();
+        let to = w.address(5);
+        assert!(w
+            .quote(10_000)
+            .unwrap_err()
+            .starts_with("Not enough spendable funds"));
+        let bad = w.pay(&PaymentRequest {
+            to: "u1notanaddress".into(),
+            amount_zat: 1,
+            memo: None,
+            label: None,
+        });
+        assert!(bad.unwrap_err().contains("isn't a testnet Unified Address"));
+        let zero = w.pay(&PaymentRequest {
+            to: to.clone(),
+            amount_zat: 0,
+            memo: None,
+            label: None,
+        });
+        assert_eq!(zero.unwrap_err(), "Enter an amount above zero.");
+        let broke = w.pay(&PaymentRequest {
+            to: to.clone(),
+            amount_zat: 1,
+            memo: None,
+            label: None,
+        });
+        assert!(broke.unwrap_err().starts_with("Not enough spendable funds"));
+        w.lock();
+        let locked = w.pay(&PaymentRequest {
+            to,
+            amount_zat: 1,
+            memo: None,
+            label: None,
+        });
+        assert_eq!(locked.unwrap_err(), "Unlock the wallet to pay.");
+        assert!(w.sent().is_empty(), "nothing is recorded as sent");
+    }
+
+    #[test]
+    fn fresh_addresses_never_repeat_and_state_round_trips() {
+        let mut w = wallet();
+        let (i1, a1) = w.fresh_address();
+        let (i2, a2) = w.fresh_address();
+        assert!(i1 >= 1 && i2 == i1 + 1, "index 0 is the funding address");
+        assert_ne!(a1, a2);
+        assert_ne!(a1, w.funding_address());
+        let state = w.to_state();
+        let json = serde_json::to_string(&state).unwrap();
+        let back: WalletState = serde_json::from_str(&json).unwrap();
+        let phrase = phrase_from_entropy([3; 32]).unwrap();
+        let keys = Keys::from_phrase(ChainParams::Testnet, &phrase).unwrap();
+        let mut w2 = Wallet::from_state(keys, &back).unwrap();
+        assert_eq!(
+            w2.fresh_address().0,
+            i2 + 1,
+            "the counter survives a reload"
+        );
+    }
+}
