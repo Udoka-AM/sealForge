@@ -56,11 +56,6 @@ function BalanceCard() {
       aria-label="Balance"
       className="relative overflow-hidden rounded-[var(--radius-sheet)] border border-border bg-surface p-6"
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full opacity-[0.08] blur-3xl"
-        style={{ background: "var(--primary)" }}
-      />
       <p className="flex items-center gap-2 text-sm text-muted">
         <Wallet size={16} aria-hidden="true" /> Spendable
         {network !== "mainnet" ? (

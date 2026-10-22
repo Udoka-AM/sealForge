@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { MotionProvider } from "@/components/motion/motion-provider";
 import { OfflineBanner } from "@/components/offline-banner";
 import { SiteHeader } from "@/components/site-header";
 import { WalletProvider } from "@/components/wallet/wallet-provider";
@@ -55,13 +56,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
       <body className="min-h-dvh antialiased">
-        <WalletProvider>
-          <SiteHeader />
-          <OfflineBanner />
-          <main className="mx-auto w-full max-w-[1120px] px-4 py-8 md:px-6 md:py-12">
-            {children}
-          </main>
-        </WalletProvider>
+        <MotionProvider>
+          <WalletProvider>
+            <SiteHeader />
+            <OfflineBanner />
+            <main className="mx-auto w-full max-w-[1120px] px-4 py-8 md:px-6 md:py-12">
+              {children}
+            </main>
+          </WalletProvider>
+        </MotionProvider>
       </body>
     </html>
   );

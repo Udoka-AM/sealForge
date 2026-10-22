@@ -16,6 +16,7 @@
     "@sealforge/shieldramp": "workspace:*",
     "idb-keyval": "^6.3.0",
     "lucide-react": "^1.57.0",
+    "motion": "^12",
     "next": "16.4.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
