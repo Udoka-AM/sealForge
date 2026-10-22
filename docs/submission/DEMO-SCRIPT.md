@@ -1,20 +1,24 @@
-# Demo video script (≤ 3 minutes, draft)
+# Demo video script (3 minutes or less)
 
-Screen recording of the web app and two terminals. Narration is in quotes. Times are cumulative.
+A screen recording of https://sealforge.udokaam.dev (testnet) and one terminal. Narration is in quotes. Times are cumulative.
 
 | Time | Screen | Narration |
 |---|---|---|
-| 0:00–0:15 | Home page, then an open auction page | "Every public sale leaks who paid what. sealForge runs sealed-bid auctions on Zcash: the price is public, the bidders aren't, and you don't have to trust us." |
-| 0:15–0:40 | Console: create an auction with **Sealed reveal** on. Show the three trustee invites | "An organiser creates an auction and invites three trustees. Each runs key generation on their own machine. The escrow can only be spent by any two of them." |
-| 0:40–0:55 | Terminal: three `sealforge trustee dkg … --wait`, matching fingerprints. Console shows the escrow, then **Open for bids** | "The coordinator never holds a key share. It can't move a single zatoshi." |
-| 0:55–1:20 | Bid flow on a phone-sized window: hidden bid 0.42, deposit 0.5, QR, wallet pays. Receipt saved | "A bidder scans one QR from any Zcash wallet. In sealed mode they deposit a budget and the memo commits to their real bid. Nobody, not even the trustees, can see it." |
-| 1:20–1:35 | Close passes. My bids → **Reveal my bid** QR | "After the close, bidders reveal on chain. Unrevealed bids just get their deposit back." |
-| 1:35–1:55 | Console: **Publish result**. Audit page: price, winners, root, viewing key | "The organiser publishes the result with the escrow's viewing key and a Merkle root of every bid." |
-| 1:55–2:20 | Terminal: `sealforge-audit --published … --endpoint …` → all ✓ **Match**. Then a tampered copy → ✗ **MISMATCH** | "Anyone rescans the chain with that key, from any node, and recomputes everything. Change one number and the audit fails." |
-| 2:20–2:40 | Verify page: drop the receipt → "Your bid is included · Won at 0.3 ZEC · refund 0.2001 in 2 notes" | "Each bidder proves their own bid was counted, in their browser." |
-| 2:40–2:55 | Trustee page signing a refund batch; console shows refunds confirmed and the payout; status **Settled** | "Refunds go out in standard pieces, at random times, mixed across bidders. Two trustees sign each batch. Then the organiser is paid." |
-| 2:55–3:00 | Repo README | "sealForge. Open source, on Zcash today." |
+| 0:00–0:15 | Home page, then an open auction | "Every public sale leaks who paid what. sealForge runs sealed-bid auctions on Zcash: the price is public, the bidders aren't, and you don't have to trust us." |
+| 0:15–0:35 | Console: an auction with **Sealed reveal**, the three trustees (Greg, Harry, Dmitry), the escrow address | "An organiser creates an auction and three trustees run key generation on their own machines. Any two of them can move the escrow. The server holds no key share; it can't move a single zatoshi." |
+| 0:35–0:55 | **Wallet** page: balance, network status, activity | "No Zcash wallet? There's one built in. Your recovery phrase never leaves the browser, and it proves and signs shielded transactions right here." |
+| 0:55–1:20 | Bid page: unlock inline, enter a hidden bid, pick a deposit, choose **My sealForge wallet** for refunds, **Pay** | "I enter my real bid, which stays hidden, and a standard deposit. Refunds go to a fresh address used only for this bid. One tap pays, and the proof is built in my browser." |
+| 1:20–1:35 | My bids: **Deposit confirmed in block …**, then after close **Reveal for 0.0002 TAZ** → **Reveal confirmed** | "Every status here comes from the chain: confirmed in a block, not 'probably sent'. After bidding closes I reveal, again in one tap." |
+| 1:35–1:55 | Audit page: price, winners, root, viewing key. **Rescan the chain in my browser** → every figure matches | "The organiser publishes the result with the escrow's viewing key. Anyone rescans the chain from any node and recomputes everything." |
+| 1:55–2:10 | Terminal: `sealforge-audit` on a tampered copy → ✗ **MISMATCH** | "Change one number and the audit fails." |
+| 2:10–2:35 | My bids: **Won at 0.004 TAZ · Merkle proof checks**, refund bar filling, **Won · settled**. Wallet activity: **Refund · …** in two notes | "My bid is in the result, I won at the clearing price, and my refund arrives in standard pieces, at random times, mixed with other bidders' refunds, so nobody can match them to me." |
+| 2:35–2:50 | Community Pass audit: 25 bids, 10 winners, match | "We've run this on public testnet: 25 sealed bids, a 2-of-3 escrow, and every refund and payout settled." |
+| 2:50–3:00 | README | "sealForge. Open source, on Zcash today." |
 
-Recording notes:
-- Record on the hosted testnet (or mainnet) instance once it's up; the local regtest stack works for rehearsal (`scripts/regtest.sh`, `SF_REFUND_DELAY_SECS=20,90`).
-- Pre-create the trustee keystores and keep a funded wallet ready, so the waits don't make the cut.
+## Recording notes
+
+- **Have a funded wallet ready.** Use the hosted site, restore a funded testnet wallet, and keep the tab open. A full reload locks the wallet, which is by design, and a locked wallet needs the passphrase again.
+- **Warm the prover before the take.** The first payment in a page takes 30–40 s while the proving key is built. Make one small payment off camera first, or cut the wait.
+- **Run a short auction for the take.** Use a private coordinator and `scripts/testnet-demo.sh` with short windows (for example `BID_BLOCKS=24`, `REVEAL_BLOCKS=16`, two scripted bidders). Bid as the third bidder in the browser. Testnet blocks vary from 25 to 75 s, so record each step when it lands and edit the waits out.
+- **Pre-record the terminal.** The tampered-copy audit runs against `KE5DFF4PDA`'s published result with one number edited.
+- **Keep the host awake.** The Mac must stay plugged in with the lid open while recording, because the site is served from it.
