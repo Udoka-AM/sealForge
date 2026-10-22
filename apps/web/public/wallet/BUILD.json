@@ -1,0 +1,9 @@
+{
+  "crate": "sealforge-wallet",
+  "version": "0.0.1",
+  "git_commit": "48991e5bc25334974ede6f098567be02ecfdb869",
+  "source_dirty": true,
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "wasm_bindgen": "0.2.129",
+  "wasm_sha256": "134c5ea054abeb099986b8694e626159fd63d3c7f722bdbc6df6a3e9f64ae96c"
+}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ConsoleNavLink } from "./console-nav-link";
+import { WalletNavLink } from "./wallet/wallet-nav-link";
 
 const NAV = [
   { href: "/", label: "Auctions", mobile: true },
@@ -25,6 +26,7 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
+          <WalletNavLink />
           <ConsoleNavLink />
         </nav>
       </div>

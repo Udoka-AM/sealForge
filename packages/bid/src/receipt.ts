@@ -94,6 +94,11 @@ export function prepareReveal(receipt: Receipt, escrowUa: string): { memo: strin
   return { memo, uri: paymentUri(escrowUa, REVEAL_AMOUNT_ZAT, memo) };
 }
 
+/** The bid memo a receipt's deposit carries (to pay a saved bid later). */
+export function receiptMemo(receipt: Receipt): string {
+  return bidMemo(receipt.auction_code, hexToBytes(receipt.commitment), receipt.refund_ua);
+}
+
 /** Check a loaded receipt is internally consistent (its commitment matches its salt). */
 export function verifyReceipt(receipt: Receipt): boolean {
   try {

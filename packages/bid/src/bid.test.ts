@@ -11,6 +11,7 @@ import {
   prepareReveal,
   prepareSealedBid,
   priceCommitment,
+  receiptMemo,
   roundingOptions,
   verifyReceipt,
 } from "./index";
@@ -119,5 +120,23 @@ describe("receipts", () => {
     expect(verifyReceipt(a.receipt)).toBe(true);
     expect(verifyReceipt({ ...a.receipt, refund_ua: "utest1other" })).toBe(false);
     expect(a.uri.startsWith("zcash:utest1escrow?amount=0.5&memo=")).toBe(true);
+  });
+
+  it("rebuilds the exact bid memo from a saved receipt", () => {
+    const deposit = prepareBid({
+      auctionCode: VECTOR.code,
+      escrowUa: "utest1escrow",
+      amountZat: 50_000_000n,
+      refundUa: VECTOR.refund,
+    });
+    const sealed = prepareSealedBid({
+      auctionCode: VECTOR.code,
+      escrowUa: "utest1escrow",
+      priceZat: 30_000_000n,
+      depositZat: 50_000_000n,
+      refundUa: VECTOR.refund,
+    });
+    expect(receiptMemo(deposit.receipt)).toBe(deposit.memo);
+    expect(receiptMemo(sealed.receipt)).toBe(sealed.memo);
   });
 });
