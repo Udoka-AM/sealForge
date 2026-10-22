@@ -177,3 +177,11 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* A sideways-scrolling row without a visible scrollbar (the phone nav). */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

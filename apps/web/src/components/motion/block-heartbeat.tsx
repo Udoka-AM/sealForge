@@ -3,13 +3,16 @@
 import { useChainTip } from "@/lib/chain-tip";
 import { CountUp } from "./count-up";
 
-/** The chain, visibly ticking: the current block, with a single pulse when a new one lands. */
-export function BlockHeartbeat() {
+/**
+ * The chain, visibly ticking: the current block, with a single pulse when a new one lands. The
+ * caller sets the display (`inline-flex`, or `hidden md:inline-flex`).
+ */
+export function BlockHeartbeat({ className = "" }: { className?: string }) {
   const { tip, changedAt } = useChainTip();
   if (tip === null) return null;
   return (
     <span
-      className="hidden items-center gap-2 rounded-[var(--radius-chip)] border border-border px-2.5 py-1 text-[12px] text-muted md:inline-flex"
+      className={`shrink-0 items-center gap-2 rounded-[var(--radius-chip)] border border-border px-2.5 py-1 text-[12px] text-muted ${className}`}
       title="The chain tip the auction server sees"
     >
       <span className="relative flex size-2" aria-hidden="true">

@@ -7,18 +7,17 @@ import { useEffect, useState } from "react";
 import { getSigner } from "@/lib/sfsig";
 import { useWallet } from "./wallet/wallet-provider";
 
-type Item = { href: string; label: string; mobile: boolean; match: (p: string) => boolean };
+type Item = { href: string; label: string; match: (p: string) => boolean };
 
 const ITEMS: Item[] = [
-  { href: "/", label: "Auctions", mobile: true, match: (p) => p === "/" || p.startsWith("/a/") },
-  { href: "/verify", label: "Verify", mobile: false, match: (p) => p.startsWith("/verify") },
+  { href: "/", label: "Auctions", match: (p) => p === "/" || p.startsWith("/a/") },
+  { href: "/verify", label: "Verify", match: (p) => p.startsWith("/verify") },
   {
     href: "/how-it-works",
     label: "How it works",
-    mobile: false,
     match: (p) => p.startsWith("/how-it-works"),
   },
-  { href: "/me", label: "My bids", mobile: true, match: (p) => p.startsWith("/me") },
+  { href: "/me", label: "My bids", match: (p) => p.startsWith("/me") },
 ];
 
 /** Top-bar links. The active page's pill glides between them. */
@@ -38,14 +37,12 @@ export function NavLinks() {
     items.push({
       href: "/wallet",
       label: "Wallet",
-      mobile: true,
       match: (p) => p.startsWith("/wallet"),
     });
   if (organiser)
     items.push({
       href: "/console",
       label: "Console",
-      mobile: false,
       match: (p) => p.startsWith("/console"),
     });
 
@@ -64,9 +61,9 @@ export function NavLinks() {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            className={`relative inline-flex items-center gap-1.5 rounded-[var(--radius-chip)] px-2.5 py-1.5 transition-colors duration-150 ${
+            className={`relative inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-chip)] px-2.5 py-1.5 transition-colors duration-150 ${
               active ? "text-text" : "text-muted hover:text-text"
-            } ${item.mobile ? "" : "hidden sm:inline-flex"}`}
+            }`}
           >
             {active ? (
               <m.span
