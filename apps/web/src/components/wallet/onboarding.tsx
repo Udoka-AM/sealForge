@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Button } from "@/components/button";
+import { Guilloche } from "@/components/motion/guilloche";
 import { blockSeconds } from "@/lib/format";
 import { getLatestHeight } from "@/lib/grpc-web";
 import { walletTools } from "@/lib/wallet/session";
@@ -29,9 +30,12 @@ export function Onboarding() {
         <button
           type="button"
           onClick={() => setMode("create")}
-          className="group space-y-2 rounded-[var(--radius-card)] border border-border bg-surface p-5 text-left transition-[border-color] duration-150 hover:border-primary"
+          className="lift group relative space-y-3 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface p-5 text-left"
         >
-          <Sparkles size={20} aria-hidden="true" className="text-primary" />
+          <Guilloche size={180} className="absolute -top-16 -right-16 opacity-40" />
+          <span className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-surface-2 text-primary">
+            <Sparkles size={18} aria-hidden="true" />
+          </span>
           <span className="block font-medium">Create a wallet</span>
           <span className="block text-sm text-muted">
             A new 24-word recovery phrase, made in this browser.
@@ -40,9 +44,11 @@ export function Onboarding() {
         <button
           type="button"
           onClick={() => setMode("restore")}
-          className="space-y-2 rounded-[var(--radius-card)] border border-border bg-surface p-5 text-left transition-[border-color] duration-150 hover:border-primary"
+          className="lift group space-y-3 rounded-[var(--radius-card)] border border-border bg-surface p-5 text-left"
         >
-          <RotateCcw size={20} aria-hidden="true" className="text-muted" />
+          <span className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-surface-2 text-muted transition-colors duration-150 group-hover:text-text">
+            <RotateCcw size={18} aria-hidden="true" />
+          </span>
           <span className="block font-medium">Restore from a phrase</span>
           <span className="block text-sm text-muted">
             Bring back a sealForge wallet you made on another device.

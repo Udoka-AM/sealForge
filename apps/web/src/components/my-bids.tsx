@@ -116,7 +116,8 @@ function lifecycle(
     return {
       label: receipt.paid_txid ? "Sealed bid placed" : "Bidding open",
       tone: "progress",
-      step: 1,
+      // "Paid" is done only when this browser's wallet saw the payment mined.
+      step: receipt.paid_txid ? 1 : 0,
       group: receipt.paid_txid ? "active" : "attention",
     };
   const revealed = Boolean(receipt.reveal_txid || receipt.reveal_sent);

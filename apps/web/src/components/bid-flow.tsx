@@ -165,7 +165,9 @@ function StepHeading({ heading, children }: { heading: HeadingRef; children: Rea
   // Each step's heading takes focus when it arrives (after the previous step has
   // animated out), so keyboard and screen reader users follow along.
   useEffect(() => {
-    heading.current?.focus();
+    // Start each step at the top; focus without a second jump.
+    window.scrollTo({ top: 0 });
+    heading.current?.focus({ preventScroll: true });
   }, [heading]);
   return (
     <h1
@@ -442,10 +444,15 @@ function AmountStep({
         {wallet.status === "none" && wallet.network === auction.network ? (
           <p className="text-sm text-muted">
             No Zcash wallet?{" "}
-            <Link href="/wallet" className="underline hover:text-text">
-              Create one here
-            </Link>{" "}
-            in a minute; your bid form keeps its place in this tab.
+            <Link
+              href="/wallet"
+              target="_blank"
+              rel="noopener"
+              className="underline hover:text-text"
+            >
+              Create one in a new tab
+            </Link>
+            , then come back here and unlock it.
           </p>
         ) : null}
       </fieldset>
