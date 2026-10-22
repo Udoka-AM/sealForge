@@ -5,6 +5,7 @@ import { ExternalLink, Eye } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { Button, buttonClass } from "@/components/button";
+import { networkOfUa, unit } from "@/lib/format";
 import { markRevealSent, type StoredReceipt } from "@/lib/receipts";
 import { api } from "@/lib/sfsig";
 import type { AuctionView, ChainView } from "@/lib/types";
@@ -87,7 +88,7 @@ export function RevealPanel({ receipt, onSent }: { receipt: StoredReceipt; onSen
               // biome-ignore lint/performance/noImgElement: a local data-URI SVG
               <img
                 src={qr}
-                alt={`QR code to send ${formatZec(REVEAL_AMOUNT_ZAT)} ZEC with your reveal memo`}
+                alt={`QR code to send ${formatZec(REVEAL_AMOUNT_ZAT)} ${unit(networkOfUa(receipt.refund_ua))} with your reveal memo`}
                 className="aspect-square w-full"
               />
             ) : (
@@ -96,8 +97,8 @@ export function RevealPanel({ receipt, onSent }: { receipt: StoredReceipt; onSen
           </div>
           <div className="space-y-3 text-sm">
             <p className="text-muted">
-              Send {formatZec(REVEAL_AMOUNT_ZAT)} ZEC with this memo. It comes back with your
-              refund.
+              Send {formatZec(REVEAL_AMOUNT_ZAT)} {unit(networkOfUa(receipt.refund_ua))} with this
+              memo. It comes back with your refund.
             </p>
             <a href={reveal.uri} className={buttonClass({ variant: "secondary" })}>
               <ExternalLink size={16} aria-hidden="true" /> Open in wallet

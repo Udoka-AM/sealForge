@@ -12,7 +12,7 @@ import {
   type StoredSigner,
 } from "@/lib/sfsig";
 import { commitBatch, keyInfo, signBatch } from "@/lib/signer";
-import type { TrusteeBatch } from "@/lib/types";
+import type { AuctionView, Network, TrusteeBatch } from "@/lib/types";
 import { KeyLoader } from "./key-loader";
 import { usePolling, useSigner } from "./use-signer";
 
@@ -36,6 +36,7 @@ export function TrusteeSigning({ code }: { code: string }) {
   const [keyHex, setKeyHex] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
   const [batches, setBatches] = useState<TrusteeBatch[] | null>(null);
+  const [network, setNetwork] = useState<Network>("mainnet");
   const [error, setError] = useState<string | null>(null);
   // Round 1 nonces by batch id: in memory only, dropped after round 2.
   const nonces = useRef(new Map<string, string[]>());
@@ -52,6 +53,13 @@ export function TrusteeSigning({ code }: { code: string }) {
     }
   }, [code, signer]);
   usePolling(load, 5_000, signer !== null, true);
+
+  // Amounts read as TAZ on test networks.
+  useEffect(() => {
+    api<AuctionView>("GET", `/v1/auctions/${code}`, null)
+      .then((a) => setNetwork(a.network))
+      .catch(() => {});
+  }, [code]);
 
   // Round 2 runs on its own once this trustee approved and was chosen.
   useEffect(() => {
@@ -229,7 +237,7 @@ export function TrusteeSigning({ code }: { code: string }) {
               const p = phase(b, me);
               return (
                 <li key={b.id} className={`${card} space-y-4`}>
-                  <BatchSummary b={b} />
+                  <BatchSummary b={b} network={network} />
                   <div aria-live="polite" className="text-sm">
                     <PhaseLine phase={p} />
                   </div>
@@ -253,7 +261,7 @@ export function TrusteeSigning({ code }: { code: string }) {
           <ul className="space-y-3">
             {finished.map((b) => (
               <li key={b.id} className={`${card} space-y-2`}>
-                <BatchSummary b={b} />
+                <BatchSummary b={b} network={network} />
               </li>
             ))}
           </ul>
@@ -268,7 +276,7 @@ export function TrusteeSigning({ code }: { code: string }) {
   );
 }
 
-function BatchSummary({ b }: { b: TrusteeBatch }) {
+function BatchSummary({ b, network }: { b: TrusteeBatch; network: Network }) {
   return (
     <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
       <div>
@@ -277,7 +285,7 @@ function BatchSummary({ b }: { b: TrusteeBatch }) {
       </div>
       <div>
         <dt className="text-muted">Pays out</dt>
-        <dd className="num">{zec(b.total_out_zat)}</dd>
+        <dd className="num">{zec(b.total_out_zat, network)}</dd>
       </div>
       <div>
         <dt className="text-muted">Outputs</dt>

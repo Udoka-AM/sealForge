@@ -1,7 +1,20 @@
 import { formatZec } from "@sealforge/bid";
+import type { Network } from "./types";
 
-export function zec(zat: number | bigint): string {
-  return `${formatZec(BigInt(zat))} ZEC`;
+/** Test-network coins are TAZ, so a test auction never reads as real money. */
+export function unit(network: Network = "mainnet"): string {
+  return network === "mainnet" ? "ZEC" : "TAZ";
+}
+
+export function zec(zat: number | bigint, network: Network = "mainnet"): string {
+  return `${formatZec(BigInt(zat))} ${unit(network)}`;
+}
+
+/** The network a Unified Address belongs to, from its prefix (receipts carry no network field). */
+export function networkOfUa(ua: string): Network {
+  if (ua.startsWith("utest1")) return "testnet";
+  if (ua.startsWith("uregtest1")) return "regtest";
+  return "mainnet";
 }
 
 export function modeLabel(mode: "uniform_price" | "first_price"): string {
@@ -15,15 +28,12 @@ export function modeExplainer(mode: "uniform_price" | "first_price", quantity: n
 }
 
 /** Target block time: 75 s on mainnet; testnet moved to 25 s with NU7. */
-export function blockSeconds(network: "mainnet" | "testnet" | "regtest"): number {
+export function blockSeconds(network: Network): number {
   return network === "testnet" ? 25 : 75;
 }
 
 /** Rough time for `blocks` blocks, e.g. "~3 h 10 min". */
-export function blocksEta(
-  blocks: number,
-  network: "mainnet" | "testnet" | "regtest" = "mainnet",
-): string {
+export function blocksEta(blocks: number, network: Network = "mainnet"): string {
   if (blocks <= 0) return "now";
   const mins = Math.round((blocks * blockSeconds(network)) / 60);
   if (mins < 1) return "under a minute";

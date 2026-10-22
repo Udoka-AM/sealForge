@@ -177,6 +177,14 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     let signature = signing::aggregate(&request, &package, &shares, &pubkeys).unwrap();
     signing::verify_spend_auth(&ak, &request, &signature).unwrap();
 
+    // One trustee alone can't sign (PRD AC10): FROST refuses a one-signer package,
+    // and one share can't be aggregated into a signature.
+    let (n1b, c1b) = signing::commit(&kp1, &mut OsRng);
+    let lone = signing::signing_package(&request, BTreeMap::from([(id1, c1b)]));
+    assert!(signing::sign(&request, &lone, &n1b, &kp1).is_err());
+    let one_share = BTreeMap::from([(id1, shares[&id1])]);
+    assert!(signing::aggregate(&request, &package, &one_share, &pubkeys).is_err());
+
     // A two-spend escrow batch goes through `trustee sign` over HTTP.
     let sighash = [7u8; 32];
     let spends = vec![

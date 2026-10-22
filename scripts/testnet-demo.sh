@@ -151,14 +151,18 @@ open() {
 }
 
 bids() {
-  local code escrow close gap i
+  local code escrow close gap start i target
   code=$(cat "$STATE/code")
   escrow=$(field escrow_ua)
   close=$(field close_height)
-  # Spread the bids over the first two thirds of the bidding window.
+  # Bid i goes out at start + i * gap, over the first two thirds of the window.
+  # Scheduled, not slept: a bid's own sync and proving time doesn't push the rest late.
+  start=$(date +%s)
   gap=$(((close - $(tip)) * 25 * 2 / 3 / ${#BIDDERS[@]}))
   for i in "${!BIDDERS[@]}"; do
     [[ -f "$STATE/bidder-$i.receipt.json" ]] && continue
+    target=$((start + i * gap))
+    [[ $(date +%s) -lt $target ]] && sleep $((target - $(date +%s)))
     read -r deposit price _ <<< "${BIDDERS[$i]}"
     wait_funds "bidder-$i" $((deposit + 20000))
     [[ $(tip) -lt $close ]] || { log "bidding closed before bidder $i"; break; }
@@ -169,30 +173,40 @@ bids() {
       wallet "bidder-$i" bid "$STATE/bidder-$i.receipt.json" "$code" "$escrow" "$deposit" >> "$STATE/log/demo.log"
       log "bidder $i: bid $deposit zat"
     fi
-    sleep "$gap"
   done
+}
+
+reveal_one() { # reveal_one <bidder index> <escrow>
+  local i=$1 price reveal
+  read -r _ price reveal <<< "${BIDDERS[$i]}"
+  if [[ $reveal == skip ]]; then
+    log "bidder $i: does not reveal (deposit comes back in full)"
+  else
+    wait_funds "bidder-$i" $((REVEAL_ZAT + 10000))
+    wallet "bidder-$i" reveal "$STATE/bidder-$i.receipt.json" "$2" >> "$STATE/log/demo.log" || return 1
+    log "bidder $i: revealed $price zat"
+  fi
+  touch "$STATE/bidder-$i.revealed"
 }
 
 reveals() {
   [[ $SEALED == 1 ]] || return 0
-  local escrow close i
+  local escrow close i running=0
   escrow=$(field escrow_ua)
   close=$(field close_height)
   log "waiting for bidding to close at $close"
   wait_height $((close + 1))
+  # Every bidder has its own wallet, so reveals go out in parallel (six at a time).
   for i in "${!BIDDERS[@]}"; do
-    read -r _ price reveal <<< "${BIDDERS[$i]}"
-    [[ -f "$STATE/bidder-$i.revealed" ]] && continue
-    if [[ $reveal == skip ]]; then
-      log "bidder $i: does not reveal (deposit comes back in full)"
-      touch "$STATE/bidder-$i.revealed"
-      continue
+    [[ -f "$STATE/bidder-$i.revealed" || ! -f "$STATE/bidder-$i.receipt.json" ]] && continue
+    reveal_one "$i" "$escrow" &
+    running=$((running + 1))
+    if [[ $running -ge 6 ]]; then
+      wait
+      running=0
     fi
-    wait_funds "bidder-$i" $((REVEAL_ZAT + 10000))
-    wallet "bidder-$i" reveal "$STATE/bidder-$i.receipt.json" "$escrow" >> "$STATE/log/demo.log"
-    touch "$STATE/bidder-$i.revealed"
-    log "bidder $i: revealed $price zat"
   done
+  wait
 }
 
 publish() {

@@ -60,12 +60,14 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
             <div>
               <dt className="text-sm text-muted">Clearing price</dt>
               <dd className="num text-[18px]">
-                {result.clearing_price_zat === null ? "None" : zec(result.clearing_price_zat)}
+                {result.clearing_price_zat === null
+                  ? "None"
+                  : zec(result.clearing_price_zat, result.network)}
               </dd>
             </div>
             <div>
               <dt className="text-sm text-muted">Total volume</dt>
-              <dd className="num text-[18px]">{zec(result.total_volume_zat)}</dd>
+              <dd className="num text-[18px]">{zec(result.total_volume_zat, result.network)}</dd>
             </div>
             <div>
               <dt className="text-sm text-muted">Valid bids</dt>
@@ -102,7 +104,8 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
             <div>
               <dt className="text-muted">Rules</dt>
               <dd>
-                {modeLabel(result.rules.mode)}, reserve {zec(result.rules.reserve_zat)}
+                {modeLabel(result.rules.mode)}, reserve{" "}
+                {zec(result.rules.reserve_zat, result.network)}
               </dd>
             </div>
           </dl>
