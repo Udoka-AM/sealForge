@@ -13,11 +13,14 @@ import {
   Trash2,
   Wallet,
 } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Button } from "@/components/button";
 import { HashChip } from "@/components/hash-chip";
+import { Guilloche } from "@/components/motion/guilloche";
+import { ZecCountUp } from "@/components/motion/zec-count-up";
 import { unit, zec } from "@/lib/format";
 import { listReceipts, type StoredReceipt } from "@/lib/receipts";
 import type { Network } from "@/lib/types";
@@ -54,9 +57,10 @@ function BalanceCard() {
   return (
     <section
       aria-label="Balance"
-      className="relative overflow-hidden rounded-[var(--radius-sheet)] border border-border bg-surface p-6"
+      className="relative overflow-hidden rounded-[var(--radius-sheet)] border border-border bg-surface p-6 shadow-[var(--shadow-lift)]"
     >
-      <p className="flex items-center gap-2 text-sm text-muted">
+      <Guilloche size={300} className="absolute -top-16 -right-20 opacity-50" />
+      <p className="relative flex items-center gap-2 text-sm text-muted">
         <Wallet size={16} aria-hidden="true" /> Spendable
         {network !== "mainnet" ? (
           <span className="rounded-[var(--radius-chip)] border border-border px-2 py-0.5 text-[12px]">
@@ -64,9 +68,11 @@ function BalanceCard() {
           </span>
         ) : null}
       </p>
-      <p className="num mt-2 text-[40px] leading-[48px] tracking-tight">
-        {zec(b.spendable_zat, network)}
-      </p>
+      <ZecCountUp
+        zat={b.spendable_zat}
+        network={network}
+        className="relative mt-2 block text-[44px] leading-[52px] font-medium tracking-tight"
+      />
       <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
         {b.pending_spend_zat > 0 ? (
           <div className="flex gap-1.5">
@@ -85,6 +91,20 @@ function BalanceCard() {
           <dd className="num">{zec(b.total_zat, network)}</dd>
         </div>
       </dl>
+      {sync.running && behind && sync.progress ? (
+        <div className="mt-4 h-1 overflow-hidden rounded-full bg-border" aria-hidden="true">
+          <m.div
+            className="h-full origin-left rounded-full bg-primary"
+            initial={{ scaleX: 0 }}
+            animate={{
+              scaleX:
+                (sync.progress.scanned - summary.birthday) /
+                Math.max(1, sync.progress.tip - summary.birthday),
+            }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          />
+        </div>
+      ) : null}
       <p className="mt-4 text-[13px] text-muted" aria-live="polite">
         {sync.running
           ? behind
@@ -366,41 +386,50 @@ function Activity({ receipts }: { receipts: StoredReceipt[] }) {
           they&rsquo;re on chain.
         </p>
       ) : (
-        <ul className="divide-y divide-border rounded-[var(--radius-card)] border border-border">
-          {items.map((it) => (
-            <li key={it.key} className="flex flex-wrap items-center gap-3 p-4">
-              <span
-                aria-hidden="true"
-                className={`flex size-9 shrink-0 items-center justify-center rounded-full ${
-                  it.kind === "in" ? "bg-success/15 text-success" : "bg-surface-2 text-text"
-                }`}
+        <ul className="divide-y divide-border overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
+          <AnimatePresence initial={false}>
+            {items.map((it) => (
+              <m.li
+                key={it.key}
+                layout="position"
+                initial={{ opacity: 0, y: -8, backgroundColor: "rgba(244,183,40,0.08)" }}
+                animate={{ opacity: 1, y: 0, backgroundColor: "rgba(244,183,40,0)" }}
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                className="flex flex-wrap items-center gap-3 p-4"
               >
-                {it.kind === "in" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">
-                  {it.href ? (
-                    <Link href={it.href} className="hover:text-primary">
-                      {it.title}
-                    </Link>
-                  ) : (
-                    it.title
-                  )}
-                </p>
-                <p className="text-[13px] text-muted">
-                  <TxStatus status={it.status} height={it.height} />
-                  {it.detail ? ` · ${it.detail}` : null}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className={`num ${it.kind === "in" ? "text-success" : ""}`}>
-                  {it.kind === "in" ? "+" : "−"}
-                  {zec(it.amount, network)}
-                </p>
-                <HashChip value={it.txid} label="transaction id" head={6} tail={4} />
-              </div>
-            </li>
-          ))}
+                <span
+                  aria-hidden="true"
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-full ${
+                    it.kind === "in" ? "bg-success/15 text-success" : "bg-surface-2 text-text"
+                  }`}
+                >
+                  {it.kind === "in" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">
+                    {it.href ? (
+                      <Link href={it.href} className="hover:text-primary">
+                        {it.title}
+                      </Link>
+                    ) : (
+                      it.title
+                    )}
+                  </p>
+                  <p className="text-[13px] text-muted">
+                    <TxStatus status={it.status} height={it.height} />
+                    {it.detail ? ` · ${it.detail}` : null}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className={`num ${it.kind === "in" ? "text-success" : ""}`}>
+                    {it.kind === "in" ? "+" : "−"}
+                    {zec(it.amount, network)}
+                  </p>
+                  <HashChip value={it.txid} label="transaction id" head={6} tail={4} />
+                </div>
+              </m.li>
+            ))}
+          </AnimatePresence>
         </ul>
       )}
     </section>

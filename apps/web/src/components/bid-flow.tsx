@@ -13,11 +13,13 @@ import {
   roundingOptions,
 } from "@sealforge/bid";
 import { ArrowLeft, Download, ExternalLink, Wallet } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button, buttonClass } from "@/components/button";
 import { HashChip } from "@/components/hash-chip";
+import { Guilloche } from "@/components/motion/guilloche";
 import { SealMark } from "@/components/seal-mark";
 import { unit } from "@/lib/format";
 import {
@@ -40,12 +42,6 @@ export function BidFlow({ auction }: { auction: AuctionView }) {
   const [stored, setStored] = useState<StoredReceipt | null>(null);
   const [storageFailed, setStorageFailed] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
-
-  // Move focus to the step heading so keyboard and screen reader users follow along.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on purpose whenever the step changes
-  useEffect(() => {
-    heading.current?.focus();
-  }, [step]);
 
   async function sealed(prepared: PreparedBid, walletAddressIndex?: number) {
     const receipt: StoredReceipt = {
@@ -91,33 +87,86 @@ export function BidFlow({ auction }: { auction: AuctionView }) {
         <ArrowLeft size={16} aria-hidden="true" /> {auction.title}
       </Link>
 
-      {step === "amount" ? (
-        <AmountStep auction={auction} heading={heading} onSealed={sealed} />
-      ) : null}
+      <BidSteps step={step} sealedMode={auction.bid_mode === "commit_reveal"} />
 
-      {step === "pay" && bid && stored ? (
-        <PayStep
-          auction={auction}
-          bid={bid}
-          heading={heading}
-          storageFailed={storageFailed}
-          onDownload={download}
-          onChangeAmount={() => setStep("amount")}
-          onSent={() => setStep("sealed")}
-          onPaidFromWallet={paidFromWallet}
-        />
-      ) : null}
+      <AnimatePresence mode="wait" initial={false}>
+        <m.div
+          key={step}
+          initial={{ opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -12, transition: { duration: 0.2 } }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        >
+          {step === "amount" ? (
+            <AmountStep auction={auction} heading={heading} onSealed={sealed} />
+          ) : null}
 
-      {step === "sealed" && stored ? (
-        <SealedStep auction={auction} receipt={stored} heading={heading} onDownload={download} />
-      ) : null}
+          {step === "pay" && bid && stored ? (
+            <PayStep
+              auction={auction}
+              bid={bid}
+              heading={heading}
+              storageFailed={storageFailed}
+              onDownload={download}
+              onChangeAmount={() => setStep("amount")}
+              onSent={() => setStep("sealed")}
+              onPaidFromWallet={paidFromWallet}
+            />
+          ) : null}
+
+          {step === "sealed" && stored ? (
+            <SealedStep
+              auction={auction}
+              receipt={stored}
+              heading={heading}
+              onDownload={download}
+            />
+          ) : null}
+        </m.div>
+      </AnimatePresence>
     </div>
   );
 }
 
 type HeadingRef = React.RefObject<HTMLHeadingElement | null>;
 
+const STEP_LABELS: { key: Step; label: string }[] = [
+  { key: "amount", label: "Your bid" },
+  { key: "pay", label: "Pay" },
+  { key: "sealed", label: "Sealed" },
+];
+
+/** Three steps; the gold fill slides to the current one. */
+function BidSteps({ step, sealedMode }: { step: Step; sealedMode: boolean }) {
+  const index = STEP_LABELS.findIndex((s) => s.key === step);
+  return (
+    <ol className="grid grid-cols-3 gap-2" aria-label="Bid progress">
+      {STEP_LABELS.map((s, i) => (
+        <li key={s.key} className="space-y-1.5">
+          <div className="h-1 overflow-hidden rounded-full bg-border">
+            <m.div
+              className="h-full origin-left rounded-full bg-primary"
+              initial={false}
+              animate={{ scaleX: i <= index ? 1 : 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            />
+          </div>
+          <p className={`text-[12px] ${i === index ? "font-medium text-text" : "text-muted"}`}>
+            {i === 0 && sealedMode ? "Your sealed bid" : s.label}
+            {i === index ? <span className="sr-only"> (current step)</span> : null}
+          </p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function StepHeading({ heading, children }: { heading: HeadingRef; children: React.ReactNode }) {
+  // Each step's heading takes focus when it arrives (after the previous step has
+  // animated out), so keyboard and screen reader users follow along.
+  useEffect(() => {
+    heading.current?.focus();
+  }, [heading]);
   return (
     <h1
       ref={heading}
@@ -581,7 +630,10 @@ function SealedStep({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <SealMark size={64} stamp />
+        <div className="relative flex size-24 shrink-0 items-center justify-center">
+          <Guilloche size={96} className="absolute inset-0" />
+          <SealMark size={64} stamp />
+        </div>
         <div>
           <StepHeading heading={heading}>Bid sealed</StepHeading>
           <p className="text-muted">The price will be public after close. You won&rsquo;t be.</p>

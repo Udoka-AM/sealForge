@@ -11,6 +11,7 @@ import {
   ScanSearch,
   Wallet,
 } from "lucide-react";
+import { m } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ButtonLink, buttonClass } from "@/components/button";
@@ -309,9 +310,16 @@ function Steps({ step: current, sealed }: { step: number; sealed: boolean }) {
       {steps.map((s) => (
         <li key={s.label} className="flex items-center gap-1.5">
           <span
-            className={`h-1.5 w-6 rounded-full sm:w-8 ${s.i < step ? "bg-primary" : s.i === step ? "bg-primary/60" : "bg-border"}`}
+            className="relative h-1.5 w-6 overflow-hidden rounded-full bg-border sm:w-8"
             aria-hidden="true"
-          />
+          >
+            <m.span
+              className={`absolute inset-0 origin-left rounded-full ${s.i === step ? "bg-primary/60" : "bg-primary"}`}
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: s.i <= step ? 1 : 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: 0.06 * s.i }}
+            />
+          </span>
           <span className="sr-only">
             {s.label}: {s.i < step ? "done" : s.i === step ? "current" : "to come"}
           </span>
@@ -353,7 +361,13 @@ function BidCard({
   const [paying, setPaying] = useState(false);
 
   return (
-    <li className="space-y-4 rounded-[var(--radius-card)] border border-border bg-surface p-5 fade-in">
+    <m.li
+      layout="position"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="space-y-4 rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-[var(--shadow-card)]"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <Link
@@ -526,7 +540,7 @@ function BidCard({
           <ExternalLink size={16} aria-hidden="true" /> Auction
         </Link>
       </div>
-    </li>
+    </m.li>
   );
 }
 
@@ -565,9 +579,11 @@ function RefundLine({
             ) : null}
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-border" aria-hidden="true">
-            <div
-              className="h-full rounded-full bg-success transition-[width] duration-500"
-              style={{ width: `${pct}%` }}
+            <m.div
+              className="h-full origin-left rounded-full bg-success"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: (pct ?? 0) / 100 }}
+              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             />
           </div>
         </>

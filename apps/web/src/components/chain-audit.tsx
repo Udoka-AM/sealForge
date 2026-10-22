@@ -1,5 +1,7 @@
 "use client";
 
+import { m } from "motion/react";
+
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/button";
 import { auditWithPayments } from "@/lib/auditor";
@@ -71,7 +73,13 @@ export function ChainAudit({
     }
   }
 
-  const pct = progress ? Math.round((progress.scanned / progress.total) * 100) : 0;
+  // Two phases: scanning blocks, then fetching and decrypting the payments found.
+  const decrypting = progress !== null && progress.scanned >= progress.total && progress.found > 0;
+  const pct = !progress
+    ? 0
+    : decrypting
+      ? Math.round(((progress.decrypted ?? 0) / progress.found) * 100)
+      : Math.round((progress.scanned / progress.total) * 100);
 
   return (
     <div className="space-y-4">
@@ -102,13 +110,19 @@ export function ChainAudit({
               aria-valuenow={pct}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label="Blocks scanned"
+              aria-label={decrypting ? "Payments decrypted" : "Blocks scanned"}
             >
-              <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+              <m.div
+                className="h-full origin-left bg-primary"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: pct / 100 }}
+                transition={{ duration: 0.2, ease: "linear" }}
+              />
             </div>
             <p className="num text-[13px] text-muted">
-              {progress.scanned.toLocaleString("en-US")} of {progress.total.toLocaleString("en-US")}{" "}
-              blocks · {progress.found} transaction(s) to the escrow
+              {decrypting
+                ? `Decrypting payments: ${progress.decrypted ?? 0} of ${progress.found}`
+                : `${progress.scanned.toLocaleString("en-US")} of ${progress.total.toLocaleString("en-US")} blocks · ${progress.found} transaction(s) to the escrow`}
             </p>
           </div>
         ) : null}
