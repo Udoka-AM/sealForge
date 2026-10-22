@@ -94,7 +94,7 @@ Ordered by dependency: core logic → API → UI → refunds.
 | 6.3 | Live mainnet micro-auction | All | PRD Q5, Q6 | Settled auction | ≥ 25 bids, ≥ 3 via ShieldRamp, all refunds confirmed | 6.2 |
 | 6.4 | Outside re-verification | C | Published IVK | Statement or screenshot from an outside auditor | ≥ 1 independent match | 6.3 |
 | 6.5 | Demo video + submission write-up | C | Evidence | ≤ 3-min video, submission text | Reviewed by all owners | 6.3 |
-| 6.6 | Tag `v0.1.0` + release artefacts | A | `main` | GitHub release (CLI binaries, audit page bundle) | Release published | 6.5 |
+| 6.6 | Tag `v0.1.0` + release artefacts | A | `main` | GitHub release (CLI binaries, audit page bundle) | Release published. ✅ [v0.1.0](https://github.com/Udoka-AM/sealForge/releases/tag/v0.1.0): macOS arm64 CLI, browser WASM bundle, SHA256SUMS | 6.5 |
 | 6.7 | Submit | Udoka | Shielded UA for prize | Submission | Submitted **by Oct 27** (hard stop Oct 28 23:59 UTC) | 6.6 |
 
 **Rollback:** frontend via Vercel instant rollback to the previous production deployment. Coordinator via `docker compose` pinned to the previous image tag (`SF_IMAGE_TAG`). The DB is forward-only, so each release must be backward compatible with the previous image. Funds can't be "rolled back": if refunds misbehave, pause the scheduler (`SF_REFUNDS_PAUSED=true`). Trustees refuse to sign until fixed.
