@@ -6,7 +6,7 @@ import { SealMark } from "./seal-mark";
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-bg/80 backdrop-blur-md supports-[backdrop-filter]:bg-bg/65">
-      <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-between gap-x-3 px-4 md:h-14 md:flex-nowrap md:px-6">
+      <div className="container-site flex flex-wrap items-center justify-between gap-x-3 md:h-14 md:flex-nowrap">
         <Link
           href="/"
           className="group inline-flex h-12 items-center gap-2 font-semibold tracking-tight md:h-auto"

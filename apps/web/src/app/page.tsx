@@ -4,13 +4,14 @@ import Link from "next/link";
 import { CoordinatorError } from "@/components/coordinator-error";
 import { HomeHero } from "@/components/home-hero";
 import { ClosingCta } from "@/components/landing/closing-cta";
-import { LeakToSeal, type SealedOutcome } from "@/components/landing/leak-to-seal";
 import type { FeedItem } from "@/components/landing/live-feed";
 import { Marquee } from "@/components/landing/marquee";
 import { type MemoSample, MemoWalkthrough } from "@/components/landing/memo-walkthrough";
 import { Odometer } from "@/components/landing/odometer";
+import { SectionHead } from "@/components/landing/section-head";
+import { type SealedOutcome, ShieldedLedger } from "@/components/landing/shielded-ledger";
 import { type EscrowSample, ViewingKeyDemo } from "@/components/landing/viewing-key-demo";
-import { Reveal, Stagger, StaggerItem } from "@/components/motion/reveal";
+import { Stagger, StaggerItem } from "@/components/motion/reveal";
 import { WindowBar } from "@/components/motion/window-bar";
 import { StatusPill } from "@/components/status-pill";
 import { CoordinatorUnavailable, getChainTip, getResult, listAuctions } from "@/lib/coordinator";
@@ -89,8 +90,10 @@ export default async function HomePage() {
     if (r.clearing_price_zat !== null)
       outcome = {
         title: a.title,
+        unit: unit(net),
         price: zec(r.clearing_price_zat, net),
         bids: a.bid_count ?? null,
+        winners: r.winner_count,
       };
     memo = {
       code: a.code,
@@ -160,27 +163,27 @@ export default async function HomePage() {
         </section>
       ) : null}
 
-      <div id="problem" className="scroll-mt-14">
-        <LeakToSeal outcome={outcome} />
+      <div id="why" className="scroll-mt-[var(--header-h)]">
+        <ShieldedLedger outcome={outcome} />
       </div>
 
       {memo ? <MemoWalkthrough sample={memo} /> : null}
 
       <section id="live" aria-labelledby="live-h" className="scroll-mt-24 space-y-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="space-y-3">
-            <p className="eyebrow">Now</p>
-            <h2 id="live-h" className="display-2">
-              Open for bids
-            </h2>
-          </div>
-          {tip !== null ? (
-            <span className="text-[13px] text-muted">
-              Times are counted in blocks from{" "}
-              <span className="num">{tip.toLocaleString("en-US")}</span>
-            </span>
-          ) : null}
-        </div>
+        <SectionHead
+          index="03"
+          label="Open now"
+          titleId="live-h"
+          title="Open for bids"
+          lead={
+            tip !== null ? (
+              <>
+                Times are counted in blocks from{" "}
+                <span className="num text-text">{tip.toLocaleString("en-US")}</span>.
+              </>
+            ) : undefined
+          }
+        />
         {live.length === 0 && !error ? (
           <EmptyLive />
         ) : (
@@ -198,12 +201,13 @@ export default async function HomePage() {
 
       {past.length > 0 ? (
         <section aria-labelledby="past-h" className="space-y-8">
-          <Reveal className="space-y-3">
-            <p className="eyebrow">On the record</p>
-            <h2 id="past-h" className="display-2">
-              Results
-            </h2>
-          </Reveal>
+          <SectionHead
+            index="05"
+            label="On the record"
+            titleId="past-h"
+            title="Results"
+            lead="Every finished auction links to its chain audit."
+          />
           <Stagger className="divide-y divide-border overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
             {past.map((a) => (
               <StaggerItem key={a.code}>

@@ -38,9 +38,12 @@ export function ViewingKeyDemo({ sample }: { sample: EscrowSample }) {
   const [applied, setApplied] = useState(false);
   return (
     <section aria-labelledby="vk-h" className="full-bleed invert-section py-20 md:py-28">
-      <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-4 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:px-6">
-        <div className="space-y-5">
-          <p className="eyebrow">04 · The audit</p>
+      <div className="container-site grid items-center gap-x-8 gap-y-12 md:grid-cols-12">
+        <div className="space-y-5 md:col-span-5">
+          <p className="eyebrow flex gap-3 border-t border-border pt-5">
+            <span className="text-primary">04</span>
+            <span>Verify</span>
+          </p>
           <h2 id="vk-h" className="display-2">
             Private while you bid. Open to anyone after.
           </h2>
@@ -73,7 +76,7 @@ export function ViewingKeyDemo({ sample }: { sample: EscrowSample }) {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-lift)]">
+        <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-lift)] md:col-span-7">
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 text-sm">
             <span className="font-medium">
               {sample.title} escrow · <span className="num">{sample.total}</span> notes

@@ -196,6 +196,20 @@ body {
   display: none;
 }
 
+/* The site grid: one container that the header, every page and every home section align to. */
+@utility container-site {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 1280px;
+  padding-inline: 16px;
+  @media (width >= 48rem) {
+    padding-inline: 32px;
+  }
+  @media (width >= 80rem) {
+    padding-inline: 40px;
+  }
+}
+
 /* ---- Home page (components/landing) ---- */
 
 /* Full-bleed sections inside the centred column. The page wrapper in app/layout.tsx clips the
@@ -215,7 +229,7 @@ body {
 }
 
 @utility display-1 {
-  font-size: clamp(46px, 7.4vw, 104px);
+  font-size: clamp(44px, 5.8vw, 88px);
   line-height: 0.94;
   font-weight: 700;
   letter-spacing: -0.045em;

@@ -78,9 +78,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="overflow-x-clip">
               <SiteHeader />
               <OfflineBanner />
-              <main className="mx-auto w-full max-w-[1120px] px-4 py-8 md:px-6 md:py-12">
-                {children}
-              </main>
+              <main className="container-site py-8 md:py-12">{children}</main>
             </div>
           </WalletProvider>
         </MotionProvider>

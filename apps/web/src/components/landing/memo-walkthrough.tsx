@@ -4,6 +4,7 @@ import { ArrowUpRight, Check } from "lucide-react";
 import { m, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from "motion/react";
 import Link from "next/link";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { SectionHead } from "./section-head";
 
 export interface MemoSample {
   code: string;
@@ -145,13 +146,16 @@ export function MemoWalkthrough({ sample }: { sample: MemoSample }) {
             : "md:full-bleed md:sticky md:top-[var(--header-h)] md:flex md:h-[calc(100dvh-var(--header-h))] md:flex-col md:justify-center md:overflow-hidden"
         }
       >
-        <div className="md:mx-auto md:w-full md:max-w-[1120px] md:px-6">
-          <div className="space-y-5">
-            <p className="eyebrow">03 · How a bid is built</p>
-            <h2 id="memo-h" className="display-2 max-w-[18ch]">
-              One memo carries the whole bid.
-            </h2>
-            <p className="flex flex-wrap items-center gap-x-0.5 gap-y-1 font-mono text-[12px] md:text-[13px]">
+        <div className="md:container-site">
+          <div className="space-y-6">
+            <SectionHead
+              index="02"
+              label="Anatomy of a bid"
+              titleId="memo-h"
+              title="One memo carries the whole bid."
+              lead={<>A real bid memo from auction {sample.code}, read field by field.</>}
+            />
+            <p className="flex flex-wrap items-center gap-x-0.5 gap-y-1 rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2.5 font-mono text-[12px] md:text-[13px]">
               <span className="sr-only">A sealForge bid memo: </span>
               <Seg on={lit(0)}>SF1</Seg>
               <span className="text-muted">:</span>
@@ -163,10 +167,6 @@ export function MemoWalkthrough({ sample }: { sample: MemoSample }) {
               </Seg>
               <span className="text-muted">:</span>
               <Seg on={lit(2)}>utest1…refund</Seg>
-            </p>
-            <p className="min-h-5 text-[13px] text-muted">
-              <span className="text-text">{panels[active]?.k}.</span> {short(sample.commitment, 4)}{" "}
-              is a real commitment from auction {sample.code}.
             </p>
           </div>
 

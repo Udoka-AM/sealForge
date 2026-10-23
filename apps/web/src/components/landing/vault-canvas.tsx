@@ -60,7 +60,7 @@ function spawn(p?: Particle): Particle {
   const s = Math.sqrt(1 - u * u);
   const q: Particle = p ?? ({} as Particle);
   q.dir = [s * Math.cos(th), u * 0.8, s * Math.sin(th)];
-  q.r0 = rand(70, 120);
+  q.r0 = rand(44, 58); // the field stays inside the frame
   q.t = 0;
   q.speed = rand(0.14, 0.32);
   q.swirl = rand(-0.9, 0.9);
@@ -110,7 +110,7 @@ export function VaultCanvas({ className = "" }: { className?: string }) {
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      scale = Math.min(w, h) / 150;
+      scale = Math.min(w, h) / 112;
     };
     resize();
     const ro = new ResizeObserver(resize);
