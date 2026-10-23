@@ -229,7 +229,7 @@ body {
 }
 
 @utility display-1 {
-  font-size: clamp(44px, 5.8vw, 88px);
+  font-size: clamp(44px, min(5.8vw, 9.6dvh), 88px);
   line-height: 0.94;
   font-weight: 700;
   letter-spacing: -0.045em;
@@ -302,4 +302,24 @@ body {
 /* The opening curtain shows only when the gate script asks for it (components/landing/preloader). */
 html:not(.sf-curtain) [data-curtain] {
   display: none;
+}
+
+/* Indeterminate progress: a short bar sweeping a hairline track. */
+@keyframes scan-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.scan-bar {
+  animation: scan-bar 1.1s var(--ease-in-out) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
 }

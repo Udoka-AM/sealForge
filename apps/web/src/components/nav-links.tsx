@@ -33,12 +33,12 @@ export function NavLinks() {
   }, []);
 
   const items: Item[] = [...ITEMS];
-  if (wallet.status !== "unavailable")
-    items.push({
-      href: "/wallet",
-      label: "Wallet",
-      match: (p) => p.startsWith("/wallet"),
-    });
+  // Always listed: when this deployment can't run the wallet, the page says why.
+  items.push({
+    href: "/wallet",
+    label: "Wallet",
+    match: (p) => p.startsWith("/wallet"),
+  });
   if (organiser)
     items.push({
       href: "/console",

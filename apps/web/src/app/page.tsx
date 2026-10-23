@@ -119,33 +119,35 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-28 md:space-y-40">
-      <HomeHero hasLive={live.length > 0} feed={feed} tip={tip} />
-
-      <div className="full-bleed -mt-16 border-y border-border py-5 md:-mt-28">
-        <Marquee seconds={46}>
-          {[
-            "Zcash",
-            "Ironwood shielded pool",
-            "FROST 2-of-3",
-            "PCZT",
-            "ZIP-321",
-            "librustzcash",
-            "WebAssembly",
-            "BLAKE2b-256",
-            "Merkle proofs",
-            "Viewing keys",
-          ].map((t) => (
-            <span
-              key={t}
-              className="flex items-center gap-8 pr-8 font-mono text-[12px] tracking-[0.16em] whitespace-nowrap text-muted uppercase"
-            >
-              {t}
-              <svg viewBox="0 0 64 64" className="size-2.5 text-primary" aria-hidden="true">
-                <path fill="currentColor" d="M32 4 56.2 18V46L32 60 7.8 46V18Z" />
-              </svg>
-            </span>
-          ))}
-        </Marquee>
+      {/* The hero and the protocol strip share the first screen on a desktop browser. */}
+      <div>
+        <HomeHero hasLive={live.length > 0} feed={feed} tip={tip} />
+        <div className="full-bleed flex h-16 items-center border-y border-border">
+          <Marquee seconds={46}>
+            {[
+              "Zcash",
+              "Ironwood shielded pool",
+              "FROST 2-of-3",
+              "PCZT",
+              "ZIP-321",
+              "librustzcash",
+              "WebAssembly",
+              "BLAKE2b-256",
+              "Merkle proofs",
+              "Viewing keys",
+            ].map((t) => (
+              <span
+                key={t}
+                className="flex items-center gap-8 pr-8 font-mono text-[12px] tracking-[0.16em] whitespace-nowrap text-muted uppercase"
+              >
+                {t}
+                <svg viewBox="0 0 64 64" className="size-2.5 text-primary" aria-hidden="true">
+                  <path fill="currentColor" d="M32 4 56.2 18V46L32 60 7.8 46V18Z" />
+                </svg>
+              </span>
+            ))}
+          </Marquee>
+        </div>
       </div>
 
       {error ? <CoordinatorError message={error} /> : null}

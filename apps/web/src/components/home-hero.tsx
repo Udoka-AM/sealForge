@@ -53,8 +53,9 @@ export function HomeHero({
   });
 
   return (
-    <section className="-mt-8 flex min-h-[calc(100dvh-var(--header-h))] flex-col md:-mt-12">
-      <div className="grid flex-1 items-center gap-x-8 gap-y-10 py-12 md:grid-cols-12 md:py-16">
+    // Sized so the status bar and the protocol strip (64 px, app/page.tsx) end at the fold.
+    <section className="-mt-8 flex min-h-[calc(100dvh-var(--header-h)-64px)] flex-col md:-mt-12">
+      <div className="grid flex-1 items-center gap-x-8 gap-y-10 py-10 md:grid-cols-12 md:py-10">
         <div className="space-y-7 md:col-span-7">
           <m.p {...rise(0)} className="eyebrow">
             Sealed-bid auctions on Zcash
@@ -110,11 +111,11 @@ export function HomeHero({
           transition={{ duration: 1.2, ease: EASE, delay: 0.2 }}
           className="md:col-span-5"
         >
-          <div className="relative mx-auto aspect-square w-full max-w-[400px] md:max-w-[520px]">
+          <div className="relative mx-auto aspect-square w-full max-w-[400px] md:max-w-[min(480px,58dvh)]">
             <Corners />
             <VaultCanvas className="absolute inset-[6%]" />
           </div>
-          <figcaption className="mx-auto mt-3 flex max-w-[400px] justify-between font-mono text-[10.5px] tracking-[0.14em] text-muted uppercase md:max-w-[520px]">
+          <figcaption className="mx-auto mt-3 flex max-w-[400px] justify-between font-mono text-[10.5px] tracking-[0.14em] text-muted uppercase md:max-w-[min(480px,58dvh)]">
             <span>Fig. 1 · Bids entering the escrow</span>
             <span className="hidden sm:inline">2 of 3 to open</span>
           </figcaption>

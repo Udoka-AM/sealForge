@@ -1,21 +1,20 @@
 import type { Metadata } from "next";
+import { PageHead } from "@/components/page-head";
 import { WalletPage } from "@/components/wallet/wallet-page";
 
 export const metadata: Metadata = { title: "Wallet" };
 
 export default function Wallet() {
   return (
-    <div className="mx-auto max-w-[760px] space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-[34px] leading-[38px] font-semibold tracking-[-0.025em] md:text-[40px] md:leading-[44px]">
-          Wallet
-        </h1>
-        <p className="text-muted">
-          A shielded Zcash wallet for bidding, built into this page. Fund it once, pay bids in a
-          tap, and watch refunds arrive at a fresh address for every bid.
-        </p>
+    <div className="space-y-12">
+      <PageHead
+        label="Wallet"
+        title="A shielded wallet, in your browser."
+        lead="Create one or link the wallet you already use. Pay bids in a tap; refunds arrive at a fresh address for every bid."
+      />
+      <div className="max-w-[760px]">
+        <WalletPage />
       </div>
-      <WalletPage />
     </div>
   );
 }

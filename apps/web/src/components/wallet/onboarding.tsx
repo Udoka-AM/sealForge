@@ -49,9 +49,10 @@ export function Onboarding() {
           <span className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-surface-2 text-muted transition-colors duration-150 group-hover:text-text">
             <RotateCcw size={18} aria-hidden="true" />
           </span>
-          <span className="block font-medium">Restore from a phrase</span>
+          <span className="block font-medium">Link an existing wallet</span>
           <span className="block text-sm text-muted">
-            Bring back a sealForge wallet you made on another device.
+            Import the 24-word recovery phrase from Zashi, Zodl or another Zcash wallet, or a
+            sealForge wallet from another device.
           </span>
         </button>
       </div>
@@ -393,7 +394,7 @@ function RestoreWallet({ onBack }: { onBack: () => void }) {
         e.preventDefault();
         setError(null);
         const words = phrase.trim().split(/\s+/);
-        if (words.length !== 24) return setError("A sealForge recovery phrase has 24 words.");
+        if (words.length !== 24) return setError("A recovery phrase has 24 words.");
         if (!(await walletTools.phraseIsValid(phrase)))
           return setError("That phrase isn't valid: check each word and the order.");
         const problem = passphraseProblem(passphrase, confirm);
@@ -418,7 +419,12 @@ function RestoreWallet({ onBack }: { onBack: () => void }) {
       }}
     >
       <BackButton onBack={onBack} />
-      <h2 className="text-[20px] font-semibold tracking-tight">Restore your wallet</h2>
+      <h2 className="text-[20px] font-semibold tracking-tight">Link an existing wallet</h2>
+      <p className="rounded-[var(--radius-control)] border border-border bg-surface p-3 text-sm text-muted">
+        Works with wallets that use a 24-word phrase and the standard first account (ZIP 32 account
+        0). Here you&rsquo;ll see Orchard and Ironwood funds and can spend Ironwood funds; Sapling
+        and transparent funds stay in your other wallet. The phrase never leaves this browser.
+      </p>
       <div className="space-y-1.5">
         <label htmlFor={`${id}-phrase`} className="block text-sm font-medium">
           Recovery phrase
@@ -487,7 +493,7 @@ function RestoreWallet({ onBack }: { onBack: () => void }) {
       ) : null}
       <Button type="submit" size="lg" className="w-full" disabled={busy}>
         {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : null}
-        {busy ? "Restoring…" : "Restore wallet"}
+        {busy ? "Linking…" : "Link wallet"}
       </Button>
     </form>
   );
