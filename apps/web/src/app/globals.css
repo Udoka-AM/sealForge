@@ -26,6 +26,16 @@
   color-scheme: dark;
 }
 
+/* Height of the sticky site header: two rows on phones, one from md up. Pinned scenes sit below it. */
+:root {
+  --header-h: 89px;
+}
+@media (min-width: 768px) {
+  :root {
+    --header-h: 57px;
+  }
+}
+
 /* Motion tokens (one lane for the whole app: tween + these curves). */
 :root {
   --motion-fast: 120ms;
@@ -184,4 +194,132 @@ body {
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* The site grid: one container that the header, every page and every home section align to. */
+@utility container-site {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 1280px;
+  padding-inline: 16px;
+  @media (width >= 48rem) {
+    padding-inline: 32px;
+  }
+  @media (width >= 80rem) {
+    padding-inline: 40px;
+  }
+}
+
+/* ---- Home page (components/landing) ---- */
+
+/* Full-bleed sections inside the centred column. The page wrapper in app/layout.tsx clips the
+   100vw overshoot (on <body> the clip would pass to the viewport instead). */
+@utility full-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+}
+
+/* Small mono label above a section heading. */
+@utility eyebrow {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+@utility display-1 {
+  font-size: clamp(44px, min(5.8vw, 9.6dvh), 88px);
+  line-height: 0.94;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+}
+@utility display-2 {
+  font-size: clamp(32px, 4.4vw, 56px);
+  line-height: 1.02;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+/* Outlined display text for the closing marquee. */
+@utility text-outline {
+  color: transparent;
+  -webkit-text-stroke: 1px var(--text-muted);
+}
+
+/* The inverted (bone) band: a light palette inside the dark page, and the reverse in light mode. */
+.invert-section {
+  --bg: #f1eee6;
+  --surface: #fbfaf6;
+  --surface-2: #e9e5da;
+  --border: #d9d4c6;
+  --text: #121417;
+  --text-muted: #565c64;
+  --primary: #a87808;
+  --shadow-card: 0 1px 2px rgb(22 24 28 / 0.06), 0 8px 24px -14px rgb(22 24 28 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(22 24 28 / 0.08), 0 24px 48px -20px rgb(22 24 28 / 0.32);
+  background: var(--bg);
+  color: var(--text);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .invert-section {
+    --bg: #0b0d10;
+    --surface: #13161b;
+    --surface-2: #1b1f26;
+    --border: #262b33;
+    --text: #eceae4;
+    --text-muted: #9aa0a9;
+    --primary: #f4b728;
+    color-scheme: dark;
+  }
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee {
+  animation: marquee 40s linear infinite;
+}
+@keyframes hex-rain {
+  to {
+    transform: translateY(-50%);
+  }
+}
+.hex-rain {
+  animation: hex-rain 28s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee,
+  .hex-rain {
+    animation: none;
+  }
+}
+
+/* The opening curtain shows only when the gate script asks for it (components/landing/preloader). */
+html:not(.sf-curtain) [data-curtain] {
+  display: none;
+}
+
+/* Indeterminate progress: a short bar sweeping a hairline track. */
+@keyframes scan-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.scan-bar {
+  animation: scan-bar 1.1s var(--ease-in-out) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
 }

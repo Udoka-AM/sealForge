@@ -1,96 +1,143 @@
 "use client";
 
-import { ArrowRight, ScanSearch } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { m } from "motion/react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { CURTAIN_EVENT, curtainUp } from "@/lib/curtain";
 import { ButtonLink } from "./button";
-import { Guilloche } from "./motion/guilloche";
-import { DURATION, EASE_OUT } from "./motion/motion-provider";
-import { SealMark } from "./seal-mark";
+import { type FeedItem, HeroStatusBar } from "./landing/live-feed";
+import { VaultCanvas } from "./landing/vault-canvas";
 
-export interface Proof {
-  code: string;
-  title: string;
-  bids: number | null;
-  status: string;
+const LINES = [
+  { text: "Sealed bids.", gold: false },
+  { text: "Public price.", gold: false },
+  { text: "Private bidders.", gold: true },
+];
+
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+/**
+ * The home hero on the 12-column grid: the promise in seven columns, the seal as a framed 3D
+ * figure in five, and a ruled status bar along the base. The entrance waits for the opening
+ * curtain when it shows.
+ */
+export function HomeHero({
+  hasLive,
+  feed,
+  tip,
+}: {
+  hasLive: boolean;
+  feed: FeedItem[];
+  tip: number | null;
+}) {
+  const [go, setGo] = useState(false);
+  useEffect(() => {
+    if (curtainUp()) {
+      setGo(true);
+      return;
+    }
+    const on = () => setGo(true);
+    window.addEventListener(CURTAIN_EVENT, on, { once: true });
+    // Never leave the hero hidden if the event is missed.
+    const t = setTimeout(on, 2200);
+    return () => {
+      window.removeEventListener(CURTAIN_EVENT, on);
+      clearTimeout(t);
+    };
+  }, []);
+
+  const rise = (i: number) => ({
+    initial: { opacity: 0, y: 16 },
+    animate: go ? { opacity: 1, y: 0 } : undefined,
+    transition: { duration: 0.8, ease: EASE, delay: 0.35 + i * 0.08 },
+  });
+
+  return (
+    // Sized so the status bar and the protocol strip (64 px, app/page.tsx) end at the fold.
+    <section className="-mt-8 flex min-h-[calc(100dvh-var(--header-h)-64px)] flex-col md:-mt-12">
+      <div className="grid flex-1 items-center gap-x-8 gap-y-10 py-10 md:grid-cols-12 md:py-10">
+        <div className="space-y-7 md:col-span-7">
+          <m.p {...rise(0)} className="eyebrow">
+            Sealed-bid auctions on Zcash
+          </m.p>
+          <h1 className="display-1">
+            {LINES.map((l, i) => (
+              <span key={l.text} className="block overflow-hidden pb-[0.06em]">
+                <m.span
+                  className={`block ${l.gold ? "text-primary" : ""}`}
+                  initial={{ y: "110%" }}
+                  animate={go ? { y: "0%" } : undefined}
+                  transition={{ duration: 1, ease: EASE, delay: 0.1 + i * 0.1 }}
+                >
+                  {l.text}
+                </m.span>
+              </span>
+            ))}
+          </h1>
+          <m.p
+            {...rise(1)}
+            className="max-w-[44ch] text-[17px] leading-7 text-muted md:text-[18px]"
+          >
+            Bid from any Zcash wallet. Nobody sees who bid, or how much, and anyone can recompute
+            the result from the chain.
+          </m.p>
+          <m.div {...rise(2)} className="flex flex-wrap gap-2">
+            <ButtonLink href={hasLive ? "#live" : "/how-it-works"} size="lg" className="group">
+              {hasLive ? "Place a sealed bid" : "See how it works"}
+              <ArrowRight
+                size={18}
+                aria-hidden="true"
+                className="transition-transform duration-200 group-hover:translate-x-0.5"
+              />
+            </ButtonLink>
+            <ButtonLink href="/console" size="lg" variant="secondary">
+              Run your own auction
+            </ButtonLink>
+          </m.div>
+          <m.ul
+            {...rise(3)}
+            className="flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px] tracking-[0.16em] text-muted uppercase"
+          >
+            <li>Zcash Ironwood</li>
+            <li>FROST 2-of-3 escrow</li>
+            <li>ZIP-321</li>
+            <li>Open source</li>
+          </m.ul>
+        </div>
+
+        <m.figure
+          initial={{ opacity: 0 }}
+          animate={go ? { opacity: 1 } : undefined}
+          transition={{ duration: 1.2, ease: EASE, delay: 0.2 }}
+          className="md:col-span-5"
+        >
+          <div className="relative mx-auto aspect-square w-full max-w-[400px] md:max-w-[min(480px,58dvh)]">
+            <Corners />
+            <VaultCanvas className="absolute inset-[6%]" />
+          </div>
+          <figcaption className="mx-auto mt-3 flex max-w-[400px] justify-between font-mono text-[10.5px] tracking-[0.14em] text-muted uppercase md:max-w-[min(480px,58dvh)]">
+            <span>Fig. 1 · Bids entering the escrow</span>
+            <span className="hidden sm:inline">2 of 3 to open</span>
+          </figcaption>
+        </m.figure>
+      </div>
+
+      <m.div {...rise(4)}>
+        <HeroStatusBar items={feed} initialTip={tip} />
+      </m.div>
+    </section>
+  );
 }
 
-const rise = (delay: number) => ({
-  initial: { opacity: 0, y: 14 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: DURATION.slow + 0.1, ease: EASE_OUT, delay },
-});
-
-/** The home hero: promise on the left, the seal in its security-print rosette on the right. */
-export function HomeHero({ proof, hasLive }: { proof: Proof | null; hasLive: boolean }) {
+/** Registration marks at the four corners of the figure. */
+function Corners() {
+  const c = "absolute size-4 border-border";
   return (
-    <section className="relative grid items-center gap-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-      <div className="relative z-10 space-y-5">
-        <m.h1
-          {...rise(0)}
-          className="text-[40px] leading-[44px] font-semibold tracking-[-0.03em] text-balance md:text-[58px] md:leading-[60px]"
-        >
-          Sealed bids.
-          <br />
-          Public price.
-          <br />
-          <span className="text-primary">Private bidders.</span>
-        </m.h1>
-        <m.p {...rise(0.08)} className="max-w-[46ch] text-[17px] leading-7 text-muted">
-          Auctions on Zcash where nobody sees who bid, and anyone can recompute the result from the
-          chain.
-        </m.p>
-        <m.div {...rise(0.16)} className="flex flex-wrap gap-2 pt-1">
-          <ButtonLink href={hasLive ? "#live" : "/how-it-works"} size="lg" className="group">
-            {hasLive ? "Place a sealed bid" : "See how it works"}
-            <ArrowRight
-              size={18}
-              aria-hidden="true"
-              className="transition-transform duration-200 group-hover:translate-x-0.5"
-            />
-          </ButtonLink>
-          <ButtonLink href="/console" size="lg" variant="secondary">
-            Seal your own auction
-          </ButtonLink>
-        </m.div>
-      </div>
-
-      <div className="relative mx-auto flex aspect-square w-full max-w-[460px] items-center justify-center">
-        <Guilloche size={460} className="absolute inset-0 size-full" />
-        <m.div
-          initial={{ opacity: 0, scale: 1.18, rotate: -8 }}
-          animate={{ opacity: 1, scale: 1, rotate: 0 }}
-          transition={{ duration: DURATION.medium, ease: EASE_OUT, delay: 1.1 }}
-          className="relative drop-shadow-[0_10px_24px_rgba(217,87,59,0.35)]"
-        >
-          <SealMark size={112} />
-        </m.div>
-        {proof ? (
-          <m.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: DURATION.slow, ease: EASE_OUT, delay: 1.35 }}
-            className="absolute right-0 bottom-6 left-auto w-[230px] rounded-[var(--radius-card)] border border-border bg-surface/90 p-3.5 text-sm shadow-[var(--shadow-lift)] backdrop-blur-sm md:-right-2"
-          >
-            <p className="text-[12px] text-muted">Latest result</p>
-            <p className="truncate font-medium">{proof.title}</p>
-            <p className="text-[13px] text-muted">
-              {proof.bids !== null ? (
-                <>
-                  <span className="num text-text">{proof.bids}</span> sealed bids ·{" "}
-                </>
-              ) : null}
-              {proof.status === "settled" ? "settled" : "result published"}
-            </p>
-            <Link
-              href={`/audit/${proof.code}`}
-              className="mt-2 inline-flex items-center gap-1.5 text-[13px] text-primary hover:underline"
-            >
-              <ScanSearch size={14} aria-hidden="true" /> Recompute it yourself
-            </Link>
-          </m.div>
-        ) : null}
-      </div>
-    </section>
+    <span aria-hidden="true">
+      <span className={`${c} top-0 left-0 border-t border-l`} />
+      <span className={`${c} top-0 right-0 border-t border-r`} />
+      <span className={`${c} bottom-0 left-0 border-b border-l`} />
+      <span className={`${c} right-0 bottom-0 border-r border-b`} />
+    </span>
   );
 }

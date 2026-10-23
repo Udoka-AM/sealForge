@@ -1,167 +1,170 @@
-import { Eye, EyeOff, KeyRound, ScanSearch, Shuffle, Stamp } from "lucide-react";
-import Link from "next/link";
+import {
+  ArrowUpRight,
+  Eye,
+  EyeOff,
+  FileSearch,
+  KeyRound,
+  ScanSearch,
+  Shuffle,
+  Stamp,
+} from "lucide-react";
 import type { ReactNode } from "react";
-import { Guilloche } from "@/components/motion/guilloche";
-import { Reveal } from "@/components/motion/reveal";
+import { ButtonLink } from "@/components/button";
+import { SectionHead } from "@/components/landing/section-head";
+import { Reveal, Stagger, StaggerItem } from "@/components/motion/reveal";
+import { PageHead } from "@/components/page-head";
+import { StepTimeline } from "@/components/step-timeline";
 
 export const metadata = { title: "How it works" };
-
-const h2 = "text-[22px] leading-7 font-semibold tracking-tight";
-
-function Step({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
-  return (
-    <li className="relative grid grid-cols-[40px_minmax(0,1fr)] gap-x-4 gap-y-1 pb-8 last:pb-0 [&:last-child>span:first-child]:hidden">
-      {/* The rail between steps. */}
-      <span aria-hidden="true" className="absolute top-11 bottom-1 left-5 w-px bg-border" />
-      <span
-        className="relative z-10 inline-flex size-10 items-center justify-center rounded-full border border-border bg-surface text-primary shadow-[var(--shadow-card)]"
-        aria-hidden="true"
-      >
-        {icon}
-      </span>
-      <h3 className="self-center font-semibold">{title}</h3>
-      <p className="col-start-2 leading-7 text-muted">{children}</p>
-    </li>
-  );
-}
 
 /** S17: the threat model in plain words. The full version is docs/THREAT-MODEL.md. */
 export default function HowItWorksPage() {
   return (
-    <div className="max-w-[720px] space-y-12">
-      <header className="relative space-y-3">
-        <Guilloche
-          size={360}
-          className="absolute -top-24 -right-40 -z-10 hidden opacity-50 md:block"
+    <div className="space-y-24 md:space-y-32">
+      <PageHead
+        label="How it works"
+        title="Private while you bid. Provable after."
+        lead="A sealed-bid auction where the price is public, the bidders aren't, and you don't have to trust the organiser or us."
+      />
+
+      <section aria-labelledby="flow-h" className="space-y-12">
+        <SectionHead
+          index="01"
+          label="Step by step"
+          titleId="flow-h"
+          title="An auction in four moves."
         />
-        <h1 className="text-[40px] leading-[44px] font-semibold tracking-[-0.03em] md:text-[52px] md:leading-[54px]">
-          How it works
-        </h1>
-        <p className="text-muted">
-          A sealed-bid auction where the price is public, the bidders aren&rsquo;t, and you
-          don&rsquo;t have to trust the organiser or us. Here&rsquo;s what happens, what stays
-          private, and what doesn&rsquo;t.
-        </p>
-      </header>
+        <StepTimeline
+          steps={[
+            {
+              icon: <KeyRound size={18} />,
+              title: "Three trustees hold the escrow",
+              body: "They generate the escrow key together, each on their own machine. Any two sign refunds and the payout; one alone can't, and the server holds no key.",
+            },
+            {
+              icon: <Stamp size={18} />,
+              title: "You bid with a shielded payment",
+              body: "One QR code, any Zcash wallet. The memo holds a sealed commitment and a fresh refund address. Your receipt is made in your browser.",
+            },
+            {
+              icon: <ScanSearch size={18} />,
+              title: "After close, anyone checks it",
+              body: "The organiser publishes the price, every outcome, a Merkle root and the escrow's viewing key. Anyone can rescan the chain and recompute it.",
+            },
+            {
+              icon: <Shuffle size={18} />,
+              title: "Refunds come back in pieces",
+              body: "What you didn't spend returns as standard-sized notes at random times, mixed with other bidders' refunds, so they can't be matched to you.",
+            },
+          ]}
+        />
+      </section>
 
-      <Reveal as="section" className="space-y-6">
-        <h2 id="flow" className={h2}>
-          An auction, step by step
-        </h2>
-        <ol className="space-y-6">
-          <Step icon={<KeyRound size={18} />} title="Three trustees hold the escrow">
-            Before bidding opens, three trustees generate the escrow key together, each on their own
-            machine. Any two of them can sign refunds and the payout; one alone can&rsquo;t, and the
-            auction server holds no key at all.
-          </Step>
-          <Step icon={<Stamp size={18} />} title="You bid with a shielded payment">
-            You scan one QR code with any Zcash wallet. The payment goes to the escrow in
-            Zcash&rsquo;s shielded pool, with a memo holding a sealed commitment and a fresh refund
-            address. Your receipt is created in your browser and never sent to us.
-          </Step>
-          <Step icon={<ScanSearch size={18} />} title="After close, anyone can check the result">
-            The organiser publishes the clearing price, every bid&rsquo;s outcome, a Merkle root and
-            the escrow&rsquo;s viewing key. With that key, anyone can rescan the chain and recompute
-            the result. If a single number differs, the audit fails. Your receipt proves your own
-            bid was counted.
-          </Step>
-          <Step icon={<Shuffle size={18} />} title="Refunds come back in pieces, on purpose">
-            Whatever you didn&rsquo;t spend comes back as several standard-sized notes, released at
-            random times over a few hours and mixed with other bidders&rsquo; refunds, so they
-            can&rsquo;t be matched to your bid.
-          </Step>
-        </ol>
-      </Reveal>
-
-      <Reveal as="section" className="space-y-4">
-        <h2 id="private" className={h2}>
-          What stays private
-        </h2>
-        <ul className="space-y-3">
-          <li className="flex gap-3">
-            <EyeOff size={18} aria-hidden="true" className="mt-1 shrink-0 text-success" />
-            <span>
-              <span className="font-medium">Who bid.</span>{" "}
-              <span className="text-muted">
-                The published viewing key shows amounts and memos arriving at the escrow, never who
-                sent them.
-              </span>
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <EyeOff size={18} aria-hidden="true" className="mt-1 shrink-0 text-success" />
-            <span>
-              <span className="font-medium">Bid amounts, until close.</span>{" "}
-              <span className="text-muted">
-                The public sees nothing while bidding is open. In auctions marked{" "}
-                <em>sealed reveal</em>, nobody sees amounts at all, not even the trustees: you
-                deposit a standard budget and reveal your bid after the close.
-              </span>
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <EyeOff size={18} aria-hidden="true" className="mt-1 shrink-0 text-success" />
-            <span>
-              <span className="font-medium">Where your refund goes.</span>{" "}
-              <span className="text-muted">
-                Refunds go to the fresh address in your memo, in pieces that blend in with everyone
-                else&rsquo;s.
-              </span>
-            </span>
-          </li>
-        </ul>
-      </Reveal>
-
-      <Reveal as="section" className="space-y-4">
-        <h2 id="not-private" className={h2}>
-          What doesn&rsquo;t
-        </h2>
-        <ul className="space-y-3">
-          <li className="flex gap-3">
-            <Eye size={18} aria-hidden="true" className="mt-1 shrink-0 text-warning" />
-            <span className="text-muted">
-              <span className="font-medium text-text">
-                In ordinary auctions, the trustees and the auction server see bid amounts while
-                bidding is open.
-              </span>{" "}
-              The auction page says which kind of auction it is.
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <Eye size={18} aria-hidden="true" className="mt-1 shrink-0 text-warning" />
-            <span className="text-muted">
-              <span className="font-medium text-text">After close, amounts are public</span>, so
-              anyone can check the price. They aren&rsquo;t linked to you.
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <Eye size={18} aria-hidden="true" className="mt-1 shrink-0 text-warning" />
-            <span className="text-muted">
-              <span className="font-medium text-text">Your own wallet&rsquo;s history.</span> If you
-              reuse a refund address or move refunds out all at once, you can undo the mixing
+      <section aria-labelledby="privacy-h" className="space-y-12">
+        <SectionHead
+          index="02"
+          label="Privacy, honestly"
+          titleId="privacy-h"
+          title="What stays private, and what doesn't."
+        />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Panel tone="private" title="Private">
+            <Fact title="Who bid.">
+              The published viewing key shows amounts and memos arriving at the escrow, never who
+              sent them.
+            </Fact>
+            <Fact title="Bid amounts, until close.">
+              The public sees nothing while bidding is open. In <em>sealed reveal</em> auctions,
+              nobody sees amounts, not even the trustees, until you reveal after the close.
+            </Fact>
+            <Fact title="Where your refund goes.">
+              Refunds go to the fresh address in your memo, in pieces that blend in with everyone
+              else&rsquo;s.
+            </Fact>
+          </Panel>
+          <Panel tone="public" title="Not private">
+            <Fact title="Amounts in ordinary auctions, to the operators.">
+              The trustees and the auction server see bid amounts while bidding is open. The auction
+              page says which kind of auction it is.
+            </Fact>
+            <Fact title="Amounts after close.">
+              They&rsquo;re published so anyone can check the price. They aren&rsquo;t linked to
+              you.
+            </Fact>
+            <Fact title="Your own wallet’s habits.">
+              Reuse a refund address or move all your refunds at once, and you can undo the mixing
               yourself.
-            </span>
-          </li>
-        </ul>
-      </Reveal>
+            </Fact>
+          </Panel>
+        </div>
+      </section>
 
-      <Reveal as="section" className="space-y-3">
-        <h2 id="check" className={h2}>
-          Check us
-        </h2>
-        <p className="text-muted">
-          Every published auction has an{" "}
-          <Link href="/" className="text-text underline">
-            audit page
-          </Link>
-          . For a check that trusts nothing on this site, run the open-source auditor against any
-          Zcash node you choose. The full threat model, security review and evidence are in{" "}
-          <a href="https://github.com/Udoka-AM/sealForge" className="text-text underline">
-            the repository
-          </a>
-          .
-        </p>
+      <Reveal
+        as="section"
+        className="grid items-center gap-8 rounded-[var(--radius-card)] border border-border bg-surface p-7 md:grid-cols-12 md:p-10"
+      >
+        <div className="space-y-3 md:col-span-7">
+          <p className="eyebrow flex gap-3">
+            <span className="text-primary">03</span> Check us
+          </p>
+          <h2 className="display-2">Don&rsquo;t take our word for it.</h2>
+          <p className="max-w-[52ch] text-muted">
+            Every published auction has an audit page. For a check that trusts nothing on this site,
+            run the open-source auditor against any Zcash node you choose.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 md:col-span-5 md:justify-end">
+          <ButtonLink href="/#live" size="lg" className="group">
+            <FileSearch size={18} aria-hidden="true" /> Audit an auction
+          </ButtonLink>
+          <ButtonLink
+            href="https://github.com/Udoka-AM/sealForge"
+            size="lg"
+            variant="secondary"
+            className="group"
+          >
+            Threat model
+            <ArrowUpRight
+              size={16}
+              aria-hidden="true"
+              className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            />
+          </ButtonLink>
+        </div>
       </Reveal>
     </div>
+  );
+}
+
+function Panel({
+  tone,
+  title,
+  children,
+}: {
+  tone: "private" | "public";
+  title: string;
+  children: ReactNode;
+}) {
+  const Icon = tone === "private" ? EyeOff : Eye;
+  return (
+    <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
+      <p
+        className={`flex items-center gap-2 border-b border-border px-5 py-3 font-mono text-[11px] tracking-[0.16em] uppercase ${
+          tone === "private" ? "text-success" : "text-warning"
+        }`}
+      >
+        <Icon size={14} aria-hidden="true" /> {title}
+      </p>
+      <Stagger className="divide-y divide-border">{children}</Stagger>
+    </div>
+  );
+}
+
+function Fact({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <StaggerItem className="px-5 py-4 text-[15px] leading-6">
+      <span className="block font-medium">{title}</span>
+      <span className="text-muted">{children}</span>
+    </StaggerItem>
   );
 }

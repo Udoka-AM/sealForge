@@ -1,8 +1,15 @@
 "use client";
 
 import { formatZec, type Receipt } from "@sealforge/bid";
-import { CircleAlert, CircleCheck, Upload } from "lucide-react";
-import { m } from "motion/react";
+import {
+  CircleAlert,
+  CircleCheck,
+  FileJson,
+  LoaderCircle,
+  ShieldCheck,
+  Upload,
+} from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { HashChip } from "@/components/hash-chip";
@@ -27,6 +34,8 @@ export function VerifyReceipt() {
   const fileId = useId();
   const [saved, setSaved] = useState<StoredReceipt[]>([]);
   const [state, setState] = useState<State>({ kind: "idle" });
+  const [dragging, setDragging] = useState(false);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
 
   useEffect(() => {
     listReceipts()
@@ -35,6 +44,7 @@ export function VerifyReceipt() {
   }, []);
 
   async function verify(receipt: Loaded) {
+    setCheckingId(receipt.commitment);
     setState({ kind: "checking" });
     try {
       const res = await fetch(`/api/auctions/${encodeURIComponent(receipt.auction_code)}/result`);
@@ -49,6 +59,8 @@ export function VerifyReceipt() {
       setState({ kind: "done", check, result, receipt });
     } catch {
       setState({ kind: "error", message: "Verification failed to run in this browser." });
+    } finally {
+      setCheckingId(null);
     }
   }
 
@@ -68,35 +80,77 @@ export function VerifyReceipt() {
       <section className="space-y-3">
         {saved.length > 0 ? (
           <>
-            <h2 className="text-[18px] leading-6 font-semibold">Receipts on this device</h2>
-            <ul className="divide-y divide-border border-y border-border">
-              {saved.map((r) => (
-                <li key={r.commitment} className="flex items-center justify-between gap-3 py-3">
-                  <span className="min-w-0">
-                    <span className="block truncate">{r.title}</span>
-                    <span className="num text-sm text-muted">
-                      {zec(r.amount_zat, networkOfUa(r.refund_ua))}
+            <h2 className="eyebrow">Receipts on this device</h2>
+            <ul className="divide-y divide-border overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
+              {saved.map((r, i) => (
+                <m.li
+                  key={r.commitment}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: 0.2 + i * 0.06 }}
+                  className="group flex items-center justify-between gap-3 px-4 py-3.5 transition-colors duration-150 hover:bg-surface-2"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-bg text-muted transition-colors duration-150 group-hover:text-primary">
+                      <FileJson size={16} aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">{r.title}</span>
+                      <span className="num text-[13px] text-muted">
+                        {zec(r.amount_zat, networkOfUa(r.refund_ua))} · {r.auction_code}
+                      </span>
                     </span>
                   </span>
                   <button
                     type="button"
                     onClick={() => verify(r)}
-                    className="h-10 shrink-0 rounded-[var(--radius-control)] border border-border px-4 text-sm transition-[border-color] duration-150 hover:border-primary"
+                    disabled={checkingId !== null}
+                    className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[var(--radius-control)] border border-border px-4 text-sm transition-[border-color,background-color] duration-150 hover:border-primary disabled:opacity-60"
                   >
+                    {checkingId === r.commitment ? (
+                      <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <ShieldCheck size={15} aria-hidden="true" />
+                    )}
                     Check
                   </button>
-                </li>
+                </m.li>
               ))}
             </ul>
           </>
         ) : null}
         <label
           htmlFor={fileId}
-          className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-card)] border border-dashed border-border p-5 text-sm transition-[border-color] duration-150 hover:border-muted focus-within:border-primary"
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            const f = e.dataTransfer.files?.[0];
+            if (f) void fromFile(f);
+          }}
+          className={`group flex cursor-pointer items-center gap-4 rounded-[var(--radius-card)] border border-dashed p-5 text-sm transition-[border-color,background-color] duration-200 focus-within:border-primary hover:border-muted ${
+            dragging ? "border-primary bg-primary/5" : "border-border"
+          }`}
         >
-          <Upload size={18} aria-hidden="true" className="text-muted" />
+          <m.span
+            animate={dragging ? { y: -3, scale: 1.06 } : { y: 0, scale: 1 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className={`inline-flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${
+              dragging
+                ? "border-primary text-primary"
+                : "border-border text-muted group-hover:text-text"
+            }`}
+          >
+            <Upload size={18} aria-hidden="true" />
+          </m.span>
           <span>
-            <span className="font-medium">Load a receipt file</span>
+            <span className="font-medium">
+              {dragging ? "Drop it here" : "Load or drop a receipt file"}
+            </span>
             <span className="block text-muted">
               sealforge-receipt-….json. It&rsquo;s read in your browser, not uploaded.
             </span>
@@ -116,9 +170,24 @@ export function VerifyReceipt() {
       </section>
 
       <section aria-live="polite">
-        {state.kind === "checking" ? (
-          <p className="text-muted">Checking inclusion against the published result…</p>
-        ) : null}
+        <AnimatePresence>
+          {state.kind === "checking" ? (
+            <m.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="space-y-3 rounded-[var(--radius-card)] border border-border bg-surface p-5"
+            >
+              <p className="flex items-center gap-2 text-sm">
+                <LoaderCircle size={16} className="animate-spin text-primary" aria-hidden="true" />
+                Checking your receipt against the published result…
+              </p>
+              <div className="relative h-px overflow-hidden bg-border">
+                <span className="scan-bar absolute inset-y-0 w-1/3 bg-primary" />
+              </div>
+            </m.div>
+          ) : null}
+        </AnimatePresence>
         {state.kind === "error" ? (
           <p role="alert" className="text-danger">
             {state.message}
