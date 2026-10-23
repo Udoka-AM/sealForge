@@ -43,6 +43,8 @@ Limits of laptop hosting: the URLs change on every start, nothing is served whil
 
 ## Deploy (task 6.2)
 
+For the hosted testnet site on a single VPS (systemd, Cloudflare Tunnel, moving the data off the laptop), follow [docs/DEPLOY-VPS.md](../docs/DEPLOY-VPS.md). The compose deploy below is the full-node layout.
+
 ```bash
 docker compose -f infra/docker-compose.yml --profile node --profile app pull
 docker compose -f infra/docker-compose.yml --profile node --profile app up -d

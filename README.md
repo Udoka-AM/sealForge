@@ -73,7 +73,7 @@ Bidders check their own bid at `/verify` by dropping their receipt file: inclusi
 
 Design: a dark, gold-accented system on IBM Plex, one 12-column grid, and motion that carries meaning (blocks ticking, seals stamping, proofs resolving). Motion is built with [Motion](https://motion.dev) and a plain 2D canvas, pauses off-screen, and every scroll scene has a still version for `prefers-reduced-motion`. Figures on the site come from the coordinator or the chain; the two illustrations are labelled.
 
-To run the whole thing locally, on a private chain: [docs/QUICKSTART.md](docs/QUICKSTART.md) and [infra/regtest/README.md](infra/regtest/README.md).
+To run the whole thing locally, on a private chain: [docs/QUICKSTART.md](docs/QUICKSTART.md) and [infra/regtest/README.md](infra/regtest/README.md). To host it on a server: [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md).
 
 ## Threat model (summary)
 
@@ -168,6 +168,7 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 | [UI/UX brief](docs/04-UI-UX-BRIEF.md) | [Backend schema](docs/05-BACKEND-SCHEMA.md) |
 | [Implementation plan](docs/06-IMPLEMENTATION-PLAN.md) | [Pinned versions](docs/VERSIONS.md) |
 | [Threat model](docs/THREAT-MODEL.md) | [Security review](docs/SECURITY-REVIEW.md) |
+| [Deploy on a VPS](docs/DEPLOY-VPS.md) | [Wallet integration](docs/WALLET-INTEGRATION.md) |
 
 ## Licence
 
