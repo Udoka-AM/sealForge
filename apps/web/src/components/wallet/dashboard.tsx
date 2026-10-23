@@ -20,6 +20,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { Button } from "@/components/button";
 import { HashChip } from "@/components/hash-chip";
 import { Guilloche } from "@/components/motion/guilloche";
+import { Stagger, StaggerItem } from "@/components/motion/reveal";
 import { ZecCountUp } from "@/components/motion/zec-count-up";
 import { unit, zec } from "@/lib/format";
 import { listReceipts, type StoredReceipt } from "@/lib/receipts";
@@ -37,15 +38,21 @@ export function Dashboard() {
   }, []);
   if (!wallet.summary || !wallet.network) return null;
   return (
-    <div className="space-y-6 fade-in">
-      <BalanceCard />
-      <div className="grid gap-6 md:grid-cols-[1fr_1fr]">
+    <Stagger as="div" className="space-y-6">
+      <StaggerItem as="div">
+        <BalanceCard />
+      </StaggerItem>
+      <StaggerItem as="div" className="grid gap-6 md:grid-cols-[1fr_1fr]">
         <FundPanel network={wallet.network} address={wallet.summary.fundingAddress} />
         <NetworkPanel />
-      </div>
-      <Activity receipts={receipts} />
-      <SecurityPanel />
-    </div>
+      </StaggerItem>
+      <StaggerItem as="div">
+        <Activity receipts={receipts} />
+      </StaggerItem>
+      <StaggerItem as="div">
+        <SecurityPanel />
+      </StaggerItem>
+    </Stagger>
   );
 }
 
