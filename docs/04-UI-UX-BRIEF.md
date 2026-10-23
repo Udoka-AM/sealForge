@@ -39,7 +39,7 @@ Dark theme is the default (crypto audience, night use). Light theme has full par
 | `--text-muted` | `#9AA0A9` | `#5D636C` | Secondary text, labels |
 | `--primary` (Seal gold) | `#F4B728` | `#B9850A` | Primary buttons, key numbers, focus ring (Zcash yellow, used sparingly) |
 | `--primary-ink` | `#0B0D10` | `#FFFFFF` | Text on primary |
-| `--accent` (Wax red) | `#D9573B` | `#B8432A` | The "seal" signature mark, closed-auction stamp. Never for errors |
+| `--accent` (Wax red) | `#D9573B` | `#B8432A` | The reveal phase (phase track, block clock). Never for errors |
 | `--success` | `#3FB37F` | `#1F8A5B` | Included ✓, match ✓, refund paid |
 | `--warning` | `#E5A50A` | `#A86F00` | Medium linkability, pending signatures |
 | `--danger` | `#E5484D` | `#C62F35` | Errors, High linkability, mismatches |
@@ -85,7 +85,7 @@ Scale ratio ≈ 1.25. Max reading width 68ch.
 | **Alerts / toasts** | Inline alert (info/warn/danger/success), toast for transient confirmations (bottom on mobile, top-right on desktop), 4 s |
 | **Navigation** | Top bar (desktop), compact top bar + menu sheet (mobile), bid flow as full-screen sheet |
 | **Modal / sheet** | ShieldRamp runs in a modal on desktop and a full-screen sheet on mobile |
-| **Seal mark** | The signature detail: a small wax-seal glyph that "stamps" closed auctions and verified receipts (one 300 ms animation, respects reduced motion) |
+| **Seal mark** | The logo, and the signature detail that "stamps" closed auctions and verified receipts (one 300 ms animation, respects reduced motion). A gold hexagonal ingot with an angular S cut through it: the S is a mirrored Z (for Zcash) with half-turn symmetry. Lit top facet, shaded bottom facet; from 40 px up, a broken outer hexagon. Geometry in `apps/web/src/lib/brand.ts`; favicon `app/icon.svg`, home-screen icon `app/apple-icon.tsx` |
 
 ## 4.6 Layout rules
 
@@ -141,7 +141,7 @@ Scale ratio ≈ 1.25. Max reading width 68ch.
 
 | Asset | Format | Owner / source |
 |---|---|---|
-| sealForge logo (wordmark + wax-seal mark), light/dark | SVG | Design (team B), by Oct 14 |
+| sealForge logo (wordmark + hexagon S mark), light/dark | SVG | Done: `lib/brand.ts`, `app/icon.svg` |
 | Favicon + app icons (16–512 px), OG image template | SVG/PNG | Design |
 | Icon set | **Lucide** (MIT), 1.5 px stroke | npm `lucide-react` |
 | Wallet logos (Zodl, Zashi, MetaMask, Rabby, WalletConnect, Phantom) | SVG | From each project's press kit, used per their brand rules |
