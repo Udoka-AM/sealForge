@@ -48,6 +48,8 @@ export interface ScanProgress {
   scanned: number;
   total: number;
   found: number;
+  /** Payment transactions fetched and decrypted so far (after the block scan). */
+  decrypted?: number;
 }
 
 /**
@@ -78,11 +80,20 @@ export async function scanEscrow(args: {
       if (scanned % 25 === 0 || scanned === total)
         args.onProgress?.({ scanned, total, found: hits.size });
     });
+    // Fetch the matching transactions a few at a time; the result is sorted below.
     const out: ChainPayment[] = [];
-    for (const [txid, height] of hits) {
-      const raw = await getTransaction(args.endpoint, txid);
-      out.push(...(JSON.parse(scanner.decrypt(raw, height)) as ChainPayment[]));
-    }
+    const queue = [...hits];
+    let decrypted = 0;
+    const worker = async () => {
+      for (let next = queue.shift(); next; next = queue.shift()) {
+        const [txid, height] = next;
+        const raw = await getTransaction(args.endpoint, txid);
+        out.push(...(JSON.parse(scanner.decrypt(raw, height)) as ChainPayment[]));
+        decrypted += 1;
+        args.onProgress?.({ scanned: total, total, found: hits.size, decrypted });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
     return out.sort(
       (a, b) =>
         a.block_height - b.block_height ||

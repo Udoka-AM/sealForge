@@ -2,9 +2,11 @@
 
 import { formatZec, type Receipt } from "@sealforge/bid";
 import { CircleAlert, CircleCheck, Upload } from "lucide-react";
+import { m } from "motion/react";
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { HashChip } from "@/components/hash-chip";
+import { Guilloche } from "@/components/motion/guilloche";
 import { SealMark } from "@/components/seal-mark";
 import { checkReceipt } from "@/lib/auditor";
 import { networkOfUa, unit, zec } from "@/lib/format";
@@ -164,10 +166,17 @@ function Outcome({
     );
   }
   return (
-    <div className="space-y-6 rounded-[var(--radius-card)] border border-border bg-surface p-6">
+    <m.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative space-y-6 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-[var(--shadow-lift)]"
+    >
       <div className="flex items-center gap-4">
         {check.included ? (
-          <SealMark size={56} stamp />
+          <span className="relative inline-flex size-16 shrink-0 items-center justify-center">
+            <Guilloche size={96} className="absolute -inset-4 opacity-70" />
+            <SealMark size={56} stamp />
+          </span>
         ) : (
           <CircleAlert size={40} className="text-danger" aria-hidden="true" />
         )}
@@ -212,10 +221,16 @@ function Outcome({
           </p>
           <ul className="flex flex-wrap gap-2">
             {check.refund_notes_zat.map((n, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: notes can repeat; order is stable
-              <li key={i} className="num rounded-[var(--radius-chip)] bg-surface-2 px-2.5 py-1">
+              <m.li
+                // biome-ignore lint/suspicious/noArrayIndexKey: notes can repeat; order is stable
+                key={i}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 + i * 0.06 }}
+                className="num rounded-[var(--radius-chip)] bg-surface-2 px-2.5 py-1"
+              >
                 {formatZec(BigInt(n))}
-              </li>
+              </m.li>
             ))}
           </ul>
         </div>
@@ -257,20 +272,22 @@ function Outcome({
       >
         Audit the whole auction
       </Link>
-    </div>
+    </m.div>
   );
 }
 
 function Problem({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div
+    <m.div
       role="alert"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
       className="space-y-2 rounded-[var(--radius-card)] border border-border bg-surface p-6"
     >
       <h2 className="inline-flex items-center gap-2 text-[18px] font-semibold">
         <CircleAlert size={20} className="text-warning" aria-hidden="true" /> {title}
       </h2>
       <p className="text-sm text-muted">{children}</p>
-    </div>
+    </m.div>
   );
 }

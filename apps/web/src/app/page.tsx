@@ -1,10 +1,14 @@
-import { KeyRound, ScanSearch, Stamp } from "lucide-react";
+import { ArrowUpRight, ScanSearch } from "lucide-react";
 import Link from "next/link";
-import { ButtonLink } from "@/components/button";
 import { CoordinatorError } from "@/components/coordinator-error";
+import { HomeHero, type Proof } from "@/components/home-hero";
+import { CountUp } from "@/components/motion/count-up";
+import { Reveal, Stagger, StaggerItem } from "@/components/motion/reveal";
+import { WindowBar } from "@/components/motion/window-bar";
+import { ProcessRail } from "@/components/process-rail";
 import { StatusPill } from "@/components/status-pill";
 import { CoordinatorUnavailable, getChainTip, listAuctions } from "@/lib/coordinator";
-import { blocksEta, modeLabel, zec } from "@/lib/format";
+import { modeLabel, zec } from "@/lib/format";
 import type { AuctionView } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -19,146 +23,187 @@ async function load(): Promise<{ auctions: AuctionView[]; tip: number | null; er
   }
 }
 
-const STEPS = [
-  {
-    icon: Stamp,
-    title: "Bid sealed",
-    text: "Pay from any Zcash wallet. Your bid is a shielded payment; your receipt stays on your device.",
-  },
-  {
-    icon: KeyRound,
-    title: "Held by 2-of-3 trustees",
-    text: "Funds sit in an escrow no single party can move, and the auction server holds no key.",
-  },
-  {
-    icon: ScanSearch,
-    title: "Anyone can audit",
-    text: "After close, the price and every outcome can be recomputed from the chain. Bidders stay hidden.",
-  },
-];
+const finished = (a: AuctionView) =>
+  a.status === "published" || a.status === "refunding" || a.status === "settled";
 
 export default async function HomePage() {
   const { auctions, tip, error } = await load();
   const live = auctions.filter((a) => a.status === "open");
   const past = auctions.filter((a) => a.status !== "open");
-  const published = (a: AuctionView) =>
-    a.status === "published" || a.status === "refunding" || a.status === "settled";
+  const latest = past.find(finished);
+  const proof: Proof | null = latest
+    ? {
+        code: latest.code,
+        title: latest.title,
+        bids: latest.bid_count ?? null,
+        status: latest.status,
+      }
+    : null;
+  // Only counts the coordinator publishes (bid counts are hidden below 5 bids).
+  const sealedBids = auctions.reduce((s, a) => s + (a.bid_count ?? 0), 0);
+  const settled = auctions.filter((a) => a.status === "settled").length;
 
   return (
-    <div className="space-y-12">
-      <section className="max-w-[640px] space-y-3">
-        <h1 className="text-[32px] leading-9 font-semibold tracking-tight md:text-[40px] md:leading-[44px]">
-          Sealed bids. Public price. Private bidders.
-        </h1>
-        <p className="text-muted">
-          Bid from any Zcash wallet. After close, anyone can recompute the clearing price from the
-          chain. Nobody can see who bid.
-        </p>
-        <div className="flex flex-wrap gap-2 pt-2">
-          <ButtonLink href="/how-it-works" variant="secondary">
-            How it works
-          </ButtonLink>
-          <ButtonLink href="/console" variant="ghost">
-            Run your own auction
-          </ButtonLink>
-        </div>
-      </section>
+    <div className="space-y-20 md:space-y-28">
+      <HomeHero proof={proof} hasLive={live.length > 0} />
 
-      <ol className="grid gap-6 md:grid-cols-3">
-        {STEPS.map((s) => (
-          <li key={s.title} className="space-y-2">
-            <s.icon size={22} aria-hidden="true" className="text-primary" />
-            <h2 className="font-semibold">{s.title}</h2>
-            <p className="text-sm text-muted">{s.text}</p>
-          </li>
-        ))}
-      </ol>
+      {auctions.length > 0 ? (
+        <Reveal as="section" className="grid grid-cols-3 gap-4 border-y border-border py-6">
+          <Stat label="Open for bids" value={live.length} />
+          <Stat label="Sealed bids counted" value={sealedBids} />
+          <Stat label="Auctions settled" value={settled} />
+        </Reveal>
+      ) : null}
 
       {error ? <CoordinatorError message={error} /> : null}
 
-      <section aria-labelledby="live" className="space-y-4">
-        <h2 id="live" className="text-[22px] leading-7 font-semibold">
-          Open for bids
-        </h2>
+      <section id="live" aria-labelledby="live-h" className="scroll-mt-24 space-y-6">
+        <div className="flex items-end justify-between gap-4">
+          <h2 id="live-h" className="text-[26px] leading-8 font-semibold tracking-tight">
+            Open for bids
+          </h2>
+          {tip !== null ? (
+            <span className="text-[13px] text-muted">
+              Times are counted in blocks from{" "}
+              <span className="num">{tip.toLocaleString("en-US")}</span>
+            </span>
+          ) : null}
+        </div>
         {live.length === 0 && !error ? (
-          <p className="text-muted">No live auctions right now.</p>
+          <EmptyLive />
         ) : (
-          <ul className="grid gap-4 md:grid-cols-2">
+          <Stagger className="grid gap-4 md:grid-cols-2">
             {live.map((a) => (
-              <AuctionRow key={a.code} auction={a} tip={tip} />
+              <StaggerItem key={a.code}>
+                <AuctionCard auction={a} tip={tip} />
+              </StaggerItem>
             ))}
-          </ul>
+          </Stagger>
         )}
       </section>
 
+      <section aria-labelledby="how-h" className="space-y-10">
+        <Reveal className="max-w-[560px] space-y-2">
+          <h2 id="how-h" className="text-[26px] leading-8 font-semibold tracking-tight">
+            Private while you bid. Public once it counts.
+          </h2>
+          <p className="text-muted">
+            Three things make the result trustworthy without trusting us.{" "}
+            <Link href="/how-it-works" className="text-text underline-offset-4 hover:underline">
+              The full walkthrough
+            </Link>
+          </p>
+        </Reveal>
+        <ProcessRail />
+      </section>
+
       {past.length > 0 ? (
-        <section aria-labelledby="past" className="space-y-4">
-          <h2 id="past" className="text-[22px] leading-7 font-semibold">
+        <section aria-labelledby="past-h" className="space-y-5">
+          <h2 id="past-h" className="text-[26px] leading-8 font-semibold tracking-tight">
             Results
           </h2>
-          <ul className="divide-y divide-border border-y border-border">
+          <Stagger className="divide-y divide-border overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
             {past.map((a) => (
-              <li key={a.code} className="flex items-center justify-between gap-4 py-3">
-                <Link href={`/a/${a.code}`} className="min-w-0 truncate hover:text-primary">
-                  {a.title}
-                </Link>
-                <span className="flex shrink-0 items-center gap-3">
-                  {published(a) ? (
-                    <Link
-                      href={`/audit/${a.code}`}
-                      className="text-sm text-muted underline-offset-2 hover:text-text hover:underline"
-                    >
-                      Audit
-                    </Link>
-                  ) : null}
-                  <StatusPill status={a.status} />
-                </span>
-              </li>
+              <StaggerItem key={a.code}>
+                <div className="group flex items-center justify-between gap-4 px-4 py-3.5 transition-colors duration-150 hover:bg-surface-2 sm:px-5">
+                  <Link href={`/a/${a.code}`} className="min-w-0 flex-1">
+                    <span className="block truncate font-medium group-hover:text-primary">
+                      {a.title}
+                    </span>
+                    <span className="text-[13px] text-muted">
+                      {modeLabel(a.mode)} · {a.quantity} lots
+                      {typeof a.bid_count === "number" ? ` · ${a.bid_count} bids` : ""}
+                    </span>
+                  </Link>
+                  <span className="flex shrink-0 items-center gap-3">
+                    {finished(a) ? (
+                      <Link
+                        href={`/audit/${a.code}`}
+                        className="inline-flex items-center gap-1 text-sm text-muted transition-colors duration-150 hover:text-text"
+                      >
+                        <ScanSearch size={15} aria-hidden="true" />
+                        <span className="hidden sm:inline">Audit</span>
+                      </Link>
+                    ) : null}
+                    <StatusPill status={a.status} />
+                  </span>
+                </div>
+              </StaggerItem>
             ))}
-          </ul>
+          </Stagger>
         </section>
       ) : null}
     </div>
   );
 }
 
-function AuctionRow({ auction: a, tip }: { auction: AuctionView; tip: number | null }) {
-  const left = tip === null ? null : a.close_height - tip;
+function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <li>
+    <div className="space-y-1 text-center sm:text-left">
+      <CountUp
+        value={value}
+        className="text-[28px] leading-8 font-medium tracking-tight md:text-[34px] md:leading-10"
+      />
+      <p className="text-[13px] text-muted">{label}</p>
+    </div>
+  );
+}
+
+function EmptyLive() {
+  return (
+    <div className="flex flex-col items-start gap-3 rounded-[var(--radius-card)] border border-dashed border-border p-6 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-muted">
+        No auction is taking bids right now. Results below stay auditable.
+      </p>
       <Link
-        href={`/a/${a.code}`}
-        className="block rounded-[var(--radius-card)] border border-border bg-surface p-5 transition-[border-color] duration-150 hover:border-muted"
+        href="/console"
+        className="inline-flex items-center gap-1 text-sm text-text hover:text-primary"
       >
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="text-[18px] leading-6 font-semibold">{a.title}</h3>
-          <StatusPill status={a.status} />
-        </div>
-        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
-          <div>
-            <dt className="text-muted">Lots</dt>
-            <dd className="num">{a.quantity}</dd>
-          </div>
-          <div>
-            <dt className="text-muted">Reserve</dt>
-            <dd className="num">{zec(a.reserve_zat, a.network)}</dd>
-          </div>
-          <div>
-            <dt className="text-muted">Closes</dt>
-            <dd className="num">
-              {left === null
-                ? `block ${a.close_height.toLocaleString("en-US")}`
-                : left > 0
-                  ? `in ${blocksEta(left, a.network)}`
-                  : "closing"}
-            </dd>
-          </div>
-        </dl>
-        <p className="mt-3 text-[13px] text-muted">
-          {modeLabel(a.mode)}
-          {a.bid_mode === "commit_reveal" ? " · sealed reveal" : ""}
-        </p>
+        Seal your own auction <ArrowUpRight size={15} aria-hidden="true" />
       </Link>
-    </li>
+    </div>
+  );
+}
+
+function AuctionCard({ auction: a, tip }: { auction: AuctionView; tip: number | null }) {
+  return (
+    <Link
+      href={`/a/${a.code}`}
+      className="lift group block h-full space-y-5 rounded-[var(--radius-card)] border border-border bg-surface p-5"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <h3 className="truncate text-[19px] leading-6 font-semibold tracking-tight">{a.title}</h3>
+          <p className="text-[13px] text-muted">
+            {modeLabel(a.mode)}
+            {a.bid_mode === "commit_reveal" ? " · sealed reveal" : ""}
+          </p>
+        </div>
+        <StatusPill status={a.status} />
+      </div>
+      <dl className="grid grid-cols-3 gap-3 text-sm">
+        <div>
+          <dt className="text-[12px] text-muted">Lots</dt>
+          <dd className="num">{a.quantity}</dd>
+        </div>
+        <div>
+          <dt className="text-[12px] text-muted">Reserve</dt>
+          <dd className="num">{zec(a.reserve_zat, a.network)}</dd>
+        </div>
+        <div>
+          <dt className="text-[12px] text-muted">Sealed bids</dt>
+          <dd className="num">{typeof a.bid_count === "number" ? a.bid_count : "under 5"}</dd>
+        </div>
+      </dl>
+      <WindowBar auction={a} initialTip={tip} />
+      <span className="inline-flex items-center gap-1 text-sm text-primary">
+        Bid on this{" "}
+        <ArrowUpRight
+          size={15}
+          aria-hidden="true"
+          className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+        />
+      </span>
+    </Link>
   );
 }

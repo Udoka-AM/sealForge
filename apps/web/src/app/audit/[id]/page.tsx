@@ -36,7 +36,7 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="max-w-[760px] space-y-8">
       <header className="space-y-2">
-        <h1 className="text-[28px] leading-[34px] font-semibold tracking-tight">
+        <h1 className="text-[34px] leading-[38px] font-semibold tracking-[-0.025em] md:text-[40px] md:leading-[44px]">
           Audit: {auction.title}
         </h1>
         <p className="text-muted">

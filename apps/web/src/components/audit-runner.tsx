@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleAlert, CircleCheck } from "lucide-react";
+import { m } from "motion/react";
 import { useState } from "react";
 import { Button } from "@/components/button";
 import { auditorVersion, auditPublished } from "@/lib/auditor";
@@ -76,7 +77,14 @@ export function AuditRunner({ result }: { result: PublishedResult }) {
 export function ReportView({ report }: { report: AuditReport }) {
   return (
     <>
-      <p
+      <m.p
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          duration: 0.28,
+          ease: [0.22, 1, 0.36, 1],
+          delay: 0.12 * report.fields.length,
+        }}
         className={`inline-flex items-center gap-2 font-semibold ${report.matches ? "text-success" : "text-danger"}`}
       >
         {report.matches ? (
@@ -87,8 +95,8 @@ export function ReportView({ report }: { report: AuditReport }) {
         {report.matches
           ? "Every published figure matches"
           : "Mismatch: the published result doesn't add up"}
-      </p>
-      <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border">
+      </m.p>
+      <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface-2 text-muted">
             <tr>
@@ -107,8 +115,13 @@ export function ReportView({ report }: { report: AuditReport }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {report.fields.map((f) => (
-              <tr key={f.field}>
+            {report.fields.map((f, i) => (
+              <m.tr
+                key={f.field}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: 0.12 * i }}
+              >
                 <th scope="row" className="px-4 py-2 font-normal">
                   {FIELD_LABEL[f.field] ?? f.field}
                 </th>
@@ -119,13 +132,20 @@ export function ReportView({ report }: { report: AuditReport }) {
                   {f.recomputed}
                 </td>
                 <td className="px-4 py-2">
-                  {f.ok ? (
-                    <CircleCheck size={16} className="text-success" aria-label="matches" />
-                  ) : (
-                    <CircleAlert size={16} className="text-danger" aria-label="differs" />
-                  )}
+                  <m.span
+                    className="inline-flex"
+                    initial={{ opacity: 0, scale: 0.6 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1], delay: 0.12 * i + 0.1 }}
+                  >
+                    {f.ok ? (
+                      <CircleCheck size={16} className="text-success" aria-label="matches" />
+                    ) : (
+                      <CircleAlert size={16} className="text-danger" aria-label="differs" />
+                    )}
+                  </m.span>
                 </td>
-              </tr>
+              </m.tr>
             ))}
           </tbody>
         </table>

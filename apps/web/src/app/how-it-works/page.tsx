@@ -1,6 +1,8 @@
 import { Eye, EyeOff, KeyRound, ScanSearch, Shuffle, Stamp } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Guilloche } from "@/components/motion/guilloche";
+import { Reveal } from "@/components/motion/reveal";
 
 export const metadata = { title: "How it works" };
 
@@ -8,12 +10,17 @@ const h2 = "text-[22px] leading-7 font-semibold tracking-tight";
 
 function Step({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
   return (
-    <li className="grid grid-cols-[32px_minmax(0,1fr)] gap-x-4 gap-y-1">
-      <span className="mt-0.5 text-primary" aria-hidden="true">
+    <li className="relative grid grid-cols-[40px_minmax(0,1fr)] gap-x-4 gap-y-1 pb-8 last:pb-0 [&:last-child>span:first-child]:hidden">
+      {/* The rail between steps. */}
+      <span aria-hidden="true" className="absolute top-11 bottom-1 left-5 w-px bg-border" />
+      <span
+        className="relative z-10 inline-flex size-10 items-center justify-center rounded-full border border-border bg-surface text-primary shadow-[var(--shadow-card)]"
+        aria-hidden="true"
+      >
         {icon}
       </span>
-      <h3 className="font-semibold">{title}</h3>
-      <p className="col-start-2 text-muted">{children}</p>
+      <h3 className="self-center font-semibold">{title}</h3>
+      <p className="col-start-2 leading-7 text-muted">{children}</p>
     </li>
   );
 }
@@ -22,8 +29,14 @@ function Step({ icon, title, children }: { icon: ReactNode; title: string; child
 export default function HowItWorksPage() {
   return (
     <div className="max-w-[720px] space-y-12">
-      <header className="space-y-3">
-        <h1 className="text-[32px] leading-9 font-semibold tracking-tight">How it works</h1>
+      <header className="relative space-y-3">
+        <Guilloche
+          size={360}
+          className="absolute -top-24 -right-40 -z-10 hidden opacity-50 md:block"
+        />
+        <h1 className="text-[40px] leading-[44px] font-semibold tracking-[-0.03em] md:text-[52px] md:leading-[54px]">
+          How it works
+        </h1>
         <p className="text-muted">
           A sealed-bid auction where the price is public, the bidders aren&rsquo;t, and you
           don&rsquo;t have to trust the organiser or us. Here&rsquo;s what happens, what stays
@@ -31,36 +44,36 @@ export default function HowItWorksPage() {
         </p>
       </header>
 
-      <section aria-labelledby="flow" className="space-y-6">
+      <Reveal as="section" className="space-y-6">
         <h2 id="flow" className={h2}>
           An auction, step by step
         </h2>
         <ol className="space-y-6">
-          <Step icon={<KeyRound size={22} />} title="Three trustees hold the escrow">
+          <Step icon={<KeyRound size={18} />} title="Three trustees hold the escrow">
             Before bidding opens, three trustees generate the escrow key together, each on their own
             machine. Any two of them can sign refunds and the payout; one alone can&rsquo;t, and the
             auction server holds no key at all.
           </Step>
-          <Step icon={<Stamp size={22} />} title="You bid with a shielded payment">
+          <Step icon={<Stamp size={18} />} title="You bid with a shielded payment">
             You scan one QR code with any Zcash wallet. The payment goes to the escrow in
             Zcash&rsquo;s shielded pool, with a memo holding a sealed commitment and a fresh refund
             address. Your receipt is created in your browser and never sent to us.
           </Step>
-          <Step icon={<ScanSearch size={22} />} title="After close, anyone can check the result">
+          <Step icon={<ScanSearch size={18} />} title="After close, anyone can check the result">
             The organiser publishes the clearing price, every bid&rsquo;s outcome, a Merkle root and
             the escrow&rsquo;s viewing key. With that key, anyone can rescan the chain and recompute
             the result. If a single number differs, the audit fails. Your receipt proves your own
             bid was counted.
           </Step>
-          <Step icon={<Shuffle size={22} />} title="Refunds come back in pieces, on purpose">
+          <Step icon={<Shuffle size={18} />} title="Refunds come back in pieces, on purpose">
             Whatever you didn&rsquo;t spend comes back as several standard-sized notes, released at
             random times over a few hours and mixed with other bidders&rsquo; refunds, so they
             can&rsquo;t be matched to your bid.
           </Step>
         </ol>
-      </section>
+      </Reveal>
 
-      <section aria-labelledby="private" className="space-y-4">
+      <Reveal as="section" className="space-y-4">
         <h2 id="private" className={h2}>
           What stays private
         </h2>
@@ -97,9 +110,9 @@ export default function HowItWorksPage() {
             </span>
           </li>
         </ul>
-      </section>
+      </Reveal>
 
-      <section aria-labelledby="not-private" className="space-y-4">
+      <Reveal as="section" className="space-y-4">
         <h2 id="not-private" className={h2}>
           What doesn&rsquo;t
         </h2>
@@ -130,9 +143,9 @@ export default function HowItWorksPage() {
             </span>
           </li>
         </ul>
-      </section>
+      </Reveal>
 
-      <section aria-labelledby="check" className="space-y-3">
+      <Reveal as="section" className="space-y-3">
         <h2 id="check" className={h2}>
           Check us
         </h2>
@@ -148,7 +161,7 @@ export default function HowItWorksPage() {
           </a>
           .
         </p>
-      </section>
+      </Reveal>
     </div>
   );
 }
