@@ -1,67 +1,179 @@
+import { formatZec } from "@sealforge/bid";
 import { ArrowUpRight, ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { CoordinatorError } from "@/components/coordinator-error";
-import { HomeHero, type Proof } from "@/components/home-hero";
-import { CountUp } from "@/components/motion/count-up";
+import { HomeHero } from "@/components/home-hero";
+import { ClosingCta } from "@/components/landing/closing-cta";
+import { LeakToSeal, type SealedOutcome } from "@/components/landing/leak-to-seal";
+import type { FeedItem } from "@/components/landing/live-feed";
+import { Marquee } from "@/components/landing/marquee";
+import { type MemoSample, MemoWalkthrough } from "@/components/landing/memo-walkthrough";
+import { Odometer } from "@/components/landing/odometer";
+import { type EscrowSample, ViewingKeyDemo } from "@/components/landing/viewing-key-demo";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/reveal";
 import { WindowBar } from "@/components/motion/window-bar";
-import { ProcessRail } from "@/components/process-rail";
 import { StatusPill } from "@/components/status-pill";
-import { CoordinatorUnavailable, getChainTip, listAuctions } from "@/lib/coordinator";
-import { modeLabel, zec } from "@/lib/format";
-import type { AuctionView } from "@/lib/types";
+import { CoordinatorUnavailable, getChainTip, getResult, listAuctions } from "@/lib/coordinator";
+import { modeLabel, unit, zec } from "@/lib/format";
+import type { AuctionView, PublishedResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-async function load(): Promise<{ auctions: AuctionView[]; tip: number | null; error?: string }> {
-  try {
-    const [auctions, tip] = await Promise.all([listAuctions(), getChainTip()]);
-    return { auctions, tip };
-  } catch (e) {
-    if (e instanceof CoordinatorUnavailable) return { auctions: [], tip: null, error: e.message };
-    throw e;
-  }
+interface Loaded {
+  auctions: AuctionView[];
+  tip: number | null;
+  showcase: { auction: AuctionView; result: PublishedResult } | null;
+  error?: string;
 }
 
 const finished = (a: AuctionView) =>
   a.status === "published" || a.status === "refunding" || a.status === "settled";
 
+async function load(): Promise<Loaded> {
+  try {
+    const [auctions, tip] = await Promise.all([listAuctions(), getChainTip()]);
+    // The busiest finished auction is the one the page explains with.
+    const best = auctions
+      .filter(finished)
+      .sort((a, b) => (b.bid_count ?? 0) - (a.bid_count ?? 0))[0];
+    const result = best ? await getResult(best.code) : null;
+    return {
+      auctions,
+      tip,
+      showcase: best && result && result.bids.length > 0 ? { auction: best, result } : null,
+    };
+  } catch (e) {
+    if (e instanceof CoordinatorUnavailable)
+      return { auctions: [], tip: null, showcase: null, error: e.message };
+    throw e;
+  }
+}
+
+const STATUS_WORD: Record<AuctionView["status"], string> = {
+  draft: "Draft",
+  dkg: "Setting up",
+  ready: "Ready",
+  open: "Taking bids",
+  closed: "Closed",
+  published: "Published",
+  refunding: "Refunding",
+  settled: "Settled",
+  cancelled: "Cancelled",
+};
+
+const short = (h: string) => `${h.slice(0, 8)}…${h.slice(-6)}`;
+
 export default async function HomePage() {
-  const { auctions, tip, error } = await load();
+  const { auctions, tip, showcase, error } = await load();
   const live = auctions.filter((a) => a.status === "open");
   const past = auctions.filter((a) => a.status !== "open");
-  const latest = past.find(finished);
-  const proof: Proof | null = latest
-    ? {
-        code: latest.code,
-        title: latest.title,
-        bids: latest.bid_count ?? null,
-        status: latest.status,
-      }
-    : null;
   // Only counts the coordinator publishes (bid counts are hidden below 5 bids).
   const sealedBids = auctions.reduce((s, a) => s + (a.bid_count ?? 0), 0);
   const settled = auctions.filter((a) => a.status === "settled").length;
 
-  return (
-    <div className="space-y-20 md:space-y-28">
-      <HomeHero proof={proof} hasLive={live.length > 0} />
+  const feed: FeedItem[] = [...live, ...past.filter(finished)].slice(0, 6).map((a) => ({
+    label: STATUS_WORD[a.status],
+    title: a.title,
+    detail:
+      a.status === "open"
+        ? `${modeLabel(a.mode)} · closes at block ${a.close_height.toLocaleString("en-US")}`
+        : `${typeof a.bid_count === "number" ? `${a.bid_count} sealed bids` : "Under 5 bids"} · ${modeLabel(a.mode)}`,
+  }));
 
-      {auctions.length > 0 ? (
-        <Reveal as="section" className="grid grid-cols-3 gap-4 border-y border-border py-6">
-          <Stat label="Open for bids" value={live.length} />
-          <Stat label="Sealed bids counted" value={sealedBids} />
-          <Stat label="Auctions settled" value={settled} />
-        </Reveal>
-      ) : null}
+  let outcome: SealedOutcome | null = null;
+  let memo: MemoSample | null = null;
+  let escrow: EscrowSample | null = null;
+  if (showcase) {
+    const { auction: a, result: r } = showcase;
+    const net = r.network;
+    if (r.clearing_price_zat !== null)
+      outcome = {
+        title: a.title,
+        price: zec(r.clearing_price_zat, net),
+        bids: a.bid_count ?? null,
+      };
+    memo = {
+      code: a.code,
+      commitment: r.bids[0]?.commitment ?? "",
+      more: r.bids.slice(1, 12).map((b) => b.commitment),
+      merkleRoot: r.merkle_root,
+      unit: unit(net),
+    };
+    escrow = {
+      code: a.code,
+      title: a.title,
+      notes: r.bids.slice(0, 6).map((b) => ({
+        block: b.block_height.toLocaleString("en-US"),
+        amount: `${formatZec(BigInt(b.deposit_zat ?? b.amount_zat))} ${unit(net)}`,
+        commitment: short(b.commitment),
+      })),
+      total: r.bids.length,
+      price: r.clearing_price_zat !== null ? zec(r.clearing_price_zat, net) : "no clearing price",
+      winners: r.winner_count,
+      root: r.merkle_root,
+    };
+  }
+
+  return (
+    <div className="space-y-28 md:space-y-40">
+      <HomeHero hasLive={live.length > 0} feed={feed} tip={tip} />
+
+      <div className="full-bleed -mt-16 border-y border-border py-5 md:-mt-28">
+        <Marquee seconds={46}>
+          {[
+            "Zcash",
+            "Ironwood shielded pool",
+            "FROST 2-of-3",
+            "PCZT",
+            "ZIP-321",
+            "librustzcash",
+            "WebAssembly",
+            "BLAKE2b-256",
+            "Merkle proofs",
+            "Viewing keys",
+          ].map((t) => (
+            <span
+              key={t}
+              className="flex items-center gap-8 pr-8 font-mono text-[12px] tracking-[0.16em] whitespace-nowrap text-muted uppercase"
+            >
+              {t}
+              <svg viewBox="0 0 64 64" className="size-2.5 text-primary" aria-hidden="true">
+                <path fill="currentColor" d="M32 4 56.2 18V46L32 60 7.8 46V18Z" />
+              </svg>
+            </span>
+          ))}
+        </Marquee>
+      </div>
 
       {error ? <CoordinatorError message={error} /> : null}
 
-      <section id="live" aria-labelledby="live-h" className="scroll-mt-24 space-y-6">
-        <div className="flex items-end justify-between gap-4">
-          <h2 id="live-h" className="text-[26px] leading-8 font-semibold tracking-tight">
-            Open for bids
-          </h2>
+      {auctions.length > 0 ? (
+        <section
+          aria-label="sealForge in numbers"
+          className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-5"
+        >
+          <Stat value={String(live.length)} label="Auctions taking bids now" />
+          <Stat value={sealedBids.toLocaleString("en-US")} label="Sealed bids counted on testnet" />
+          <Stat value={String(settled)} label="Auctions settled, refunds and payout sent" />
+          <Stat value="2/3" label="Trustees needed to move escrow funds" />
+          <Stat value="0" label="Key shares held by our server" />
+        </section>
+      ) : null}
+
+      <div id="problem" className="scroll-mt-14">
+        <LeakToSeal outcome={outcome} />
+      </div>
+
+      {memo ? <MemoWalkthrough sample={memo} /> : null}
+
+      <section id="live" aria-labelledby="live-h" className="scroll-mt-24 space-y-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="space-y-3">
+            <p className="eyebrow">Now</p>
+            <h2 id="live-h" className="display-2">
+              Open for bids
+            </h2>
+          </div>
           {tip !== null ? (
             <span className="text-[13px] text-muted">
               Times are counted in blocks from{" "}
@@ -82,30 +194,20 @@ export default async function HomePage() {
         )}
       </section>
 
-      <section aria-labelledby="how-h" className="space-y-10">
-        <Reveal className="max-w-[560px] space-y-2">
-          <h2 id="how-h" className="text-[26px] leading-8 font-semibold tracking-tight">
-            Private while you bid. Public once it counts.
-          </h2>
-          <p className="text-muted">
-            Three things make the result trustworthy without trusting us.{" "}
-            <Link href="/how-it-works" className="text-text underline-offset-4 hover:underline">
-              The full walkthrough
-            </Link>
-          </p>
-        </Reveal>
-        <ProcessRail />
-      </section>
+      {escrow ? <ViewingKeyDemo sample={escrow} /> : null}
 
       {past.length > 0 ? (
-        <section aria-labelledby="past-h" className="space-y-5">
-          <h2 id="past-h" className="text-[26px] leading-8 font-semibold tracking-tight">
-            Results
-          </h2>
+        <section aria-labelledby="past-h" className="space-y-8">
+          <Reveal className="space-y-3">
+            <p className="eyebrow">On the record</p>
+            <h2 id="past-h" className="display-2">
+              Results
+            </h2>
+          </Reveal>
           <Stagger className="divide-y divide-border overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
             {past.map((a) => (
               <StaggerItem key={a.code}>
-                <div className="group flex items-center justify-between gap-4 px-4 py-3.5 transition-colors duration-150 hover:bg-surface-2 sm:px-5">
+                <div className="group flex items-center justify-between gap-4 px-4 py-4 transition-colors duration-150 hover:bg-surface-2 sm:px-5">
                   <Link href={`/a/${a.code}`} className="min-w-0 flex-1">
                     <span className="block truncate font-medium group-hover:text-primary">
                       {a.title}
@@ -133,18 +235,20 @@ export default async function HomePage() {
           </Stagger>
         </section>
       ) : null}
+
+      <ClosingCta bidHref={live.length > 0 ? "#live" : "/how-it-works"} />
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="space-y-1 text-center sm:text-left">
-      <CountUp
+    <div className="space-y-2 border-t border-border pt-4">
+      <Odometer
         value={value}
-        className="text-[28px] leading-8 font-medium tracking-tight md:text-[34px] md:leading-10"
+        className="text-[44px] leading-none font-semibold tracking-[-0.04em] md:text-[56px]"
       />
-      <p className="text-[13px] text-muted">{label}</p>
+      <p className="max-w-[22ch] text-[13px] leading-5 text-muted">{label}</p>
     </div>
   );
 }

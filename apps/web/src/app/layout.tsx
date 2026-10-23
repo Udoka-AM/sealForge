@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
+import { HomeChrome } from "@/components/landing/home-chrome";
 import { MotionProvider } from "@/components/motion/motion-provider";
 import { OfflineBanner } from "@/components/offline-banner";
 import { SiteHeader } from "@/components/site-header";
 import { WalletProvider } from "@/components/wallet/wallet-provider";
+import { CURTAIN_GATE } from "@/lib/curtain";
 import "./globals.css";
 
 // Self-hosted from @fontsource: no font requests to Google at build time or at runtime.
@@ -23,6 +26,11 @@ const plexSans = localFont({
     {
       path: "../../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2",
       weight: "600",
+      style: "normal",
+    },
+    {
+      path: "../../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-700-normal.woff2",
+      weight: "700",
       style: "normal",
     },
   ],
@@ -54,15 +62,26 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
+    // The curtain gate adds a class to <html> before hydration.
+    <html
+      lang="en"
+      className={`${plexSans.variable} ${plexMono.variable}`}
+      suppressHydrationWarning
+    >
       <body className="min-h-dvh antialiased">
+        <Script id="sf-curtain-gate" strategy="beforeInteractive">
+          {CURTAIN_GATE}
+        </Script>
         <MotionProvider>
           <WalletProvider>
-            <SiteHeader />
-            <OfflineBanner />
-            <main className="mx-auto w-full max-w-[1120px] px-4 py-8 md:px-6 md:py-12">
-              {children}
-            </main>
+            <HomeChrome />
+            <div className="overflow-x-clip">
+              <SiteHeader />
+              <OfflineBanner />
+              <main className="mx-auto w-full max-w-[1120px] px-4 py-8 md:px-6 md:py-12">
+                {children}
+              </main>
+            </div>
           </WalletProvider>
         </MotionProvider>
       </body>
