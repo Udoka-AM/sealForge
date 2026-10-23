@@ -2,61 +2,191 @@
 
 import {
   ArrowLeft,
+  ArrowRight,
   Eye,
+  FileDown,
   KeyRound,
   LoaderCircle,
-  RotateCcw,
+  QrCode,
+  Search,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
-import { Button } from "@/components/button";
-import { Guilloche } from "@/components/motion/guilloche";
+import { AnimatePresence, m } from "motion/react";
+import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
+import { Button, ButtonLink } from "@/components/button";
 import { blockSeconds } from "@/lib/format";
 import { getLatestHeight } from "@/lib/grpc-web";
 import { walletTools } from "@/lib/wallet/session";
+import { CreateIcon, LinkIcon, QrIcon } from "./wallet-icons";
 import { useWallet } from "./wallet-provider";
 
 const MIN_PASSPHRASE = 10;
 
-/** First screen when no wallet is stored in this browser. */
+type Mode = "choose" | "create" | "restore" | "external";
+
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+/** First screen when no wallet is stored in this browser. Steps slide between each other. */
 export function Onboarding() {
-  const [mode, setMode] = useState<"choose" | "create" | "restore">("choose");
-  if (mode === "create") return <CreateWallet onBack={() => setMode("choose")} />;
-  if (mode === "restore") return <RestoreWallet onBack={() => setMode("choose")} />;
+  const [mode, setMode] = useState<Mode>("choose");
+  const back = () => setMode("choose");
   return (
-    <div className="space-y-6 fade-in">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
-          onClick={() => setMode("create")}
-          className="lift group relative space-y-3 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface p-5 text-left"
-        >
-          <Guilloche size={180} className="absolute -top-16 -right-16 opacity-40" />
-          <span className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-surface-2 text-primary">
-            <Sparkles size={18} aria-hidden="true" />
-          </span>
-          <span className="block font-medium">Create a wallet</span>
-          <span className="block text-sm text-muted">
-            A new 24-word recovery phrase, made in this browser.
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("restore")}
-          className="lift group space-y-3 rounded-[var(--radius-card)] border border-border bg-surface p-5 text-left"
-        >
-          <span className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-surface-2 text-muted transition-colors duration-150 group-hover:text-text">
-            <RotateCcw size={18} aria-hidden="true" />
-          </span>
-          <span className="block font-medium">Link an existing wallet</span>
-          <span className="block text-sm text-muted">
-            Import the 24-word recovery phrase from Zashi, Zodl or another Zcash wallet, or a
-            sealForge wallet from another device.
-          </span>
-        </button>
+    <AnimatePresence mode="wait" initial={false}>
+      <m.div
+        key={mode}
+        initial={{ opacity: 0, x: mode === "choose" ? -16 : 16 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: mode === "choose" ? 16 : -16 }}
+        transition={{ duration: 0.3, ease: EASE }}
+      >
+        {mode === "create" ? (
+          <CreateWallet onBack={back} />
+        ) : mode === "restore" ? (
+          <RestoreWallet onBack={back} />
+        ) : mode === "external" ? (
+          <ExternalWallet onBack={back} />
+        ) : (
+          <div className="space-y-8">
+            <m.ul
+              initial="hidden"
+              animate="shown"
+              variants={{ shown: { transition: { staggerChildren: 0.07 } } }}
+              className="grid gap-3 md:grid-cols-3"
+            >
+              <Way
+                icon={<CreateIcon />}
+                title="Create a wallet"
+                body="A new 24-word recovery phrase, made in this browser."
+                meta="About 2 minutes"
+                onClick={() => setMode("create")}
+              />
+              <Way
+                icon={<LinkIcon />}
+                title="Link an existing wallet"
+                body="Import the 24-word recovery phrase from Zashi, Zodl or another Zcash wallet."
+                meta="Your phrase stays here"
+                onClick={() => setMode("restore")}
+              />
+              <Way
+                icon={<QrIcon />}
+                title="Use your own wallet"
+                body="No import: pay each bid by scanning its QR code with the wallet you already use."
+                meta="Nothing to set up"
+                onClick={() => setMode("external")}
+              />
+            </m.ul>
+            <PrivacyNotes />
+          </div>
+        )}
+      </m.div>
+    </AnimatePresence>
+  );
+}
+
+function Way({
+  icon,
+  title,
+  body,
+  meta,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  body: string;
+  meta: string;
+  onClick: () => void;
+}) {
+  return (
+    <m.li
+      variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
+      transition={{ duration: 0.45, ease: EASE }}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className="lift group flex h-full w-full flex-col gap-5 rounded-[var(--radius-card)] border border-border bg-surface p-5 text-left"
+      >
+        <span className="inline-flex size-16 items-center justify-center rounded-[14px] border border-border bg-bg text-primary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-rotate-3 group-hover:scale-105">
+          {icon}
+        </span>
+        <span className="flex-1 space-y-1.5">
+          <span className="block text-[17px] font-semibold tracking-tight">{title}</span>
+          <span className="block text-sm leading-6 text-muted">{body}</span>
+        </span>
+        <span className="flex items-center justify-between border-t border-border pt-3 font-mono text-[11px] tracking-[0.12em] text-muted uppercase">
+          {meta}
+          <ArrowRight
+            size={15}
+            aria-hidden="true"
+            className="text-primary transition-transform duration-200 group-hover:translate-x-0.5"
+          />
+        </span>
+      </button>
+    </m.li>
+  );
+}
+
+/** Bidding without importing anything: what happens, step by step. */
+function ExternalWallet({ onBack }: { onBack: () => void }) {
+  const steps = [
+    {
+      icon: <Search size={16} />,
+      title: "Open an auction",
+      body: "Enter your bid, and paste a fresh Unified Address from your wallet for refunds.",
+    },
+    {
+      icon: <QrCode size={16} />,
+      title: "Scan one QR code",
+      body: "It's a ZIP-321 payment request: any Zcash wallet with shielded payments can pay it, memo included.",
+    },
+    {
+      icon: <FileDown size={16} />,
+      title: "Keep your receipt",
+      body: "It's made in this browser. Download it: it proves your bid and where your refund goes.",
+    },
+  ];
+  return (
+    <div className="space-y-6">
+      <BackButton onBack={onBack} />
+      <div className="space-y-2">
+        <h2 className="text-[22px] font-semibold tracking-tight">Use your own wallet</h2>
+        <p className="text-muted">
+          Nothing to import or install. Your wallet sends the bid, and refunds come back to a fresh
+          address from that wallet, used for this bid only.
+        </p>
       </div>
-      <PrivacyNotes />
+      <ol className="relative space-y-5 border-l border-border pl-6">
+        {steps.map((st, i) => (
+          <m.li
+            key={st.title}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.4, ease: EASE, delay: 0.1 + i * 0.1 }}
+            className="relative"
+          >
+            <span
+              aria-hidden="true"
+              className="absolute top-0 -left-[37px] inline-flex size-[26px] items-center justify-center rounded-full border border-border bg-bg text-primary"
+            >
+              {st.icon}
+            </span>
+            <span className="block font-medium">{st.title}</span>
+            <span className="text-sm text-muted">{st.body}</span>
+          </m.li>
+        ))}
+      </ol>
+      <p className="rounded-[var(--radius-control)] border border-border bg-surface p-3 text-sm text-muted">
+        Paying from your own wallet, this site can&rsquo;t see your payment until the result is
+        published. My bids then confirms it from the chain.
+      </p>
+      <ButtonLink href="/#live" size="lg" className="group">
+        Find an auction
+        <ArrowRight
+          size={18}
+          aria-hidden="true"
+          className="transition-transform duration-200 group-hover:translate-x-0.5"
+        />
+      </ButtonLink>
     </div>
   );
 }
