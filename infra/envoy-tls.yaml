@@ -34,6 +34,12 @@ static_resources:
   clusters:
     - name: zaino
       type: LOGICAL_DNS
+      # UPSTREAM_HOST is a public name with both A and AAAA records. LOGICAL_DNS
+      # picks one address, and Docker's default bridge gives the container no
+      # IPv6 route, so picking the AAAA fails every stream with grpc-status 14
+      # "Network is unreachable" -- while the site still serves 200s, so the
+      # browser wallet and the in-browser audit break silently.
+      dns_lookup_family: V4_ONLY
       typed_extension_protocol_options:
         envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
           "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
