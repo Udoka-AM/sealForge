@@ -17,8 +17,15 @@ services on their owners' behalf. Both need price discovery between parties who
 don't trust each other and can't afford to show their hand — and both need the
 result to be checkable afterwards by someone who trusted neither side. That is a
 sealed-bid auction, and what has been missing is one that is private *without*
-requiring trust in whoever runs it. sealForge is that, working today on Zcash:
-see [What is running now](#see-it-work), and
+requiring trust in whoever runs it.
+
+sealForge is that, working today on Zcash. The auction is the first application,
+not the end state: underneath it is an open protocol and a developer toolkit for
+**verifiable private markets** — a threshold escrow, an auditor that recomputes
+outcomes from a published viewing key, a browser shielded wallet, and defined
+settlement and refund flows, each usable on its own by other Zcash applications.
+See [what is running now](#see-it-work), [the primitives
+underneath](#the-primitives-underneath), and
 [docs/BUSINESS.md](docs/BUSINESS.md) for where it leads.
 
 | What happens | How |
@@ -170,6 +177,41 @@ Browser (apps/web: Next.js)
     PostgreSQL          sealforge CLI × 3 trustees (FROST shares stay local)
                         sealforge-audit (anyone, any lightwallet server)
 ```
+
+## The primitives underneath
+
+The auction is one composition of parts that stand alone. Three properties make
+them reusable rather than merely separated:
+
+- **The consensus-critical logic performs no I/O.** `sealforge-core`,
+  `sealforge-scan` and `sealforge-wallet` take bytes and return bytes. The
+  caller supplies blocks, clocks and randomness. That is why the coordinator,
+  the CLI and the in-browser auditor compute byte-identical results from the
+  same inputs, and why the same crates compile to native and to
+  `wasm32-unknown-unknown` without a second implementation.
+- **The client half is byte-compatible across languages.**
+  `@sealforge/bid` produces the same commitments, memos and receipts as
+  `sealforge-core`, so a browser and a Rust service agree without a shared
+  runtime.
+- **Verification needs no privileged access.** Everything an auditor requires is
+  published: an incoming viewing key, a result and a Merkle root. No API key, no
+  cooperation from us, no trust in the operator.
+
+| Component | What it gives another application | Reusable because |
+|---|---|---|
+| [`sealforge-escrow`](crates/sealforge-escrow) | **FROST 2-of-3 custody for Zcash.** DKG orchestration, and rerandomized threshold signing of real Ironwood PCZT spends over the PCZT α | Any application needing shared custody where no server holds a share |
+| [`sealforge-scan`](crates/sealforge-scan) | **Viewing-key-only payment discovery.** Finds and decrypts payments to an address from compact blocks and raw transactions, with nothing but its IVK | I/O-free; runs natively and in the browser. Any app needing auditable shielded receipts |
+| [`sealforge-auditor`](crates/sealforge-auditor) | **Outcome re-derivation from chain data.** Rescans an escrow with the published key and recomputes the result, failing loudly on mismatch | The published result is a pure function of on-chain data, so verification is reproducible by anyone |
+| [`sealforge-wallet`](crates/sealforge-wallet) | **A shielded wallet that runs in a tab.** BIP-39 keys, compact-block sync with witnesses, Ironwood payments built with librustzcash | I/O-free: the browser fetches blocks and broadcasts. Drop-in for any app that must not ask users to install one |
+| [`sealforge-core`](crates/sealforge-core) | **Deterministic market logic.** Memos, ZIP-321, bid selection, clearing, Merkle receipts, refund denomination and scheduling | No I/O, no clocks, no randomness. The rules are auditable and identical everywhere they run |
+| [`sealforge-signer-wasm`](crates/sealforge-signer-wasm) | **Threshold signing in the browser.** A trustee co-signs a batch from a tab, with the share never leaving the device | Removes the usual requirement that signers run servers |
+| [`sealforge-api`](crates/sealforge-api) | **SF-Sig request signing.** Signed API requests whose path, query and body are all covered | Any coordinator-style service wanting authenticated calls without sessions or bearer tokens |
+| [`@sealforge/bid`](packages/bid) | **Client-side bid primitives.** Amounts, memos, commitments, ZIP-321 URIs, receipts | Byte-compatible with `sealforge-core`, so the browser and the server never disagree |
+
+What this composes into beyond auctions: private procurement, premium name
+registration, treasury and RWA allocation, OTC blocks — and, further out,
+markets whose participants are software acting for their owners. The settlement
+and refund flows are the same; only the selection rule changes.
 
 ## Repository layout
 
