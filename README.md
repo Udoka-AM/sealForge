@@ -21,6 +21,20 @@ sealForge is an open-source kit for running private, verifiable sales (tickets, 
 
 Built for the [Zecathon](https://thezecathon.com) **Private Markets** track (Oct 6–28, 2026).
 
+### Start here
+
+| | |
+|---|---|
+| **Try it** | [sealforge.udokaam.dev](https://sealforge.udokaam.dev) — Zcash testnet, no signup |
+| **Audit a real auction** | [25 bids, 10 units](https://sealforge.udokaam.dev/audit/K7GHHBC4GP) · [7 bids, 4 winners](https://sealforge.udokaam.dev/audit/KE5DFF4PDA) — press **Rescan the chain in my browser** and recompute it yourself |
+| **Why it matters commercially** | [docs/BUSINESS.md](docs/BUSINESS.md) |
+| **What it does, in product terms** | [docs/PRODUCT.md](docs/PRODUCT.md) |
+| **Zecathon write-up** | [docs/submission/WRITEUP.md](docs/submission/WRITEUP.md) |
+| **What is shipped, and what is sequenced** | [Status](#status) |
+| **Is it safe?** | [Threat model](docs/THREAT-MODEL.md) · [Security review](docs/SECURITY-REVIEW.md) |
+| **Run your own auction** | [docs/QUICKSTART.md](docs/QUICKSTART.md) |
+| **Host it** | [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md) |
+
 ## See it work
 
 Everything below ran on real Zcash chains with real shielded transactions and real FROST signatures: public **testnet**, and a local regtest chain (Zebra with Ironwood active, Zaino).
@@ -28,7 +42,7 @@ Everything below ran on real Zcash chains with real shielded transactions and re
 | Claim | Evidence |
 |---|---|
 | **The first auction on public testnet**, live at [sealforge.udokaam.dev](https://sealforge.udokaam.dev/audit/KE5DFF4PDA): 7 sealed bids, reveals, uniform price, 2 refund transactions and a payout, each signed by a different pair of trustees, settled, with the chain audit matching from the CLI and in the browser | [docs/evidence/testnet-genesis.md](docs/evidence/testnet-genesis.md) |
-| **25 sealed bids on testnet**, settled, plus the test plan run: 12 of 14 acceptance criteria pass, and the two ShieldRamp criteria aren't built | [docs/evidence/test-run.md](docs/evidence/test-run.md) |
+| **25 sealed bids on testnet**, settled, plus the test plan run: 12 of 14 acceptance criteria pass. The remaining two cover ShieldRamp, which settles real assets and so is sequenced behind mainnet | [docs/evidence/test-run.md](docs/evidence/test-run.md) |
 | **The whole bidder journey with the built-in wallet** on testnet: restore, pay the deposit, reveal, win, receive the refund at the bid's own address | [docs/WALLET-INTEGRATION.md](docs/WALLET-INTEGRATION.md) |
 | A whole auction: bids → auto-close → publish → 2-of-3 signed refunds → payout → settled | [docs/evidence/regtest-e2e.md](docs/evidence/regtest-e2e.md) |
 | The same lifecycle driven from the browser console, with a trustee signing in the browser (FROST in WebAssembly) | [regtest-e2e.md › console](docs/evidence/regtest-e2e.md#the-whole-lifecycle-from-the-console-task-310) |
@@ -90,9 +104,22 @@ Full version, including what is **not** protected: [docs/THREAT-MODEL.md](docs/T
 
 ## Status
 
-| Done | Not yet |
-|---|---|
-| FROST 2-of-3 escrow, on-chain spends · bid flow and receipts · scanner · close/publish · Merkle receipts · chain auditor in the CLI and in the browser (WASM, any gRPC-web lightwallet server) · unlinkable refunds and payout · organiser console · browser trustee signing · sealed-reveal mode · built-in shielded wallet (create or link by phrase) · embeddable auction card (`<script src=…/embed.js data-auction=CODE>`) · security, accessibility, performance, backups · **public testnet runs** (7 and 25 bids, settled) · hosted instance · release v0.1.0 | **Mainnet** (no mainnet ZEC to fund bidders; the code supports it) · **ShieldRamp** cross-chain bidding via NEAR Intents · an outside re-verification of a published auction |
+**Shipped and running on public testnet.** FROST 2-of-3 escrow with on-chain
+spends · bid flow and receipts · chain scanner · close and publish · Merkle
+receipts · chain auditor in the CLI and in the browser (WebAssembly, any
+gRPC-web lightwallet server) · unlinkable refunds and payout · organiser
+console · browser trustee signing · sealed-reveal mode · built-in shielded
+wallet (create, or link an existing 24-word phrase) · embeddable auction card ·
+security review, accessibility, performance and backup drills · two auctions
+settled end to end (7 and 25 bids) · hosted instance · release v0.1.0.
+
+**Sequenced next, and why.**
+
+| | Where it stands | What it waits on |
+|---|---|---|
+| **Mainnet** | The code paths are built and exercised on testnet and on a local regtest chain with Ironwood active. The hosted instance switches network with one setting | Per-auction caps, independent trustees and an external review of the escrow signing path ([THREAT-MODEL](docs/THREAT-MODEL.md)). We also had no mainnet ZEC to fund bidders during the build window |
+| **ShieldRamp** (bid in USDC or ETH, settle shielded) | The session model, step machine and the **Linkability Score are implemented and unit-tested** in [`packages/shieldramp`](packages/shieldramp). The quote route is in place behind a server-side credential | NEAR Intents settles **real assets and has no test network**, so the swap leg cannot be exercised on a testnet instance. It follows mainnet, and the UI hides cross-chain funding until it is live rather than offering a path that would fail |
+| **Third-party re-verification** | The auditor is public and the published results are permanent | Someone outside the team rescanning a published auction and reporting the match |
 
 ## Architecture
 
@@ -163,10 +190,11 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
 | | |
 |---|---|
-| [Product description](docs/PRODUCT.md) | [PRD](docs/01-PRD.md) |
+| [Business case](docs/BUSINESS.md) | [Product description](docs/PRODUCT.md) |
+| [PRD](docs/01-PRD.md) | [Implementation plan](docs/06-IMPLEMENTATION-PLAN.md) |
 | [TRD](docs/02-TRD.md) | [App flow](docs/03-APP-FLOW.md) |
 | [UI/UX brief](docs/04-UI-UX-BRIEF.md) | [Backend schema](docs/05-BACKEND-SCHEMA.md) |
-| [Implementation plan](docs/06-IMPLEMENTATION-PLAN.md) | [Pinned versions](docs/VERSIONS.md) |
+| [Pinned versions](docs/VERSIONS.md) | [Quickstart](docs/QUICKSTART.md) |
 | [Threat model](docs/THREAT-MODEL.md) | [Security review](docs/SECURITY-REVIEW.md) |
 | [Deploy on a VPS](docs/DEPLOY-VPS.md) | [Wallet integration](docs/WALLET-INTEGRATION.md) |
 

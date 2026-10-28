@@ -59,7 +59,7 @@ Not run on mainnet: we had no mainnet ZEC to fund bidders. The code supports mai
 
 - **Mainnet launch:** per-auction caps, independent trustees, and an external review of the escrow signing path.
 - **A first real use:** for example, sealed-bid auctions for premium Zcash Name Service names, so they aren't first come, first served.
-- **ShieldRamp:** bidding with USDC or ETH through NEAR Intents, with a Linkability Score. It isn't built yet; the site says so.
+- **ShieldRamp:** bidding with USDC or ETH through NEAR Intents, with a Linkability Score. The session model, step machine and the Score are implemented and tested; the swap leg follows mainnet, because NEAR Intents settles real assets and has no test network. Until it is live the UI hides cross-chain funding rather than offering a path that would fail. Why it matters beyond the feature: every cross-chain bid is net inflow into the shielded pool, which makes sealForge a demand-side on-ramp for Zcash, not only an auction house. See [BUSINESS.md](../BUSINESS.md).
 - **Reusable libraries:** releasing the browser Ironwood wallet and the FROST escrow as open-source components.
 
 ## Team
