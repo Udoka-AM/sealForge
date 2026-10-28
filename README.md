@@ -10,6 +10,17 @@
 
 sealForge is an open-source kit for running private, verifiable sales (tickets, passes, NFTs, allocations) with shielded ZEC.
 
+**Why this primitive, and why now.** Two demands are converging on the same gap.
+Businesses increasingly need to trade, procure and settle without publishing
+their positions. And software agents are beginning to buy compute, data and
+services on their owners' behalf. Both need price discovery between parties who
+don't trust each other and can't afford to show their hand — and both need the
+result to be checkable afterwards by someone who trusted neither side. That is a
+sealed-bid auction, and what has been missing is one that is private *without*
+requiring trust in whoever runs it. sealForge is that, working today on Zcash:
+see [What is running now](#see-it-work), and
+[docs/BUSINESS.md](docs/BUSINESS.md) for where it leads.
+
 | What happens | How |
 |---|---|
 | **You bid privately** | Scan one ZIP-321 QR with any Zcash wallet. The payment is a shielded Ironwood transfer, and its memo carries a salted commitment and a fresh refund address. Your receipt stays in your browser |
@@ -20,6 +31,20 @@ sealForge is an open-source kit for running private, verifiable sales (tickets, 
 | **Refunds can't be traced back to bids** | Refunds are split into standard denominations, sent after random delays, and batched with other bidders' refunds. Measured: **0.1%** of refunds linkable at the exit, against 100% for naive refunds |
 
 Built for the [Zecathon](https://thezecathon.com) **Private Markets** track (Oct 6–28, 2026).
+
+### Where to reach it
+
+Two instances run the same build. **The primary carries the auction history.**
+
+| | | |
+|---|---|---|
+| **Primary** | [sealforge.udokaam.dev](https://sealforge.udokaam.dev) | Full history: every settled auction and its audit page. Self-hosted, so it can be briefly offline |
+| **Mirror** | [sealforge.84-247-183-185.sslip.io](https://sealforge.84-247-183-185.sslip.io) | Always-on VPS, same build. **Auction history not migrated yet**, so the audit links below resolve only on the primary |
+| **Always available** | this repository | Every auction's full record is in [docs/evidence](docs/evidence), and the results are permanent on chain — see [Verify it yourself](#verify-it-yourself). **Neither site has to be up for you to check our claims** |
+
+If the primary is down, the auction records and the independent audit path are
+still here, in the repo and on the chain. That is the point of publishing the
+viewing key: the evidence does not depend on our servers.
 
 ### Start here
 
@@ -120,6 +145,15 @@ settled end to end (7 and 25 bids) · hosted instance · release v0.1.0.
 | **Mainnet** | The code paths are built and exercised on testnet and on a local regtest chain with Ironwood active. The hosted instance switches network with one setting | Per-auction caps, independent trustees and an external review of the escrow signing path ([THREAT-MODEL](docs/THREAT-MODEL.md)). We also had no mainnet ZEC to fund bidders during the build window |
 | **ShieldRamp** (bid in USDC or ETH, settle shielded) | The session model, step machine and the **Linkability Score are implemented and unit-tested** in [`packages/shieldramp`](packages/shieldramp). The quote route is in place behind a server-side credential | NEAR Intents settles **real assets and has no test network**, so the swap leg cannot be exercised on a testnet instance. It follows mainnet, and the UI hides cross-chain funding until it is live rather than offering a path that would fail |
 | **Third-party re-verification** | The auditor is public and the published results are permanent | Someone outside the team rescanning a published auction and reporting the match |
+
+**Where this leads.** The pieces above are one working instance of a general
+primitive: a sealed price, settled privately, with a result anyone can
+recompute. The same machinery serves procurement, premium name registration and
+treasury allocation without changing shape — and, further out, markets where the
+bidders are software acting for their owners, bidding faster than any
+disclosure rule could keep up with. That is an argument for building the
+primitive properly now, not a claim about what ships next. What ships next is
+mainnet, then ShieldRamp. The reasoning is in [docs/BUSINESS.md](docs/BUSINESS.md).
 
 ## Architecture
 
