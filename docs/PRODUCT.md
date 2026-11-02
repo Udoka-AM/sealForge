@@ -4,7 +4,7 @@
 
 *Prepared 2026-10-05. Build window: **3 weeks (Mon Oct 6 to Sun Oct 26, 2026)**, plus 2 buffer days before the **Oct 28, 23:59 UTC** deadline. Zcon7 runs Oct 27–29.*
 
-> **Sources.** Figures come from thezecathon.com (site config), @zksnarks_ posts, crypto.news (Sep 21, 2026), the NEAR Intents explorer, nearstats.org, ZIP 318, Equilibrium's ZAIR write-up and Zcash forum threads.
+> **Sources.** Figures come from thezecathon.com (site config), the NEAR Intents explorer, nearstats.org, ZIP 318, Equilibrium's ZAIR write-up and Zcash forum threads.
 >
 > **Forecasts.** Revenue and volume numbers are **estimates built on stated assumptions**, not observed data. Treat them as pitch-ready scenarios and pressure-test them before quoting.
 
@@ -33,15 +33,9 @@
 1. **It is the organisers' own thesis, as a product.**
    - The site's asset folder is literally `darkpool/`, and the Private Markets track is framed as the "dark-pool thesis": *the price should be public and the participants should not*.
    - sealForge turns that sentence into reusable infrastructure.
-2. **It fixes the criticism of their September auction.** The zkSNARKs auction drew:
-   - 16,971 bids, 8,000 winners, a 1.5 ZEC uniform clearing price;
-   - **$36.94M of submitted volume** (crypto.news; zkSNARKs say ~$40M);
-   - **$19M+ refunded** and **42,000 new wallets**.
-
-   ZachXBT and Onchain Diary criticised that nobody outside could audit the clearing price or the volume. sealForge makes both **publicly recomputable** without exposing bidders.
-3. **It fixes the cross-chain leak the press named.**
-   - About **$19M arrived through Aurora/NEAR Intents across 1,718 swaps** (USDC 27%, ETH 21%).
-   - Crypto.news noted that *"source-chain transfers remained publicly visible."*
+2. **It answers the standard criticism of private sales.** When the bids are private but the result is a number the organiser announces, nobody outside can check the clearing price or the volume. sealForge makes both **publicly recomputable** without exposing bidders.
+3. **It closes the cross-chain leak.**
+   - A bidder who swaps into an auction through NEAR Intents leaves a public source-chain transfer, and its amount and timing can link it to the bid.
    - ShieldRamp is the de-correlated, privacy-scored version of that onboarding path.
 4. **The demand is proven, and it is not a toy market.**
    - NEAR Intents shows **~$268M of ZEC swap volume over 30 days** and **$2.4B all-time** (explorer.near-intents.org, Oct 5, 2026).
@@ -156,20 +150,18 @@ Opens the public audit page → pastes the IVK → watches the chain rescan → 
 ## 7. Expected volume and ARR (estimates)
 
 **Revenue model (post-hackathon):**
-- **Protocol fee** on cleared volume (0.5–1%), charged to the organiser, not the bidders. zkSNARKs just moved royalties to 0% after backlash, so keep bidder-side fees at 0.
+- **Protocol fee** on cleared volume (0.5–1%), charged to the organiser, not the bidders. Keep bidder-side fees at 0: fees on bidders are the first thing a sale gets criticised for.
 - **ShieldRamp routing fee** of 15–25 bps on routed volume. Use the Intents app-fee field if it is available; otherwise set it per integration.
 - **Hosted/managed auctions** (trustee service, white-label page): $2–10K per launch.
 
 **Assumptions:**
-- ~$1,450/ZEC, as implied by the auction figures (25,305 ZEC ≈ $37M).
-- The zkSNARKs auction cleared ~12,000 ZEC ≈ **$17M**.
 - NEAR Intents ZEC volume of ~$268M per 30 days ≈ $3.2B/yr, about half of it inbound.
 
 | Scenario | Auctions (yr 1) | Cleared volume | Fee rev. (0.75%) | ShieldRamp routed | Routing rev. (20 bps) | Managed launches | **ARR** |
 |---|---|---|---|---|---|---|---|
 | Conservative | 6 × $250K | $1.5M | $11K | $5M (~0.3% of inbound Intents ZEC) | $10K | 2 × $3K | **≈ $27K** |
 | Base | 15 × $1M | $15M | $113K | $25M (~1.5%) | $50K | 6 × $5K | **≈ $193K** |
-| Upside | 1 zkSNARKs-scale ($17M) + 25 × $2M | $67M | $503K | $80M (~5%) | $160K | 12 × $8K | **≈ $759K** |
+| Upside | 1 large launch ($17M) + 25 × $2M | $67M | $503K | $80M (~5%) | $160K | 12 × $8K | **≈ $759K** |
 
 **Hackathon-period targets (for the demo slide):**
 - ≥ 1 mainnet auction.

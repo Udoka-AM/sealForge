@@ -16,7 +16,7 @@
 
 **sealForge**: open-source, auditable sealed-bid auctions on Zcash. Anyone can bid from any chain, and the clearing price is public while the bidders stay private.
 
-**Problem solved:** today, private token or NFT sales either stay private and can't be audited (the September 2026 zkSNARKs auction: $36.94M submitted, nobody outside could verify the clearing price or volume), or they are auditable and expose every bidder (public on-chain auctions). Cross-chain bidders also leak their identity through public source-chain transfers. sealForge gives organisers an auction that anyone can audit and that keeps bidders private, with an honest, scored cross-chain on-ramp called **ShieldRamp**.
+**Problem solved:** today, private token or NFT sales either stay private and can't be audited (the organiser announces the volume and the clearing price, and nobody outside can check either), or they are auditable and expose every bidder (public on-chain auctions). Cross-chain bidders also leak their identity through public source-chain transfers. sealForge gives organisers an auction that anyone can audit and that keeps bidders private, with an honest, scored cross-chain on-ramp called **ShieldRamp**.
 
 ## 1.2 Target users
 
@@ -24,7 +24,7 @@
 |---|---|---|
 | **Bidder (Zcash-native)** | Holds ZEC in a shielded wallet (Zodl, Vizor, Noir, Zashi, zcash-devtool) | Place a bid in one scan, without revealing identity, address or bid size to the public, and get a provable receipt |
 | **Bidder (cross-chain)** | Holds USDC/ETH (later SOL) in MetaMask/Phantom and has no Zcash wallet | Bid without learning Zcash first, understand exactly how private the path is, and get refunds back privately |
-| **Auction organiser** | NFT/collectible issuer, token project, community treasury, Zcash ecosystem team (e.g. zkSNARKs, Zilkroad) | Run a credible sale that buyers trust, without custodying funds alone, and get a provable public result |
+| **Auction organiser** | NFT/collectible issuer, token project, community treasury, Zcash ecosystem team (e.g. a name registry such as Zcash Name Service, Zilkroad) | Run a credible sale that buyers trust, without custodying funds alone, and get a provable public result |
 | **Trustee** | Independent auditor, community signer, organiser's own signer | Co-sign escrow spends (refunds, payout) and never be able to move funds alone |
 | **Auditor / journalist / judge** | Anyone sceptical of the result (ZachXBT-style investigators, press) | Recompute clearing price, volume and winners from the chain, without trusting the organiser |
 
@@ -32,9 +32,9 @@
 
 | Pain point | What users do today | Why it fails |
 |---|---|---|
-| Auction results can't be audited | Trust the organiser's spreadsheet / tweet (zkSNARKs, Sep 2026) | Accusations of inflated volume and unverifiable clearing price. Trust collapses after the fact |
+| Auction results can't be audited | Trust the organiser's spreadsheet or announcement | Accusations of inflated volume and unverifiable clearing price. Trust collapses after the fact |
 | Bids are public on transparent chains | Bid from fresh wallets, use mixers, or don't bid | Fresh wallets still get linked through funding and timing. Mixers carry legal risk |
-| Cross-chain bidders leak identity | Swap via NEAR Intents/Aurora straight into the auction address (~$19M across 1,718 swaps in Sep 2026) | Source-chain transfers are public, and amounts plus timing link the swap to the bid |
+| Cross-chain bidders leak identity | Swap via NEAR Intents/Aurora straight into the auction address | Source-chain transfers are public, and amounts plus timing link the swap to the bid |
 | Refunds re-identify bidders | Organiser sends one refund per bidder for `deposit − price` | Unique refund amounts and immediate timing link each refund to its bid |
 | Single-custodian escrow | Organiser holds all bid funds in one wallet | One compromised key or rogue operator can take everything |
 
