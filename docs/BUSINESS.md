@@ -84,9 +84,10 @@ The ecosystem consequence matters more than the feature:
   already wants the asset. This creates the want first.
 
 That is why ShieldRamp sits on the roadmap directly behind mainnet rather than
-in a backlog. Its session model, step machine and the Linkability Score are
-implemented and tested today; the swap leg follows mainnet because NEAR Intents
-settles real assets and has no test network to exercise it against.
+in a backlog. Its Linkability Score is implemented and unit-tested today, and
+its session and steps are specified as types. The quote call, the swap leg and
+the delayed bid follow mainnet, because NEAR Intents settles real assets and
+has no test network to exercise them against.
 
 ## How it makes money
 
