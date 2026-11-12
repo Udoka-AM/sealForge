@@ -35,6 +35,8 @@ Until a server exists, `scripts/host-local.sh start` runs the public site from t
 
 **Fixed hostnames.** With a Cloudflare named tunnel (`cloudflared tunnel login`, then `cloudflared tunnel create sealforge` and `cloudflared tunnel route dns sealforge <host>` for the site and the gRPC-web host), put `SF_HOST_TUNNEL`, `SF_HOST_WEB_HOST` and `SF_HOST_LWD_HOST` in `~/.sealforge-host/<network>/tunnel.env`. The script then serves both through that tunnel. The live instance uses `sealforge.udokaam.dev` and `sealforge-lwd.udokaam.dev`.
 
+**Tunnel protocol.** The tunnels connect over HTTP/2 (outbound TCP) by default. QUIC needs outbound UDP to port 7844; on networks that block it, the tunnel drops and the site returns Cloudflare error 1033 (HTTP 530). Set `SF_HOST_TUNNEL_PROTOCOL=quic` (or `auto`) to change it.
+
 **Test-network wallet.** `cargo run --release -p sealforge-chain --features dev-wallet --example dev_wallet -- testnet <wallet.sqlite> <seed-file> address|balance|send|pay-many|bid|reveal` is a small wallet for faucet TAZ and demo bids. `bid` builds the same memo and receipt as the browser (sealed when given a price) with the wallet's own address for refunds, so run one wallet per simulated bidder; `pay-many` funds them in one transaction. It refuses mainnet.
 
 **An auction in an hour (test networks).** Mainnet keeps 144-block windows and hours-long refund delays. On testnet (25-second blocks) put `SF_MIN_WINDOW_BLOCKS=30` and `SF_REFUND_DELAY_SECS=20,120` in `~/.sealforge-host/testnet/demo.env`: the coordinator then accepts 12-minute bidding and reveal windows and sends refunds within two minutes of publishing. Both settings are refused on mainnet.

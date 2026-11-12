@@ -11,7 +11,10 @@
 # change on every start, and nothing is served while this machine sleeps.
 #
 # Settings: SF_HOST_NETWORK (mainnet | testnet, default mainnet),
-#           SF_HOST_LIGHTWALLETD (default zec.rocks / testnet.zec.rocks).
+#           SF_HOST_LIGHTWALLETD (default zec.rocks / testnet.zec.rocks),
+#           SF_HOST_TUNNEL_PROTOCOL (http2 | quic | auto, default http2: QUIC needs
+#           outbound UDP to port 7844, which many networks block, and the tunnel
+#           then drops without warning).
 # Fixed hostnames instead of quick tunnels: put these in ~/.sealforge-host/<network>/tunnel.env
 #   SF_HOST_TUNNEL=<named tunnel>      (cloudflared tunnel create …; route dns for both hosts)
 #   SF_HOST_WEB_HOST=sealforge.example.com
@@ -32,6 +35,7 @@ esac
 DIR=${SF_HOST_DIR:-$HOME/.sealforge-host}/$NETWORK
 ENVFILE=$DIR/host.env
 ENVOY=sealforge-host-envoy-$NETWORK
+TUNNEL_PROTOCOL=${SF_HOST_TUNNEL_PROTOCOL:-http2}
 DB=sealforge_$NETWORK
 COORD_PORT=8090 WEB_PORT=3200 ENVOY_PORT=8082
 
@@ -110,12 +114,12 @@ ingress:
     service: http://127.0.0.1:$ENVOY_PORT
   - service: http_status:404
 EOF
-    launch tunnel-web cloudflared tunnel --no-autoupdate --config "$DIR/cloudflared.yml" run "$SF_HOST_TUNNEL"
+    launch tunnel-web cloudflared tunnel --no-autoupdate --protocol "$TUNNEL_PROTOCOL" --config "$DIR/cloudflared.yml" run "$SF_HOST_TUNNEL"
     web_url="https://$SF_HOST_WEB_HOST"
     grpc_url="https://$SF_HOST_LWD_HOST"
   else
-    launch tunnel-web cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$WEB_PORT"
-    launch tunnel-grpc cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$ENVOY_PORT"
+    launch tunnel-web cloudflared tunnel --no-autoupdate --protocol "$TUNNEL_PROTOCOL" --url "http://127.0.0.1:$WEB_PORT"
+    launch tunnel-grpc cloudflared tunnel --no-autoupdate --protocol "$TUNNEL_PROTOCOL" --url "http://127.0.0.1:$ENVOY_PORT"
     web_url=$(tunnel_url tunnel-web)
     grpc_url=$(tunnel_url tunnel-grpc)
   fi
