@@ -53,9 +53,24 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-bindgen-cli@0.2.129
+      - name: Find an LLVM clang
+        # The runner image decides which LLVM version is installed, so look for
+        # the newest one instead of naming a version that a new image may drop.
+        run: |
+          find_llvm() {
+            for dir in $(ls -d /usr/lib/llvm-*/bin 2>/dev/null | sort -t- -k2 -V -r); do
+              if [ -x "$dir/clang" ] && [ -x "$dir/llvm-ar" ]; then echo "$dir"; return; fi
+            done
+            return 1
+          }
+          if ! llvm=$(find_llvm); then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends clang llvm
+            llvm=$(find_llvm)
+          fi
+          "$llvm/clang" --version
+          echo "LLVM_BIN=$llvm" >> "$GITHUB_ENV"
       - name: Build auditor, signer, scanner and wallet
-        env:
-          LLVM_BIN: /usr/lib/llvm-18/bin
         run: |
           scripts/build-auditor-wasm.sh
           scripts/build-signer-wasm.sh
