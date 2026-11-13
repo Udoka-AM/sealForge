@@ -4,7 +4,7 @@
 
 # sealForge
 
-**Live on Zcash testnet: [sealforge.udokaam.dev](https://sealforge.udokaam.dev)** · Release: [v0.1.0](https://github.com/Udoka-AM/sealForge/releases/tag/v0.1.0)
+**Live on Zcash testnet: [sealforge.udokaam.dev](https://sealforge.udokaam.dev)** · **Docs: [sealforge.mintlify.app](https://sealforge.mintlify.app)** · Release: [v0.1.0](https://github.com/Udoka-AM/sealForge/releases/tag/v0.1.0)
 
 **Sealed-bid auctions on Zcash. The clearing price is public. The bidders aren't. And you don't have to trust us: anyone can recompute the result from the chain.**
 
@@ -58,6 +58,7 @@ viewing key: the evidence does not depend on our servers.
 | | |
 |---|---|
 | **Try it** | [sealforge.udokaam.dev](https://sealforge.udokaam.dev) — Zcash testnet, no signup |
+| **Read the docs** | [sealforge.mintlify.app](https://sealforge.mintlify.app) — protocol spec, Zcash integration reference, security, verification, guides and API ([source](docs/site)) |
 | **Audit a real auction** | [25 bids, 10 units](https://sealforge.udokaam.dev/audit/K7GHHBC4GP) · [7 bids, 4 winners](https://sealforge.udokaam.dev/audit/KE5DFF4PDA) — press **Rescan the chain in my browser** and recompute it yourself |
 | **Why it matters commercially** | [docs/BUSINESS.md](docs/BUSINESS.md) |
 | **What it does, in product terms** | [docs/PRODUCT.md](docs/PRODUCT.md) |
