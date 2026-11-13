@@ -6,7 +6,7 @@
 
 **Live on Zcash testnet: [sealforge.udokaam.dev](https://sealforge.udokaam.dev)** · **Docs: [sealforge.mintlify.app](https://sealforge.mintlify.app)** · Release: [v0.1.0](https://github.com/Udoka-AM/sealForge/releases/tag/v0.1.0)
 
-**Sealed-bid auctions on Zcash. The clearing price is public. The bidders aren't. And you don't have to trust us: anyone can recompute the result from the chain.**
+**Sealed-bid auctions on Zcash. The clearing price is public. The bidders aren't. And you don't have to trust us for the result: anyone can recompute it from the chain.**
 
 sealForge is an open-source kit for running private, verifiable sales (tickets, passes, NFTs, allocations) with shielded ZEC.
 
@@ -16,8 +16,8 @@ their positions. And software agents are beginning to buy compute, data and
 services on their owners' behalf. Both need price discovery between parties who
 don't trust each other and can't afford to show their hand — and both need the
 result to be checkable afterwards by someone who trusted neither side. That is a
-sealed-bid auction, and what has been missing is one that is private *without*
-requiring trust in whoever runs it.
+sealed-bid auction, and what has been missing is one that is private and whose
+result can be checked *without* trusting whoever runs it.
 
 sealForge is that, working today on Zcash. The auction is the first application,
 not the end state: underneath it is an open protocol and a developer toolkit for
@@ -32,7 +32,7 @@ underneath](#the-primitives-underneath), and
 |---|---|
 | **You bid privately** | Scan one ZIP-321 QR with any Zcash wallet. The payment is a shielded Ironwood transfer, and its memo carries a salted commitment and a fresh refund address. Your receipt stays in your browser |
 | **Or bid from the built-in wallet** | Create a shielded wallet in the page, or link the one you already use by importing its 24-word phrase (Zashi, Zodl and other ZIP 32 wallets). It syncs, proves and signs in a Web Worker with librustzcash; the phrase never leaves the browser. Paying a bid or a reveal is one tap |
-| **Nobody can run off with the money** | Bids go to an escrow whose spend authority is split across three trustees with **FROST 2-of-3**. One trustee alone can't move funds; the coordinator can't move funds at all |
+| **No single key can move the money** | Bids go to an escrow whose spend authority is split across three trustees with **FROST 2-of-3**. One trustee alone can't move funds, and the coordinator holds no key share. Today trustees sign the transaction the coordinator builds without seeing its outputs, so a compromised coordinator plus two trustees signing as asked could redirect funds. Trustee-side checks are a mainnet gate ([security](https://sealforge.mintlify.app/security#trust-assumptions)) |
 | **Optional: nobody sees bids early** | In **sealed-reveal** mode you deposit a standard budget and reveal your bid after the close. Until then the coordinator, the trustees and the public see only budgets |
 | **Anyone can check the result** | After close, the escrow's incoming viewing key and a Merkle root of every bid are published. The Audit page (in the browser) or `sealforge-audit` (CLI) rescans the chain with that key, through any lightwallet server, and recomputes price, volume, winners, each bidder's outcome and the root |
 | **Refunds can't be traced back to bids** | Refunds are split into standard denominations, sent after random delays, and batched with other bidders' refunds. Measured: **0.1%** of refunds linkable at the exit, against 100% for naive refunds |
@@ -128,9 +128,10 @@ To run the whole thing locally, on a private chain: [docs/QUICKSTART.md](docs/QU
 |---|---|---|
 | Public chain observer, during the auction | ✅ | Bids are shielded transfers. Amounts, senders and memos are encrypted |
 | Public chain observer, after close | ✅ bidders hidden | The published viewing key reveals incoming amounts and memos, never senders. Refund addresses are fresh |
-| Coordinator / trustees during bidding | ⚠️ in deposit mode · ✅ in sealed-reveal mode | Deposit mode: escrow viewers see bid amounts live (stated on the auction page). Sealed-reveal: they see only budget deposits until bidders reveal |
+| Coordinator during bidding | ⚠️ in deposit mode · ✅ in sealed-reveal mode | Deposit mode: the coordinator holds the escrow viewing key and sees bid amounts live (stated on the auction page). Trustees hold no viewing key. Sealed-reveal: it sees only budget deposits until bidders reveal |
 | A rogue trustee | ✅ | FROST 2-of-3: one share can't sign |
-| A dishonest coordinator | ✅ detectable | It can't move funds, and any result that doesn't follow from the chain fails the public audit |
+| A dishonest coordinator, the result | ✅ detectable | Any result that doesn't follow from the chain fails the public audit |
+| A dishonest coordinator, refunds and payout | ⚠️ not protected yet | It holds no key share, but trustees sign the transactions it builds without seeing their outputs. With two trustees signing as asked, it could redirect funds. Trustee-side verification is a mainnet gate |
 | Refund correlation (amount + timing) | ✅ mitigated | Standard denominations, random delays, cross-bidder batches ([evidence](docs/evidence/linkability.md)) |
 
 Full version, including what is **not** protected: [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md).
