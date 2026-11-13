@@ -22,7 +22,9 @@ psql "$DATABASE_URL" -f seed/dev.sql
 
 ## Temporary hosting from a laptop
 
-Until a server exists, `scripts/host-local.sh start` runs the public site from this machine, against a public lightwallet server, so no node has to sync:
+The hosted site no longer runs this way: since 2026-11-13 it runs on a server ([docs/DEPLOY-VPS.md](../docs/DEPLOY-VPS.md)). Don't start this script's named tunnel while the server serves it, or Cloudflare splits live traffic between the two.
+
+For a short-lived demo, `scripts/host-local.sh start` runs the public site from this machine, against a public lightwallet server, so no node has to sync:
 
 | Piece | Where |
 |---|---|
@@ -45,7 +47,7 @@ Limits of laptop hosting: the URLs change on every start, nothing is served whil
 
 ## Deploy (task 6.2)
 
-For the hosted testnet site on a single VPS (systemd, Cloudflare Tunnel, moving the data off the laptop), follow [docs/DEPLOY-VPS.md](../docs/DEPLOY-VPS.md). The compose deploy below is the full-node layout.
+For the hosted testnet site on a single server (Docker, `infra/vps/docker-compose.yml`, Cloudflare Tunnel, moving the data off another machine), follow [docs/DEPLOY-VPS.md](../docs/DEPLOY-VPS.md). The compose deploy below is the full-node layout.
 
 ```bash
 docker compose -f infra/docker-compose.yml --profile node --profile app pull

@@ -1,0 +1,87 @@
+# The hosted testnet site on one server, all in Docker. docs/DEPLOY-VPS.md
+# walks through it. No ports are published except Postgres on loopback: the
+# Cloudflare tunnel connector dials out, so the server needs no open inbound
+# ports for the site.
+#
+#   docker compose -f infra/vps/docker-compose.yml --env-file /opt/sealforge/.env up -d --build
+name: sealforge
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sealforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: sealforge
+    # Loopback only, for the nightly backup on the host.
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sealforge"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  coordinator:
+    image: sealforge-coordinator:local
+    build:
+      context: ../..
+      dockerfile: infra/coordinator.Dockerfile
+    # SF_DATA_KEY, SF_NETWORK, SF_ZAINO_URL, SF_WALLET_DIR=/data/wallets, ...
+    env_file: ${SF_COORDINATOR_ENV:?path to coordinator.env}
+    environment:
+      DATABASE_URL: postgres://sealforge:${POSTGRES_PASSWORD:?}@postgres:5432/sealforge
+    # Escrow wallet files must outlive the container. Owned by uid 10001 on the
+    # host to match USER in the Dockerfile.
+    volumes:
+      - ${SF_WALLET_HOST_DIR:-/var/lib/sealforge/wallets}:/data/wallets
+    depends_on:
+      postgres: { condition: service_healthy }
+    expose: ["8080"]
+    restart: unless-stopped
+
+  web:
+    image: sealforge-web:local
+    build:
+      context: ../..
+      dockerfile: infra/web.Dockerfile
+      args:
+        # Read at build time: next.config.ts puts it in the CSP, and
+        # NEXT_PUBLIC_* names are inlined into the client bundle.
+        LIGHTWALLETD_GRPCWEB: https://${SF_LWD_HOST:?gRPC-web hostname}
+        NEXT_PUBLIC_DEFAULT_NETWORK: testnet
+    environment:
+      # The site proxies /api/coordinator/* here, server side.
+      COORDINATOR_URL: http://coordinator:8080
+      LIGHTWALLETD_GRPCWEB: https://${SF_LWD_HOST:?}
+      NEXT_PUBLIC_DEFAULT_NETWORK: testnet
+      NODE_ENV: production
+    depends_on: [coordinator]
+    expose: ["3000"]
+    restart: unless-stopped
+
+  # gRPC-web proxy to a public lightwallet server, for the browser wallet and
+  # the in-browser audit rescan. Logs no client IPs.
+  envoy:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes:
+      - ../envoy-tls.yaml:/etc/envoy/envoy-tls.yaml:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - sed "s|UPSTREAM_HOST|${SF_LWD_UPSTREAM:-testnet.zec.rocks}|g" /etc/envoy/envoy-tls.yaml > /tmp/envoy.yaml && exec envoy -c /tmp/envoy.yaml
+    expose: ["8081"]
+    restart: unless-stopped
+
+  # Cloudflare named-tunnel connector. HTTP/2 because QUIC needs outbound UDP
+  # 7844, which some networks block (infra/README.md). Run exactly one
+  # connector per tunnel per site: two connectors split live traffic.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.9.3
+    command: tunnel --no-autoupdate --protocol http2 --config /etc/cloudflared/config.yml run
+    volumes:
+      - ${SF_CLOUDFLARED_DIR:?dir with config.yml and credentials.json}:/etc/cloudflared:ro
+    depends_on: [web, envoy]
+    restart: unless-stopped
+
+volumes:
+  pgdata:

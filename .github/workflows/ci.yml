@@ -26,7 +26,7 @@ jobs:
       # sqlx::test creates a fresh database per integration test on this server.
       DATABASE_URL: postgres://sealforge:sealforge@localhost:5432/sealforge
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.99.0
         with:
           components: rustfmt, clippy
@@ -45,7 +45,7 @@ jobs:
     # committed copies in apps/web/public can be compared with a clean build.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.99.0
         with:
           targets: wasm32-unknown-unknown
@@ -76,7 +76,7 @@ jobs:
           scripts/build-signer-wasm.sh
           scripts/build-scanner-wasm.sh
           scripts/build-wallet-wasm.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: wasm-modules
           path: |
@@ -100,7 +100,7 @@ jobs:
     env:
       PGPASSWORD: sealforge
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Apply migrations
         run: for f in migrations/*.sql; do psql -h localhost -U sealforge -d sealforge -v ON_ERROR_STOP=1 -f "$f"; done
       - name: Load dev seed
@@ -109,9 +109,9 @@ jobs:
   web:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: pnpm

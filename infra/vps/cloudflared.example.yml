@@ -1,0 +1,11 @@
+# Copy to <SF_CLOUDFLARED_DIR>/config.yml. credentials.json is the file
+# `cloudflared tunnel create` wrote (~/.cloudflared/<tunnel id>.json): a secret,
+# mode 600, owned by uid 65532 (the cloudflared image's user).
+tunnel: <tunnel id>
+credentials-file: /etc/cloudflared/credentials.json
+ingress:
+  - hostname: sealforge.example.org      # the site
+    service: http://web:3000
+  - hostname: sealforge-lwd.example.org  # gRPC-web, = SF_LWD_HOST
+    service: http://envoy:8081
+  - service: http_status:404
