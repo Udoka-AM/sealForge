@@ -1,5 +1,6 @@
 import { bytesToHex } from "@noble/hashes/utils";
 import { describe, expect, it } from "vitest";
+import shared from "../../../crates/sealforge-core/tests/fixtures/vectors.json";
 import {
   bidCommitment,
   bidMemo,
@@ -12,6 +13,7 @@ import {
   prepareSealedBid,
   priceCommitment,
   receiptMemo,
+  revealMemo,
   roundingOptions,
   verifyReceipt,
 } from "./index";
@@ -138,5 +140,32 @@ describe("receipts", () => {
     });
     expect(receiptMemo(deposit.receipt)).toBe(deposit.memo);
     expect(receiptMemo(sealed.receipt)).toBe(sealed.memo);
+  });
+});
+
+// The checked-in vector file that sealforge-core's tests/vectors.rs pins.
+// Regenerate with `cargo run -p sealforge-core --example vectors`.
+describe("shared vectors file (crates/sealforge-core/tests/fixtures/vectors.json)", () => {
+  const i = shared.inputs;
+  const salt = new Uint8Array(32).fill(1);
+  it("uses the documented inputs", () => {
+    expect(bytesToHex(salt)).toBe(i.salt);
+  });
+  it("deposit-mode commitment, memo and ZIP-321 URI", () => {
+    const c = bidCommitment(i.auction_code, i.refund_ua, salt);
+    expect(bytesToHex(c)).toBe(shared.deposit_mode.bid_commitment);
+    const memo = bidMemo(i.auction_code, c, i.refund_ua);
+    expect(memo).toBe(shared.deposit_mode.bid_memo);
+    expect(paymentUri(i.escrow_ua, BigInt(i.amount_zat), memo)).toBe(
+      shared.deposit_mode.payment_uri,
+    );
+  });
+  it("sealed-reveal price commitment, bid memo and reveal memo", () => {
+    const c = priceCommitment(i.auction_code, i.refund_ua, BigInt(i.price_zat), salt);
+    expect(bytesToHex(c)).toBe(shared.sealed_reveal_mode.price_commitment);
+    expect(bidMemo(i.auction_code, c, i.refund_ua)).toBe(shared.sealed_reveal_mode.bid_memo);
+    expect(revealMemo(i.auction_code, c, BigInt(i.price_zat), salt)).toBe(
+      shared.sealed_reveal_mode.reveal_memo,
+    );
   });
 });
