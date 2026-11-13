@@ -1,0 +1,101 @@
+# 2.4 Commitments and domain separation
+
+Status: `Testnet` (every hash below is computed in production by the coordinator at close and recomputed by the CLI and WASM auditors; values for both testnet auctions matched, [evidence/audit-rescan.md](../../evidence/audit-rescan.md), [evidence/testnet-genesis.md](../../evidence/testnet-genesis.md#audits)).
+
+## Hash function
+
+Every sealForge hash is **BLAKE2b** ([RFC 7693](https://www.rfc-editor.org/rfc/rfc7693)) with:
+- digest length **32** set in the parameter block (a native 32-byte digest, not a truncated BLAKE2b-512),
+- no key and no salt,
+- a 16-byte **personalization** string in the parameter block, which separates domains.
+
+Rust: `blake2b_simd 1.0.5`, `Params::new().hash_length(32).personal(P)` (`crates/sealforge-core/src/receipt.rs`, `crates/sealforge-core/src/merkle.rs`). TypeScript: `@noble/hashes/blake2b` with `{ dkLen: 32, personalization: P }` (`packages/bid/src/memo.ts`). All five personalizations are exactly 16 bytes, so no implementation-specific padding applies.
+
+## Domain table
+
+| Use | Function | Personalization (16 bytes, ASCII) | Input bytes, in order | Input length | Output |
+|---|---|---|---|---|---|
+| Bid commitment (deposit mode) | `receipt::commitment` | `sealforge_bid_v1` | `code ‖ 0x00 ‖ refund_ua ‖ 0x00 ‖ salt` | 10 + 1 + *r* + 1 + 32 | 32 B |
+| Price commitment (sealed-reveal) | `receipt::price_commitment` | `sealforge_rev_v1` | `code ‖ 0x00 ‖ refund_ua ‖ 0x00 ‖ price_zat (u64 LE) ‖ salt` | 10 + 1 + *r* + 1 + 8 + 32 | 32 B |
+| Merkle leaf | `merkle::leaf_hash` | `sealforge_leaf1\0` | `txid ‖ output_index (u32 LE) ‖ amount_zat (u64 LE) ‖ commitment` | 32 + 4 + 8 + 32 = 76 | 32 B |
+| Merkle node | `merkle::node_hash` (private) | `sealforge_node1\0` | `left ‖ right` | 64 | 32 B |
+| Published root | `merkle::published_root` (private) | `sealforge_root1\0` | `leaf_count (u64 LE) ‖ tree_root` | 40 | 32 B |
+
+- `code` is the 10 ASCII bytes of the auction code. `refund_ua` is the UTF-8 bytes of the refund Unified Address as written in the memo (*r* bytes). `salt` is 32 random bytes.
+- `\0` is a single `0x00` byte, padding the 15-character Merkle strings to 16.
+- `txid` is the 32-byte transaction id in internal byte order (as `zcash_primitives` `TxId` holds it), not the byte-reversed display order (`crates/sealforge-scan/src/lib.rs` `ReceivedPayment::txid`).
+- In sealed-reveal mode the leaf's `amount_zat` is the **revealed price**, and its `commitment` is the deposit memo's price commitment (`selection::included_bids_commit_reveal`).
+
+Byte layout of the deposit-mode commitment input, with the vector inputs (`7K3QX9MZ2P`, `utest1refundexample`, salt `01…01`):
+
+| Offset | Length | Field | Bytes |
+|---|---|---|---|
+| 0 | 10 | code | `37 4b 33 51 58 39 4d 5a 32 50` |
+| 10 | 1 | separator | `00` |
+| 11 | 19 | refund UA | `75 74 65 73 74 31 72 65 66 75 6e 64 65 78 61 6d 70 6c 65` |
+| 30 | 1 | separator | `00` |
+| 31 | 32 | salt | `01` × 32 |
+
+Output: `deposit_mode.bid_commitment` in [Appendix: test vectors](../appendix-test-vectors.md) (also pinned by `receipt::tests::cross_language_vector`).
+
+## Binding
+
+A commitment binds a bid to one auction in two independent ways:
+
+1. **The auction code is inside the hash.** A commitment computed for auction X does not open for auction Y.
+2. **Each auction has its own escrow address** from a fresh DKG and freshly sampled `nk`, `rivk` ([3](../03-zcash-integration.md#escrow-key-construction)). A payment counts only if it decrypts under that auction's UIVK, so a payment made to one auction's escrow can never be counted by another. Selection additionally rejects a memo whose code doesn't match (`invalid(wrong_auction)`).
+
+**Duplicate commitments.** If several payments carry the same commitment, the earliest by `(block_height, txid, output_index)` counts and the rest are `invalid(duplicate_commitment)` and refunded (`selection::classify`, test `earliest_duplicate_commitment_wins_regardless_of_order`). This stops a copied memo from displacing the original bid.
+
+## Why the `0x00` separators
+
+`refund_ua` has variable length, so the encoding must make it impossible for two different `(code, refund_ua, salt)` (or `…, price, salt`) tuples to produce the same bytes. Today the code is fixed at 10 bytes and the salt (and price) are fixed-length at the end, so the input already parses one way. The separators keep it unambiguous without relying on that: they mark where each variable-length field ends if a later version changes a length. Separators cost two bytes and keep the TypeScript and Rust encoders trivially identical. The leaf preimage has no separators because every field in it is fixed-length.
+
+## Merkle tree
+
+Construction (`crates/sealforge-core/src/merkle.rs` `MerkleTree::from_leaves`):
+
+1. Compute a leaf for every **included** bid: `valid` and `under_reserve` bids both go in, so every bidder can prove their bid was seen (`result::compute_result`).
+2. **Sort leaves ascending** (bytewise) and reject duplicates (`DuplicateLeaf`). The root therefore doesn't depend on scan order (`root_ignores_input_order`).
+3. **Pad to the next power of two** with all-zero 32-byte leaves. There is no odd-level case: every level has even width. An empty tree is one zero leaf.
+4. Hash pairs with the node personalization up to one `tree_root`.
+5. **Published root** = `BLAKE2b(sealforge_root1\0, leaf_count u64 LE ‖ tree_root)`.
+
+**Why the leaf count is in the root.** Padding leaves are zeros, so without the count a prover could present a padding position as a bid, and a tree of *n* real leaves would share its `tree_root` with the same leaves plus explicit zero leaves. Binding `leaf_count` fixes how many leaves are real. The verifier also rejects `index ≥ leaf_count` and proofs whose sibling count isn't `log2(next_pow2(leaf_count))` (`verify_proof`; tests `padding_cannot_be_proven_as_a_bid`, `tampering_fails`).
+
+**Inclusion proof** (`InclusionProof`, JSON with hex siblings): `leaf_count`, `index` (position in the sorted leaves), `siblings` from leaf level up to, but excluding, the tree root.
+
+Vectors for a leaf, a node, and 2- and 3-leaf roots are in [Appendix: test vectors](../appendix-test-vectors.md). The vector generator recomputes the node and root from this page's table, independently of `MerkleTree`, and asserts they agree (`crates/sealforge-core/tests/support/vectors.rs`).
+
+## Salt
+
+32 bytes from the browser CSPRNG (`crypto.getRandomValues`, `packages/bid/src/receipt.ts` `prepareBid`, `prepareSealedBid`). The salt stays in the receipt in the browser and is never sent to the coordinator. In sealed-reveal mode the bidder publishes it in the reveal memo after the bidding close. In deposit mode it is never published. The bidder uses it to check inclusion (`/verify`).
+
+## Rust and TypeScript parity
+
+`@sealforge/bid` reimplements the two commitments, both memos and the ZIP 321 URI. Parity is checked byte for byte against one file:
+
+- `crates/sealforge-core/tests/fixtures/vectors.json` is produced by `cargo run -p sealforge-core --example vectors` (generator: `crates/sealforge-core/tests/support/vectors.rs`).
+- Rust pins it: `crates/sealforge-core/tests/vectors.rs`, plus the older inline vectors `receipt::tests::cross_language_vector` and `price_commitment_vector`.
+- TypeScript checks the same file: `packages/bid/src/bid.test.ts`, "shared vectors file".
+- Both run in CI (`.github/workflows/ci.yml`: `cargo test --workspace` and `pnpm test`).
+
+The Merkle tree is Rust-only. The browser uses the Rust auditor compiled to WASM, so there is no second Merkle implementation to keep in sync.
+
+## What is not in the commitment
+
+- **The network.** Not hashed. Refund addresses are network-encoded (`utest1…`, `u1…`), and the coordinator rejects a refund UA for the wrong network (`validate::shielded_ua`). An escrow exists on one network only, so a payment can't count on another network.
+- **The coordinator instance.** Not hashed. Two coordinators can issue the same auction code ([2.3](wire-formats.md#auction-code)), but their escrows differ, and a bid only counts at the escrow it paid. A commitment reused across two such auctions would open for both. That needs the same code, refund UA and salt, so it's only the bidder's own choice to replay.
+
+Whether to bind both anyway is listed in [11 Open questions](../11-open-questions.md).
+
+## Note-level randomness is not ours
+
+sealForge never chooses note randomness. Bidder payments and escrow spends are built with librustzcash's builder and the PCZT roles, which draw it from the OS CSPRNG passed in by sealForge:
+
+| Where | RNG | Passed into |
+|---|---|---|
+| In-browser bidder wallet, `crates/sealforge-wallet/src/pay.rs` `rng()` | `UnwrapErr(rand 0.10 SysRng)` (browser: `getrandom` with `wasm_js`/`js`) | `Builder::build_for_pczt`, `IoFinalizer::finalize_io`, `Prover::create_ironwood_proof`, `Signer::sign_ironwood`, `TransactionExtractor::extract` |
+| Escrow spends, `crates/sealforge-chain/src/wallet.rs` `rng()` | `UnwrapErr(rand 0.10 SysRng)` | `create_pczt_from_proposal`, `finalize_io`, `create_ironwood_proof` (`crates/sealforge-chain/src/spend.rs`) |
+
+sealForge adds no application-specific domain to note construction. Note commitment randomness (`rcm`), `ψ` and `esk` are derived inside `orchard 0.16.0` from the note's `rseed` (`RandomSeed` in `src/note.rs`). Upstream documents `rcm_v2` against [Zcash Protocol Specification §4.7.3 "Sending Notes (Orchard)"](https://zips.z.cash/protocol/nu5.pdf#orchardsend) and `rcm_v3` (quantum-recoverable) against [ZIP 2005](https://zips.z.cash/zip-2005). Which derivation a note uses is `orchard`'s decision, not sealForge's, and this page does not restate either.

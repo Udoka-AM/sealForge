@@ -1,8 +1,20 @@
 # sealForge threat model
 
-What sealForge protects, against whom, and where the limits are. Every row points at the code or test that enforces it. Where a protection isn't built yet, this document says so.
+What sealForge protects, against whom, and where the limits are. Every row points at the code or test that enforces it. Where a protection isn't built, this document says so.
 
-**Status (2026-10-15):** auction logic, escrow cryptography, close/publish, receipts, the auditor (published-list mode) and refund planning are built and tested. On-chain scanning, PCZT signing of refunds and ShieldRamp depend on the testnet node and aren't live yet.
+**Status (2026-11-13, `main` at `3a6002e`):** auction logic, escrow cryptography (FROST 2-of-3 DKG and rerandomized signing of Ironwood spends through PCZTs), close and publish, receipts, both bid modes (deposit and sealed-reveal), refund planning, and the independent chain audit (CLI and in-browser) are built, tested, and have run on public Zcash testnet (auctions `KE5DFF4PDA` and `K7GHHBC4GP`, see [evidence/testnet-genesis.md](evidence/testnet-genesis.md) and [evidence/test-run.md](evidence/test-run.md)). No auction has run on mainnet. ShieldRamp's quote and swap leg is specified, not built.
+
+## Trust assumptions
+
+Stated first because every protection below depends on them.
+
+1. **Deposit mode: the coordinator sees bid amounts live.** The coordinator holds the escrow UFVK to scan for bids, so it decrypts each bid's amount and memo as it arrives, and so does whoever operates it. Trustees hold no viewing key and are not sent bid data. Sealed-reveal mode removes the price from what the coordinator sees until the reveal window (see below).
+2. **The coordinator samples `nk` and `rivk` and holds the escrow UFVK.** When the last trustee completes the DKG, the coordinator builds the Orchard FVK `ak ‖ nk ‖ rivk` from the FROST group key `ak` and fresh `nk`, `rivk` from `OsRng` (`crates/sealforge-coordinator/src/routes/dkg.rs`, `sealforge_escrow::address::escrow_fvk`). It stores the UFVK encrypted with `SF_DATA_KEY`. This gives the coordinator viewing power over the escrow, not spending power: spends need a RedPallas signature under `ak`, which needs two FROST shares.
+   - A database dump **plus** `SF_DATA_KEY`: the attacker reads every escrow's incoming and outgoing notes, including bids before close (sealing breaks for deposit-mode amounts) and refund addresses. Funds don't move.
+   - Two trustee key shares: the attacker can produce spend authorization signatures. To build a spend they also need the escrow FVK (from the coordinator database and `SF_DATA_KEY`) to construct the transaction.
+3. **Trustees sign what the coordinator builds, without seeing it.** For each refund or payout batch, a trustee receives the shielded sighash, each spend's α, and the coordinator's stated output count and total (`BatchView`). It does not receive the PCZT, so it cannot check the outputs against the published result before signing (`crates/sealforge-cli/src/trustee.rs`, `sign_step`; the browser signer is the same). A coordinator that is malicious or compromised could present a sighash for a transaction paying itself, and two trustees following the protocol would sign it. The FROST threshold protects against rogue trustees, not against a rogue coordinator with honest-but-blind trustees. Closing this gap (trustees verify the PCZT's outputs against the refund plan derivable from the published result) is a mainnet gate.
+4. **Liveness: organiser, coordinator, trustees.** Refunds start only after the organiser publishes (`POST /v1/auctions/{code}/publish` is organiser-only; nothing publishes automatically). Then they need the coordinator (to build PCZTs and aggregate) plus two of the three trustees. Any of them can delay an auction. Funds stay in the escrow until two trustees sign ([evidence/testnet-genesis.md](evidence/testnet-genesis.md) §Timing records a real coordinator outage).
+5. **The published UIVK is permanent.** At publish, the UIVK is released so anyone can audit. From then on, anyone with it can decrypt every incoming note to that escrow: each deposit's amount and memo (auction code, commitment, refund address) and, in sealed-reveal mode, each reveal (price and salt). This is by design. It does not reveal who sent the payments, and it does not decrypt outgoing refunds or the payout.
 
 ## Assets
 
@@ -11,40 +23,46 @@ What sealForge protects, against whom, and where the limits are. Every row point
 | Bidder identity (which wallet bid) | The core promise: price public, bidders private |
 | Bid amounts during the auction | Leaking them lets others bid strategically |
 | Escrowed funds | Bidder money until refunds and payout |
-| Integrity of the result | Price, winners and refunds must be checkable by anyone |
+| Integrity and completeness of the result | Price, winners and refunds must be checkable by anyone, including that no bid was left out |
 | Refund flow | Refunds must not re-identify bidders |
 
 ## Adversaries and protections
 
 | Adversary | Protected? | How | Enforced by |
 |---|---|---|---|
-| **Public chain observer, during the auction** | ✅ | Bids are shielded Ironwood payments. Amount, sender and memo are encrypted | Zcash shielded pool. Bid memo grammar in `sealforge-core::memo` |
-| **Public chain observer, after close** | ✅ amounts revealed, ✅ bidders hidden | The published UIVK reveals incoming notes (amount, memo) but never senders. Refund addresses are fresh diversified addresses | `POST /publish` derives the UIVK from the encrypted UFVK (`routes/auctions.rs`) |
-| **Organiser publishing a false result** | ✅ | Anyone recomputes price, volume, winners, every outcome and the Merkle root with the auditor. Bidders check their own inclusion from their receipt | `sealforge-auditor::audit`, `verify_receipt`. Tests catch inflated volume, hidden bids and rewritten refunds |
-| **Organiser hiding a bid from the published list** | ⚠️ Not yet | Needs the chain rescan with the UIVK (task 3.4). Today's audit checks the published list is internally consistent, and the audit page says so | Planned: auditor chain scan |
-| **Auction operator / trustees** | ⚠️ Partial in deposit mode, ✅ in sealed-reveal mode | Deposit mode: trustees and the coordinator see bid amounts live, and the auction page says so. Sealed-reveal mode (commit-reveal): during bidding they see only deposits, which are standard budget amounts at or above each bid. Prices appear only in reveals sent after the close, which the chain audit checks | `sealforge-core::selection` commit-reveal tests, `tests/commit_reveal.rs`, `docs/evidence/regtest-e2e.md` (sealed-bid run) |
-| **Single rogue trustee** | ✅ | FROST 2-of-3: one key share can't produce a spend signature | `sealforge-escrow` tests: every 2-of-3 subset signs, 1 cannot. Signatures pass Orchard's consensus check |
-| **Coordinator during key generation** | ✅ | It only relays packages. Round 1 is signed by the sending trustee, and round 2 is also sealed to the recipient. The escrow is derived only if all three trustees report the same key. Trustees compare a fingerprint out of band | `routes/dkg.rs`, `sealforge-cli::trustee`. End-to-end test with a forged package |
-| **Replay or forgery of organiser/trustee API calls** | ✅ | Ed25519 `SF-Sig` request signatures, ±60 s window, per-key nonce store | `sealforge-api::auth`, API integration tests |
+| **Public chain observer, during the auction** | ✅ | Bids are shielded Ironwood payments. Amount, sender and memo are encrypted on chain | Zcash note encryption. Escrow UA has only an Orchard receiver (`sealforge_escrow::address::escrow_address`) |
+| **Public chain observer, after publish** | ⚠️ Amounts revealed, ✅ senders hidden | The published UIVK decrypts incoming notes (amount, memo) but not senders. Refund addresses in memos become readable; the bid form asks for a fresh address per bid | `routes/auctions.rs` publish derives the UIVK from the encrypted UFVK. Trust assumption 5 |
+| **Organiser or coordinator publishing a false result** | ✅ | Anyone recomputes price, volume, winners, every outcome and the Merkle root from the chain. Bidders check their own inclusion from their receipt | `sealforge_auditor::audit_chain`, `verify_receipt`. Tests: `inflated_volume_or_hidden_bid_is_caught`, `rewritten_outcome_is_caught`, `tampered_root_breaks_inclusion`. Testnet: [evidence/audit-rescan.md](evidence/audit-rescan.md) tamper test |
+| **Organiser or coordinator hiding a bid from the published list** | ✅ within the published scan range | The auditor rescans the chain with the UIVK and a lightwallet server of the auditor's choice, reclassifies every payment with the same `sealforge-core::selection` code, and compares. A missing bid changes the bid count, outcomes and root. Residual: the default scan range is the published `scan_from_height..scan_to_height`; an auditor can widen it with `--from/--to` | `sealforge_chain::audit::scan_incoming`, `sealforge-scan`, `sealforge-audit` CLI, browser rescan. Commit-reveal: `commit_reveal_tests::a_suppressed_reveal_is_caught` |
+| **Coordinator operator, deposit mode** | ⚠️ Amounts visible | It sees bid amounts live. The auction page says so | Trust assumption 1 |
+| **Coordinator building a malicious refund or payout** | ⚠️ Not protected | Trustees sign the sighash without the PCZT (trust assumption 3). A redirected spend would be visible afterwards only to holders of the UFVK, since the UIVK does not show outgoing notes; bidders would see a missing refund | Mainnet gate: trustee-side PCZT verification |
+| **Coordinator operator, sealed-reveal mode** | ✅ prices hidden until the reveal window | During bidding it sees only deposits (a budget at or above the hidden price) and a commitment `BLAKE2b(code ‖ 0 ‖ refund_ua ‖ 0 ‖ price_le ‖ salt)`. Prices appear only in reveals mined after `close_height`. Deposit amounts are still visible to it | `sealforge_core::receipt::price_commitment`, `selection::classify_commit_reveal`, `tests/commit_reveal.rs`. Testnet `KE5DFF4PDA`, `K7GHHBC4GP` |
+| **Single rogue trustee** | ✅ | FROST 2-of-3: one share can't produce a spend signature, and FROST refuses a one-signer package | `sealforge-escrow` tests `one_trustee_cannot_sign_alone`, `two_of_three_produces_consensus_valid_spend_auth_signatures`. `dkg_e2e` |
+| **Coordinator during key generation** | ✅ | It only relays packages. Round 1 is signed by the sending trustee; round 2 is also sealed to the recipient's X25519 key. The escrow is derived only if all three trustees report the same public key package. Trustees compare a fingerprint out of band | `routes/dkg.rs`, `sealforge-cli::trustee`. `dkg_e2e::three_trustees_run_the_dkg_through_the_coordinator` |
+| **Replay or forgery of organiser/trustee API calls** | ✅ | Ed25519 `SF-Sig` request signatures, ±60 s window, per-key nonce store | `sealforge-api::auth`, `api` integration tests |
 | **Refund correlation at the exit** (amount matching when a bidder unshields or swaps a refund) | ✅ Mitigated | Canonical notes only, dust not sent, independent random delays, mixed batches. Measured: **0.1%** of refunds linkable vs **100%** for naive refunds | `sealforge-core::refunds`, `tools/linkability-harness`, [evidence](evidence/linkability.md) |
-| **Source-chain observer (ShieldRamp)** | ⚠️ Reduced, not removed | EVM deposits are public. Planned mitigations: canonical amounts, split swaps, delays, an ephemeral wallet and a Linkability Score shown before signing. Never described as "untraceable" | Planned: ShieldRamp (needs 1Click access) |
-| **The sealForge website** | ✅ | Receipt salts, refund addresses and receipts are created and kept in the browser. The audit runs the Rust auditor as WASM with published build provenance. No third-party font or analytics requests | `@sealforge/bid` (byte-compatible with Rust), `public/auditor/BUILD.json`, network checks in PR #6 and #9 |
+| **Source-chain observer (ShieldRamp)** | ⚠️ Not built | EVM deposits are public. Planned mitigations: canonical amounts, split swaps, delays, an ephemeral wallet and a Linkability Score shown before signing. Only the scoring module exists | `packages/shieldramp/src/score.ts` (Specified) |
+| **The sealForge website** | ✅ | Receipt salts, refund addresses and receipts are created and kept in the browser. The audit runs the Rust auditor and scanner as WASM with published build provenance. Production CSP: same-origin scripts and WASM, `frame-ancestors 'none'`. No third-party font or analytics requests | `@sealforge/bid` (byte-compatible with Rust), `apps/web/public/*/BUILD.json`, SECURITY-REVIEW F5 |
 
 ## Data the coordinator holds
 
 | Data | Protection | Retention |
 |---|---|---|
 | Escrow UFVK | `pgp_sym_encrypt` with `SF_DATA_KEY` | Until settled + 30 days |
-| Refund addresses (from memos) | Encrypted column | Until refunds confirm + 30 days |
+| `nk`, `rivk` | Inside the UFVK above. Sampled by the coordinator (trust assumption 2) | As the UFVK |
+| Refund addresses (from memos) | Encrypted column. Also readable by anyone with the published UIVK after publish | Until refunds confirm + 30 days |
 | Organiser and trustee public keys | Public keys only | Life of the auction |
-| FROST key shares | **Never held.** They stay on trustee machines (owner-only files) | n/a |
+| FROST key shares | **Never held.** They stay on trustee machines (owner-only files) or browser memory | n/a |
 | Receipt salts | **Never held.** Browser only | n/a |
 | Client IPs | Dropped from access logs (Caddy filter). Not logged by the app | n/a |
 
 ## Known limits
 
-1. **Completeness of the bid list** needs the chain rescan (task 3.4). Until then, a dishonest coordinator could omit a bid from the published list, although the bidder's own Verify check would then fail and expose it.
-2. **Trustees see bids live.** Commit-reveal is a stretch goal.
-3. **Exit behaviour matters.** A bidder who exits all refund notes at once recreates their refund amount. The exit path must warn about this.
-4. **Rare, large refunds** in small auctions can produce a uniquely sized note (the residual 0.1–0.4%).
-5. **Unreadable memos** can't be refunded automatically. They are counted for manual review.
+1. **Deposit mode exposes amounts to the coordinator operator.** Use sealed-reveal mode when that matters. Sealed-reveal still shows deposit sizes, which bound each price from above.
+2. **The coordinator samples `nk`/`rivk`** and so can always view the escrow. Alternatives (organiser-sampled, or jointly derived by trustees) are an open question for reviewers.
+3. **Trustees sign blind.** They can't verify a batch's outputs before signing (trust assumption 3).
+4. **Audit range.** The auditor scans the published block range by default. Bids outside it are not checked unless the auditor widens the range. Bidders' own receipt checks (`/verify`) catch omission of their own bid.
+5. **Exit behaviour matters.** A bidder who exits all refund notes at once recreates their refund amount. The exit path must warn about this.
+6. **Rare, large refunds** in small auctions can produce a uniquely sized note (the residual 0.1–0.4%, [evidence/linkability.md](evidence/linkability.md)).
+7. **Unreadable memos and unusable refund addresses** can't be refunded automatically. They are kept for manual review (SECURITY-REVIEW F2).
+8. **Mainnet has not been run.** Mainnet gates are listed in [SECURITY-REVIEW.md](SECURITY-REVIEW.md) §Open items and the docs site roadmap.

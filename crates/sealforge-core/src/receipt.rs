@@ -1,6 +1,10 @@
 //! Bidder receipts and bid commitments (Milestone 3, task 3.2).
 //!
-//! commitment = BLAKE2b-256(personal = "sealforge_bid_v1", auction_code ‖ refund_ua ‖ salt)
+//! commitment = BLAKE2b-256(personal = "sealforge_bid_v1",
+//!                          auction_code ‖ 0x00 ‖ refund_ua ‖ 0x00 ‖ salt)
+//!
+//! `auction_code` and `refund_ua` are UTF-8 bytes; the 0x00 separators keep the
+//! encoding unambiguous because `refund_ua` has variable length. `salt` is 32 bytes.
 //! The salt is generated in the browser and never sent to the server.
 
 use serde::{Deserialize, Serialize};

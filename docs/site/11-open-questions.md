@@ -1,0 +1,38 @@
+# 11. Open questions for reviewers
+
+Precise questions where outside review would change the design. Each says what we do today and where.
+
+## Keys and custody
+
+1. **Who should sample `nk` and `rivk`?** Today the coordinator samples them with `OsRng` at DKG completion (`crates/sealforge-coordinator/src/routes/dkg.rs`, `sealforge_escrow::address::escrow_fvk`), so the coordinator always has full viewing power over every escrow. The options we see:
+   - (a) the organiser samples them;
+   - (b) the trustees derive them jointly during the DKG (for example from a value contributed by each trustee, so no single party knows them in advance);
+   - (c) keep the coordinator.
+
+   For a view-only escrow wallet that must build PCZTs, the coordinator needs the FVK anyway at spend time. Does (a) or (b) buy anything beyond hiding deposit-mode bids from the coordinator *before close*? Is there a construction you'd recommend, and does anything in the Orchard key-component requirements (`FullViewingKey::from_bytes` validity) make joint derivation awkward?
+2. **Trustee-side PCZT verification (D1).** Trustees sign `(sighash, α)` without the PCZT ([5 Security](05-security.md#trust-assumptions)). We plan to send the PCZT and have each trustee recompute the sighash and check the outputs against the refund plan derived from the published result. Which `pczt` roles and checks are the right ones for a signer to run before trusting a sighash? Is recomputing the shielded sighash from a PCZT supported for Ironwood bundles in `pczt 0.10.0-pre.2`?
+3. **Fixed α through the deprecated `frost_rerandomized::sign`.** Orchard fixes α in the PCZT, so we can't use the seed-derived randomizer API ([3 upstream risk](03-zcash-integration.md#dependencies-and-upstream-risk)). Is signing with a fixed, coordinator-supplied α acceptable until the ZF RedPallas ciphersuite ships? Should we switch to `zakura-reddsa-frost`, or wait for upstream?
+
+## Commitments and identifiers
+
+4. **Should the commitment bind the network and a coordinator instance ID?** Today neither is hashed; we rely on network-encoded addresses and per-auction escrows ([2.4](02-protocol/commitments.md#what-is-not-in-the-commitment)). Adding them would change the `_v1` personalization.
+5. **Is a 50-bit auction code enough?** Codes are unique per coordinator database only ([2.3](02-protocol/wire-formats.md#auction-code)). Bids are bound to the per-auction escrow, so the code is not a funds-safety parameter. Is there a reason to lengthen it or namespace it by coordinator?
+
+## Disclosure
+
+6. **Should the UIVK be published permanently?** Today it is, and it exposes every deposit amount, memo and refund address forever ([5](05-security.md#trust-assumptions)). Alternatives: a per-auction derived key with narrower scope; publishing only after refunds settle; or publishing only the decrypted payment set plus a proof that it is complete. Which would you trust as an auditor?
+7. **Audit range.** The auditor scans the published `scan_from_height..scan_to_height` by default. Should it instead scan from the escrow's birthday height, which is stored (`auctions.escrow_birthday_height`) but not published, to rule out a narrowed range?
+
+## Refund privacy
+
+8. **Denominations and delays for Ironwood traffic levels.** Are {1, 2, 5} × 10^k zat with a 10,000 zat floor, and independent delays of 10–240 minutes, right for current Ironwood pool activity? Our linkability metric ignores pool-wide timing ([2.7](02-protocol/refunds.md#measurement-methodology)). With few concurrent transactions, would a timing adversary do better than the 0.1% amount-only figure?
+9. **Dust and non-counting reveals go to the organiser** with the payout ([2.7](02-protocol/refunds.md#mechanism), [2.5](02-protocol/selection.md#sealed-reveal-mode)). Acceptable, or should they be refunded or burned to fees?
+
+## Chain handling
+
+10. **Reorgs after close.** Close waits 10 confirmations past the last counting height ([2.2](02-protocol/lifecycle.md#height-rules)). A deeper reorg after the result is computed isn't handled. Is 10 the right policy at 25 s and at 75 s spacing, and should the coordinator re-verify the bid set before publishing?
+11. **Batch expiry.** A broadcast batch whose transaction expires unmined isn't detected (`failed` is never set, D3). What's the recommended pattern with `zcash_client_sqlite` for detecting expiry and rebuilding?
+
+## Performance
+
+12. **Compact-block scanning cost on real testnet blocks.** The browser audit target is 3,500 blocks; it's measured only on near-empty regtest blocks ([evidence/perf.md](../evidence/perf.md)). Is 3,500 blocks a reasonable bound for an in-browser audit given current Orchard + Ironwood action counts per block?

@@ -1,0 +1,104 @@
+# 9. Product and economics
+
+Same evidence standard as the protocol pages. Every number is either **measured** (cited) or an **assumption** in a table you can change. Longer business narrative: [BUSINESS.md](../BUSINESS.md).
+
+## The problem
+
+- **Transparent bidding causes bid shading.** A visible bid can be beaten by one tick, so rational bidders under-reveal and the seller clears below true demand.
+- **It rewards speed over value.** Visible order flow goes to whoever reacts fastest to someone else's bid.
+- **It profiles bidders permanently.** An address that bid is linked to that interest forever, which keeps treasuries, funds and competitors out.
+- **Off-chain sealed bids move all the trust to the operator.** The operator sees every bid, and participants can't check the result.
+
+## Why Zcash
+
+| Requirement | What Zcash provides | sealForge mechanism |
+|---|---|---|
+| Hide the bidder | Shielded transfers hide sender, amount and memo | Bids are Ironwood payments ([3](03-zcash-integration.md#shielded-pool-ironwood)) |
+| Make the bid binding without extra infrastructure | The encrypted memo travels with the payment | **The bid is the payment**: one on-chain action carries the funds and the salted commitment. No commit contract, no sequencer ([2.3](02-protocol/wire-formats.md)) |
+| Make the result publicly checkable without revealing bidders | Incoming viewing keys give selective disclosure | Publish one UIVK; anyone recomputes from the chain ([6](06-verification.md)) |
+
+### Compared with other designs
+
+Structural comparison. No vendor-specific claims.
+
+| Design | Bidders hidden from the public | Amounts hidden while open | Result checkable by anyone | Operator sees bids |
+|---|---|---|---|---|
+| Operator-run sealed bids (off-chain, e.g. an auction house's sealed format) | Yes | Yes | No: results are what the operator says | Yes |
+| Commit-reveal on a transparent smart-contract chain | No: every commit and reveal is from a public address | Yes, until the reveal | Yes | n/a |
+| Operator-run blind auction paid in shielded ZEC, no published key | Yes | Yes | No | Yes |
+| **sealForge, deposit mode** | Yes | Yes, from the public | Yes, from the chain | Yes, the coordinator |
+| **sealForge, sealed-reveal mode** | Yes | Yes, from the public and from the coordinator (deposits visible) | Yes, from the chain | Deposits only, until the reveal window |
+
+## Verticals
+
+Before mainnet caps are lifted, any auction is bounded by the per-auction cap (a mainnet gate whose value isn't set yet, [5](05-security.md#mainnet-gate-checklist)).
+
+| Vertical | Seller | Why sealed beats open | Mode |
+|---|---|---|---|
+| Zcash-native launches and collections | Project teams | Public bidding invites sniping. Uniform price gives one fair price | Sealed-reveal for contested lots; deposit for small community drops |
+| Name registration | A registry | First-come-first-served rewards bots. A sealed auction prices a premium name and funds the registry | Sealed-reveal |
+| Art and collectibles (first-seller pilots) | Artists, galleries | Collectors don't want their bids or holdings profiled | Sealed-reveal, first price for one-of-one lots |
+| Ticketing and passes | Event organisers | Scalping is arbitrage on a known price. Uniform price removes the gap | Deposit or sealed-reveal, uniform price |
+| Treasury and RWA allocations | DAOs, issuers | Institutions won't bid where the bid is a public signal | Sealed-reveal |
+| OTC and DAO allocations | Treasuries | Counterparties need privacy during and provability after | Sealed-reveal, first price |
+
+## Revenue models
+
+**Every model here is `Specified`. None is in the code.** The payout today sends the whole remaining escrow balance, minus ZIP 317 fees, to the organiser (`EscrowWallet::build_sweep`, `crates/sealforge-chain/src/spend.rs`).
+
+| Model | Status | How it would work |
+|---|---|---|
+| Take rate on settled proceeds | `Specified` | One extra output in the payout sweep. It MUST appear in the published result so the auditor can check it |
+| Hosted coordinator | `Specified` | Run the coordinator for organisers |
+| White label | `Specified` | Embed card (built) plus a branded audit page (not built) |
+| Trustee as a service | `Specified` | Act as one of the three trustees, for a fee |
+
+## Unit economics
+
+### Measured: escrow cost per auction (testnet)
+
+| Auction | Bids | Refund notes / transactions | Escrow fees (all transactions) | Source |
+|---|---|---|---|---|
+| `KE5DFF4PDA` | 7 | 19 notes / 2 tx, plus payout | 0.0016 TAZ (160,000 zat) | [evidence/testnet-genesis.md](../evidence/testnet-genesis.md) |
+| `K7GHHBC4GP` | 25 | 73 notes / 5 tx, plus payout | 0.0055 TAZ (550,000 zat) | [evidence/test-run.md](../evidence/test-run.md#the-25-bid-auction-k7ghhbc4gp) |
+
+Derived from those rows: about **8,400 zat** (`KE5DFF4PDA`) and **7,500 zat** (`K7GHHBC4GP`) of escrow fees per refund note, all-in, with the payout transaction included. The per-transaction fee follows [ZIP 317](https://zips.z.cash/zip-0317) and depends on the number of logical actions (each refund note is at least one output). These pages don't restate the ZIP 317 parameters. The refund policy caps a batch at 20 outputs ([2.7](02-protocol/refunds.md)), which bounds per-transaction size.
+
+### Measured: bidder cost
+
+From the per-wallet table in [evidence/testnet-genesis.md](../evidence/testnet-genesis.md#every-wallet-afterwards): a sealed-reveal bidder paid **0.0002 TAZ** in network fees (deposit plus reveal); a bidder who didn't reveal paid 0.0001. The 0.0001 reveal payment itself is refunded when the reveal counts. A deposit-mode bidder pays one transaction fee.
+
+### Model: revenue from a take rate
+
+```text
+revenue = (b / 10,000) × V
+  b = take rate in basis points
+  V = settled proceeds in ZEC (uniform price: clearing_price × winner_count)
+net = revenue − escrow_fees − hosting − trustee costs
+```
+
+**Illustrative assumptions, not forecasts.** Change any cell.
+
+| Scenario | V (ZEC, settled proceeds) | b (bps) | Revenue (ZEC) | Escrow fees (ZEC, at the measured ~0.000075/refund note) |
+|---|---|---|---|---|
+| Small community drop: 25 bidders | 1 | 100 | 0.01 | ~0.0055 (as `K7GHHBC4GP`) |
+| Mid-size: 200 bidders, ~600 refund notes | 50 | 100 | 0.5 | ~0.045 |
+| Large: 2,000 bidders, ~6,000 refund notes | 500 | 50 | 2.5 | ~0.45 |
+
+Note counts assume about 3 refund notes per bidder, as measured in `K7GHHBC4GP` (73 notes for 25 bidders). The linkability simulation, with larger and more varied bids, averages 6.8 notes per refund ([evidence/linkability.md](../evidence/linkability.md)), which would roughly double the fee column. The fee column scales the measured per-note figure linearly. That's an assumption: real fees depend on note counts per bid and batch packing.
+
+### Cost base for trustee as a service
+
+Not measured. Inputs to estimate: an always-available signing host per trustee (batches stall without a second signer, and reset after 30 minutes, [2.2](02-protocol/lifecycle.md#batch-states)), secure storage for one key share per auction, operator time to compare DKG fingerprints, and, once D1 ships, PCZT verification before each signature.
+
+## Ecosystem effects
+
+- **Shielded activity.** Every bid, reveal, refund note and payout is an Ironwood transaction ([3](03-zcash-integration.md#shielded-pool-ironwood)).
+- **ShieldRamp** (`Specified`): a cross-chain bidder would swap into shielded ZEC to bid, with a Linkability Score shown before signing (score `Tested`, `packages/shieldramp/src/score.ts`). Each such bid would be inflow into the shielded pool. Not built.
+- **Reusable public goods:** `sealforge-escrow` (FROST custody of Ironwood notes via PCZT), `sealforge-scan` (UIVK auditing in Rust or WASM), `sealforge-wallet` (in-tab Ironwood wallet) ([8](08-api.md#rust-crates-as-libraries)).
+
+## Defensibility
+
+- **The auditor is the trust anchor.** A result that is a pure function of on-chain shielded data, reproducible with a published key, makes the privacy and fairness claims checkable.
+- **Byte-identical Rust, TypeScript and WASM**, enforced by a shared vector file in CI.
+- **The evidence trail:** testnet runs, a measured linkability figure with its harness, and generated test inventories.

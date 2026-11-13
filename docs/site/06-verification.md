@@ -1,0 +1,99 @@
+# 6. Verification and evidence
+
+## Audit any auction
+
+Status: `Testnet`.
+
+### Command line
+
+```bash
+cargo build --release -p sealforge-auditor
+./target/release/sealforge-audit \
+  --published https://<coordinator>/v1/auctions/<CODE>/result \
+  --endpoint https://<a lightwalletd you choose>:443
+```
+
+| Flag | Meaning (`crates/sealforge-auditor/src/main.rs`) |
+|---|---|
+| `--published` | The published result, as a URL or a file |
+| `--endpoint` | Any lightwalletd-compatible gRPC server (Zaino, lightwalletd). Env `SF_ZAINO_URL` |
+| `--ivk` | Check against a UIVK you got elsewhere, instead of the one in the result |
+| `--from`, `--to` | Override the scan range. Default: the published `scan_from_height..scan_to_height`. Widen it to look for bids outside the range the coordinator scanned |
+| `--json` | Machine-readable report |
+
+What it does (`crates/sealforge-chain/src/audit.rs` `scan_incoming`, `sealforge_auditor::audit_chain`):
+1. Trial-decrypts every compact block in range with the UIVK, for both the Orchard and Ironwood pools.
+2. Fetches each matching transaction and decrypts value, output index and memo.
+3. Reclassifies every payment with `sealforge_core::selection` and recomputes with `compute_result`.
+4. Compares clearing price, volume, valid bid count, winner count, Merkle root and every per-bid outcome. Exit code 1 on any mismatch.
+
+Sample output and the **tamper test** (a result edited to hide a bid and claim a lower price is caught, with exit code 1): [evidence/audit-rescan.md](../evidence/audit-rescan.md).
+
+### In the browser
+
+On `/audit/<CODE>`, **Rescan the chain in my browser** runs the same `sealforge-scan` and `sealforge-auditor` compiled to WebAssembly. Blocks come over gRPC-web from a lightwallet endpoint the auditor types in. Nothing but the result being checked comes from sealForge. The older **quick check** (`payments_from_published`) only checks that the published list is self-consistent. It doesn't detect an omitted bid, and the page says so.
+
+### As a bidder
+
+Load your receipt on `/verify`. The WASM auditor (`verify_receipt`) recomputes your leaf, checks the Merkle proof against the published root, and shows your outcome and refund plan. Tests: `winning_receipt_is_included_with_its_refund_plan`, `losing_and_unknown_receipts`, `tampered_root_breaks_inclusion`.
+
+## Testnet record
+
+Both auctions ran on public Zcash testnet through the hosted instance, in sealed-reveal mode, uniform price. Full tables (heights, txids, signer pairs, per-wallet end balances, fees) live in the evidence files. They are not copied here.
+
+| Auction | Shape | Evidence |
+|---|---|---|
+| `KE5DFF4PDA` "Genesis Pass" | 7 sealed bids, 4 units | [evidence/testnet-genesis.md](../evidence/testnet-genesis.md): open/close/reveal heights, refund and payout txids with signer pairs, every wallet's end balance, escrow fees, CLI and browser audits |
+| `K7GHHBC4GP` "Community Pass" | 25 sealed bids, 10 units | [evidence/test-run.md §The 25-bid auction](../evidence/test-run.md#the-25-bid-auction-k7ghhbc4gp): timeline, 5 refund transactions and the payout, signer pairs, spot-checked wallets, CLI audit |
+
+Both used test-network-only settings (`SF_MIN_WINDOW_BLOCKS`, `SF_REFUND_DELAY_SECS`) so they'd fit in about an hour. Both were run from one machine holding all three trustee keystores (`scripts/testnet-demo.sh`), which defeats the threshold and is acceptable only on test networks. Trustee aliases in the evidence are labels for those keystores.
+
+## Regtest
+
+- **Full auction on a local chain** (Zebra + Zaino regtest, real binaries): [evidence/regtest-e2e.md](../evidence/regtest-e2e.md). Deposit mode, 4 bids, close, publish, receipt check, refund planning.
+- **FROST spike:** the first 2-of-3 FROST escrow spend mined on regtest, txid `8367e1c6ca8ef305678a7179faf3d161647f90da40bb5462ecc6dc6275ec016f` ([docs/spikes/frost-pczt.md](../spikes/frost-pczt.md)).
+
+## Reproducibility
+
+| What | How |
+|---|---|
+| Local chain | `scripts/regtest.sh up <dev-wallet-UA>` (Zebra + Zaino), `scripts/regtest.sh envoy` (gRPC-web), `scripts/regtest.sh mine N`. See `infra/regtest/README.md` |
+| Your own auction | [QUICKSTART.md](../QUICKSTART.md), starting from `examples/auction.toml` |
+| A whole testnet auction with simulated bidders and trustees | `scripts/testnet-demo.sh <plan.conf>` (plan format at the top of the script). Test networks only |
+| Test vectors | `cargo run -p sealforge-core --example vectors` ([Appendix](appendix-test-vectors.md)) |
+| Linkability figures | `cargo run -p sealforge-linkability --release -- --out docs/evidence` |
+| Test inventory and counts | `DATABASE_URL=… scripts/test-inventory.sh` |
+
+### CI
+
+`.github/workflows/ci.yml`, on every push to `main` and every pull request:
+
+| Job | Steps |
+|---|---|
+| `rust` | `cargo fmt --all --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo test --workspace` (Postgres 16 service); `cargo check -p sealforge-auditor --target wasm32-unknown-unknown --no-default-features --features wasm` |
+| `wasm` | Build auditor, signer, scanner and wallet WASM from source; upload them for comparison with the committed copies |
+| `migrations` | Apply every migration to a fresh Postgres 16, then load `seed/dev.sql` |
+| `web` | `pnpm install --frozen-lockfile`; `pnpm lint`; `pnpm typecheck`; `pnpm test`; `pnpm build` |
+
+## Test inventory
+
+Generated from test-runner output by `scripts/test-inventory.sh` into [evidence/test-inventory.md](../evidence/test-inventory.md), the single source for counts and names. Don't hand-count.
+
+Adversarial tests worth reading first:
+
+| Property | Test | Where |
+|---|---|---|
+| One trustee can't sign | `one_trustee_cannot_sign_alone` | `crates/sealforge-escrow/src/signing.rs` |
+| Every 2-of-3 subset produces a consensus-valid `SpendAuth` signature (checked with reddsa 0.6.1) | `two_of_three_produces_consensus_valid_spend_auth_signatures` | `crates/sealforge-escrow/src/signing.rs` |
+| A forged DKG package, a one-signer package, concurrent joins/completions/signing | `three_trustees_run_the_dkg_through_the_coordinator` | `crates/sealforge-cli/tests/dkg_e2e.rs` |
+| Hidden bid or inflated volume | `inflated_volume_or_hidden_bid_is_caught` | `crates/sealforge-auditor/src/lib.rs` |
+| Rewritten refunds or outcomes | `rewritten_outcome_is_caught` | `crates/sealforge-auditor/src/lib.rs` |
+| Suppressed reveal | `a_suppressed_reveal_is_caught` | `crates/sealforge-auditor/src/lib.rs` |
+| Tampered root, foreign leaf, padding passed off as a bid | `tampered_root_breaks_inclusion`, `tampering_fails`, `padding_cannot_be_proven_as_a_bid` | auditor; `crates/sealforge-core/src/merkle.rs` |
+| Duplicate commitment can't displace the original | `earliest_duplicate_commitment_wins_regardless_of_order` | `crates/sealforge-core/src/selection.rs` |
+| Replayed or stale API requests | `rejects_bad_signatures_and_stale_timestamps`, `organiser_registration_requires_invite_and_rejects_replays` | `crates/sealforge-coordinator/tests/api.rs` |
+| Organisers can't touch each other's auctions | `organisers_cannot_touch_each_others_auctions` | `crates/sealforge-coordinator/tests/api.rs` |
+| Wallet refuses chain gaps and reorgs | `scanning_follows_the_chain_and_refuses_gaps_and_reorgs` | `crates/sealforge-wallet/src/lib.rs` |
+| Rust/TS byte parity | `vectors_match_the_checked_in_file`, TS "shared vectors file" | `crates/sealforge-core/tests/vectors.rs`, `packages/bid/src/bid.test.ts` |
+
+Not covered by an automated test: the testnet runs themselves (recorded as evidence), the embed widget, and anything ShieldRamp beyond the score.

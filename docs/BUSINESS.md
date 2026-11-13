@@ -91,15 +91,20 @@ has no test network to exercise them against.
 
 ## How it makes money
 
-| Model | Mechanics |
-|---|---|
-| **Take rate on settled volume** | A basis-point fee on the clearing proceeds, swept with the payout the escrow already performs |
-| **Hosted coordinator** | Organisers who want the auction run for them, rather than deploying the stack |
-| **White label** | Registries, launchpads and ticketing platforms embedding the auction card and the audit page under their own brand |
-| **Trustee as a service** | Independent trustees are a requirement, not an extra. Being one of the three, for a fee, is a service with a real cost base |
+**Status: every model below is `Specified`. None is implemented. There is no
+protocol fee in the code today:** the payout sends the escrow's whole remaining
+balance, net of ZIP-317 fees, to the organiser's payout address
+(`EscrowWallet::build_sweep` in `crates/sealforge-chain/src/spend.rs`).
 
-The escrow already sweeps a payout to the organiser, so a protocol fee is a
-change to one amount, not new machinery.
+| Model | Status | Mechanics |
+|---|---|---|
+| **Take rate on settled volume** | Specified | A basis-point fee on the clearing proceeds. It would be one extra output in the payout sweep (`build_sweep`), and would need to appear in the published result so the auditor can check it |
+| **Hosted coordinator** | Specified | Organisers who want the auction run for them, rather than deploying the stack |
+| **White label** | Specified | Registries, launchpads and ticketing platforms embedding the auction card and the audit page under their own brand |
+| **Trustee as a service** | Specified | Independent trustees are a requirement, not an extra. Being one of the three, for a fee, is a service with a real cost base |
+
+The escrow already sweeps a payout to the organiser, so a protocol fee would
+add one output to an existing transaction, not new machinery.
 
 ## What is defensible
 

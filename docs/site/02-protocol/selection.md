@@ -1,0 +1,56 @@
+# 2.5 Bid selection
+
+Status: `Testnet`. Code: `crates/sealforge-core/src/selection.rs` (`classify`, `classify_commit_reveal`, `included_bids`, `included_bids_commit_reveal`).
+
+**One function, three callers.** The coordinator at close (`crates/sealforge-coordinator/src/closer.rs`), the CLI auditor and the WASM auditor (`crates/sealforge-auditor/src/lib.rs` `audit_chain`) all call these functions on the same inputs: each payment's txid, output index, block height, amount and decoded memo. All of these are visible to the published UIVK. That's what makes the bid set, and so the result, reproducible from the chain.
+
+Input per payment (`selection::Payment`): `txid`, `output_index`, `block_height`, `amount`, and `memo: Option<BidMemo>` (`None` if the memo didn't parse as `SF1`, [2.3](wire-formats.md)).
+
+## Deposit mode
+
+Rules applied in this order (`classify`). Each payment ends with exactly one class.
+
+| # | Condition | Class | Why |
+|---|---|---|---|
+| 1 | Memo missing or not a valid `SF1` memo | `invalid(bad_memo)` | Without a commitment there's no bid to bind |
+| 2 | Memo's code ≠ this auction's code | `invalid(wrong_auction)` | A bid for another auction, paid here by mistake |
+| 3 | `block_height < open_height` | `invalid(before_open)` | The escrow address wasn't public yet. Counting it would favour whoever learned the address early |
+| 4 | `block_height > close_height` | `late` | Bidding closed |
+| 5 | Commitment already used by an earlier remaining payment, ordered by `(block_height, txid, output_index)` | `invalid(duplicate_commitment)` | A copied memo can't displace the original. Order-independent: the earliest key wins whatever the input order (`earliest_duplicate_commitment_wins_regardless_of_order`) |
+| 6 | `amount < reserve` | `under_reserve` | Below the seller's minimum |
+| 7 | Otherwise | `valid` | |
+
+Rule 5 runs only over payments still `valid` after rules 1–4, so a late or invalid payment can't block a commitment (`late_or_invalid_payments_do_not_block_a_commitment`).
+
+**What happens to each class:**
+- `valid` and `under_reserve` are **included**: they go into the Merkle tree, so every bidder can prove their bid was seen. Only `valid` bids take part in clearing ([2.6](clearing.md)).
+- Every other class is refunded in full, if it has a usable refund address. Payments with no parseable memo go to manual review. Late payments are refunded by a separate late-refund planner (SECURITY-REVIEW F8; `crates/sealforge-coordinator/src/refunds.rs` `plan_late`).
+
+`InvalidReason::as_str` gives the strings stored in `bids.invalid_reason`: `bad_memo`, `wrong_auction`, `before_open`, `duplicate_commitment`, `not_revealed`.
+
+## Sealed-reveal mode
+
+The deposit's amount is a **budget**, not the bid. Its memo carries `price_commitment` ([2.4](commitments.md)). After the bidding close, each bidder sends a separate reveal payment with an `SF1R` memo ([2.3](wire-formats.md#reveal-memo-sf1r-sealed-reveal-mode)).
+
+`classify_commit_reveal(window, deposits, reveals)`:
+
+1. Classify deposits with the deposit-mode rules **with the reserve set to 0**. The reserve is applied to the revealed price, not the budget.
+2. Sort reveals by `(block_height, txid, output_index)`. For each reveal in that order, it **counts** only if all of these hold:
+   - `close_height < block_height ≤ reveal_close_height` (inside the reveal window);
+   - its code equals this auction's code;
+   - its commitment equals the commitment of a `valid` deposit;
+   - it **opens** that commitment: `price_commitment(code, deposit.refund_ua, reveal.price_zat, reveal.salt) == commitment`. The refund UA comes from the **deposit's** memo, so a reveal can't change where the refund goes;
+   - `1 ≤ price_zat ≤ deposit.amount`;
+   - no earlier reveal already counted for that deposit (**earliest counting reveal wins**, `earliest_counting_reveal_wins`).
+3. Outcome per deposit:
+   - `valid` with a counting reveal: `under_reserve` if `price < reserve`, else `valid`. Its amount for clearing and its Merkle leaf is the **revealed price**.
+   - `valid` with no counting reveal: `invalid(not_revealed)`, refunded in full.
+   - Any other deposit class: unchanged.
+
+A reveal that doesn't count is ignored by selection. At close, the coordinator adds only the **counting** reveal's amount to that bid's refund (`closer.rs`, `reveal_amount`; checked by the auditor, `commit_reveal_tests::refunds_must_include_the_deposit_and_reveal`). A non-counting reveal payment is not refunded: it stays in the escrow and leaves with the payout sweep.
+
+Tests: `selection::tests::commit_reveal::*`, `crates/sealforge-coordinator/tests/commit_reveal.rs` (`deposits_are_budgets_and_reveals_set_prices`), `commit_reveal_tests::a_suppressed_reveal_is_caught` (the auditor detects a result that drops a counting reveal).
+
+## Determinism
+
+`classify` and `classify_commit_reveal` are pure functions of their inputs, with no I/O, clock or randomness (`crates/sealforge-core/src/lib.rs` module rule). Outputs are in input order, and every tie is broken by the total order `(block_height, txid, output_index)`, so the result doesn't depend on scan order.

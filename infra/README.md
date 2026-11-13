@@ -7,7 +7,7 @@ One VM per environment (staging = NU7 testnet, production = mainnet). See [docs/
 | `postgres` | default | Coordinator database |
 | `zebra` | `node` | Full node |
 | `zaino` | `node` | Compact-block gRPC indexer (image pinned in task 1.3) |
-| `envoy` | `node` | gRPC-web proxy for WebZjs |
+| `envoy` | `node` | gRPC-web proxy for the browser scanner and wallet (`sealforge-scan`, `sealforge-wallet` as WASM) |
 | `coordinator` | `app` | sealForge API, scanner, refund scheduler |
 | `caddy` | `app` | TLS termination, IP-free access logs |
 

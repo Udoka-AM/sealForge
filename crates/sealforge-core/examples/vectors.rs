@@ -1,24 +1,15 @@
-//! Prints the cross-language test vectors used by packages/bid (TypeScript).
+//! Prints the cross-language test vectors (JSON). The same values are pinned in
+//! `tests/fixtures/vectors.json`, checked by `tests/vectors.rs` (Rust) and
+//! `packages/bid/src/bid.test.ts` (TypeScript).
+//!
 //! `cargo run -p sealforge-core --example vectors`
 
-use sealforge_core::{memo::BidMemo, receipt::commitment, zip321::payment_uri, Zatoshi};
+#[path = "../tests/support/vectors.rs"]
+mod support;
 
 fn main() {
-    let code = "7K3QX9MZ2P";
-    let refund = "utest1refundexample";
-    let salt = [1u8; 32];
-    let c = commitment(code, refund, &salt);
-    let memo = BidMemo {
-        auction_code: code.into(),
-        commitment: c,
-        refund_ua: refund.into(),
-    }
-    .encode()
-    .unwrap();
-    println!("commitment = {}", hex::encode(c));
-    println!("memo = {memo}");
     println!(
-        "uri = {}",
-        payment_uri("utest1escrowexample", Zatoshi(42_000_000), &memo)
+        "{}",
+        serde_json::to_string_pretty(&support::vectors()).unwrap()
     );
 }

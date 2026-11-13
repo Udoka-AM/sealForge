@@ -1,0 +1,49 @@
+# 2.1 Roles and what each one knows
+
+Protocol version `SF1`. The key words MUST, SHOULD and MAY are used as in RFC 2119.
+
+## Roles
+
+| Role | Holds | Code |
+|---|---|---|
+| **Organiser** | Ed25519 API key (`~/.sealforge/organiser.key` or a non-extractable WebCrypto key) | `crates/sealforge-cli/src/organiser.rs`, `apps/web/src/app/console` |
+| **Bidder** | A shielded wallet; per bid, a 32-byte salt and a receipt kept in the browser | `packages/bid`, `apps/web/src/lib/receipts.ts` |
+| **Trustee** (×3) | One FROST key share (`key-package.hex`), an Ed25519 API key, an X25519 key for the DKG relay | `crates/sealforge-cli/src/trustee.rs`, `crates/sealforge-signer-wasm` |
+| **Coordinator** | Postgres (escrow UFVK encrypted with `SF_DATA_KEY`), one view-only escrow wallet per auction | `crates/sealforge-coordinator` |
+| **Chain observer** | Public chain data | n/a |
+| **Auditor** | Published result, published UIVK, a lightwallet server of their choice | `crates/sealforge-auditor`, `crates/sealforge-scan` |
+
+The coordinator operator and the organiser MAY be the same party (a self-hosted deployment). Where that's the case, the organiser row inherits the coordinator row.
+
+## Knowledge and power matrix
+
+Columns:
+- **A.** sees which wallet placed a bid
+- **B.** sees bid amounts before close (deposit mode)
+- **C.** sees prices before the reveal window (sealed-reveal mode)
+- **D.** can move escrowed funds
+- **E.** can alter the published result without an auditor detecting it
+
+| Role | A | B | C | D | E |
+|---|---|---|---|---|---|
+| Organiser (not operating the coordinator) | No | No. The console shows the bid count only (`db.rs`, `owner \|\| bids >= MIN_PUBLIC_BID_COUNT`) | No | No. Receives the payout to `payout_ua` | No |
+| Bidder | No (of others) | No | No | Own payment only | No |
+| One trustee | No | No. Holds no viewing key | No | No. One share can't sign (`one_trustee_cannot_sign_alone`) | No |
+| Any two trustees | No | No | No | Can produce a spend signature, but need the escrow FVK (coordinator database + `SF_DATA_KEY`) to build a transaction | No |
+| Coordinator | No. Shielded senders are not in the note | **Yes**, via the UFVK | No. Sees deposits and price commitments only | Not alone. **With two trustees signing as instructed, yes**: trustees sign the sighash without seeing the PCZT ([5 Security](../05-security.md#trust-assumptions)) | No |
+| Chain observer, before publish | No | No | No | No | n/a |
+| Chain observer or auditor, after publish (has UIVK) | No | Yes, after the fact | Yes, after the fact | No | No |
+
+Sources, in cell order:
+- **A**: shielded payments don't carry the sender in decryptable form. Scanning is incoming-only (`sealforge-scan`, `zcash_note_encryption::try_note_decryption` with the Orchard/Ironwood domains).
+- **B, coordinator**: `crates/sealforge-coordinator/src/scanner.rs` syncs each escrow's view-only wallet from the UFVK (`crates/sealforge-chain/src/wallet.rs`) and records amounts and memos as bids arrive.
+- **C**: in sealed-reveal mode the deposit memo carries `price_commitment` ([2.4](commitments.md)), and the price appears only in an `SF1R` reveal mined after `close_height` ([2.5](selection.md#sealed-reveal-mode)). Tests: `commit_reveal_tests::*`, `tests/commit_reveal.rs`.
+- **D**: `crates/sealforge-escrow/src/signing.rs`. Trustees sign `SpendAuthRequest { sighash, alpha }` (`crates/sealforge-cli/src/trustee.rs`, `sign_step`).
+- **E**: anyone recomputes with `sealforge_auditor::audit_chain`. Tamper tests: `inflated_volume_or_hidden_bid_is_caught`, `rewritten_outcome_is_caught`, `tampered_root_breaks_inclusion`, `a_suppressed_reveal_is_caught`. The check covers the published scan range ([6 Verification](../06-verification.md)).
+
+## Requirements on each role
+
+- A bidder MUST use a refund Unified Address with an Orchard receiver ([3 Zcash integration](../03-zcash-integration.md#no-transparent-or-sapling-hops)). A bidder SHOULD use a fresh address for each bid, because the address is readable by anyone with the UIVK after publish.
+- A bidder MUST keep the receipt (salt included). The salt is never sent to the server. Without it, a sealed-reveal bidder can't reveal, and the deposit is refunded as `not_revealed`.
+- Trustees MUST compare the DKG fingerprint out of band before the auction opens ([4 Architecture](../04-architecture.md#dkg-relay-security)).
+- The organiser MUST publish after close for refunds to start. Nothing publishes automatically (`POST /v1/auctions/{code}/publish`, organiser-signed).

@@ -1,8 +1,14 @@
-//! Canonical refund denominations (ZIP 318 style): {1, 2, 5} × 10^k zatoshi.
+//! Canonical refund denominations: {1, 2, 5} × 10^k zatoshi, from
+//! [`MIN_DENOMINATION`] (0.0001 ZEC) to [`MAX_DENOMINATION`] (5,000 ZEC).
 //!
 //! Refunds are split into canonical notes so their amounts don't fingerprint
-//! the bid. Anything below [`MIN_DENOMINATION`] becomes one remainder note
-//! (PRD open question Q7).
+//! the bid. [`split`] returns anything below [`MIN_DENOMINATION`] as a
+//! remainder; the refund planner does not send it (see `refunds::refund_dust`).
+//!
+//! The {1, 2, 5} × 10^k shape is the one ZIP 318 (Orchard to Ironwood
+//! Migration, Draft) uses for its denominations, but ZIP 318 defines them in
+//! ZEC over a different range and for a different purpose. This scheme is
+//! sealForge's own and is not an implementation of ZIP 318.
 
 use crate::Zatoshi;
 

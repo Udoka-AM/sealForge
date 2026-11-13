@@ -1,9 +1,13 @@
 //! Escrow viewing keys and address.
 //!
 //! Orchard full viewing key = `ak ‖ nk ‖ rivk`. `ak` is the FROST group key
-//! (even Y). `nk` and `rivk` only grant viewing power and are generated once
-//! by the organiser at DKG completion (ZIP 312), then stored encrypted by the
-//! coordinator (`auctions.escrow_ufvk_enc`).
+//! (even Y). `nk` and `rivk` grant viewing power, not spending power. They are
+//! sampled once, with the OS CSPRNG, by the **coordinator** when the last
+//! trustee completes the DKG (`sealforge-coordinator::routes::dkg::complete`
+//! calls [`escrow_fvk`] with `OsRng`), and the resulting UFVK is stored
+//! encrypted (`auctions.escrow_ufvk_enc`, `pgp_sym_encrypt` with `SF_DATA_KEY`).
+//! ZIP 312 does not specify how `nk` and `rivk` are generated; who samples them
+//! is a sealForge trust assumption, documented in docs/THREAT-MODEL.md.
 
 use orchard::keys::{FullViewingKey, Scope};
 use rand::{CryptoRng, RngCore};

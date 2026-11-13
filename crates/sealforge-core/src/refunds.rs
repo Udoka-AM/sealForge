@@ -1,4 +1,5 @@
-//! Refund planner (Milestone 3, task 3.8). ZIP 318-style refund privacy.
+//! Refund planner (Milestone 3, task 3.8). Denomination-based refund privacy
+//! (see `denominations` for how this relates to ZIP 318).
 //!
 //! - Each refund is split into canonical notes ({1, 2, 5} × 10^k zat) only.
 //!   Any remainder below the smallest denomination (0.0001 ZEC) is **dust**
