@@ -1,6 +1,10 @@
-# 2.3 Wire formats
+---
+title: "Wire formats"
+description: "Byte-exact grammar and limits for the SF1 bid memo, SF1R reveal memo, SF1FEE memo, auction code, ZIP 321 URI, receipt and published result."
+keywords: ["memo", "SF1", "ZIP 302", "ZIP 321", "receipt", "versioning"]
+---
 
-Status: `Testnet`, except where a row says otherwise. Example values are from the checked-in vector file `crates/sealforge-core/tests/fixtures/vectors.json` ([Appendix: test vectors](../appendix-test-vectors.md)).
+Status: `Testnet`, except where a row says otherwise. Example values are from the checked-in vector file `crates/sealforge-core/tests/fixtures/vectors.json` ([Appendix: test vectors](/appendix/test-vectors)).
 
 All memos are ZIP 302 text memos in the 512-byte memo field ([ZIP 302](https://zips.z.cash/zip-0302)). On the receive side, text is extracted by `zcash_protocol::memo::Memo::from_bytes`, and only `Memo::Text` is considered (`crates/sealforge-scan/src/lib.rs`, `crates/sealforge-chain/src/wallet.rs`). `sealforge-core` then trims trailing `0x00` bytes before parsing (`trim_end_matches('\0')`), so NUL padding from any wallet is accepted.
 
@@ -14,7 +18,7 @@ All memos are ZIP 302 text memos in the 512-byte memo field ([ZIP 302](https://z
 | Uniqueness scope | **Per coordinator database**: `auctions.code` is `UNIQUE`; creation retries up to 5 times on conflict (`ON CONFLICT (code) DO NOTHING`). Two coordinators can issue the same code | `migrations/20261007000000_init.sql`; `routes/auctions.rs` `create` |
 | Validation | `^[0-9A-HJKMNP-TV-Z]{10}$` | `memo::is_valid_auction_code`, `packages/bid/src/memo.ts` `isValidAuctionCode`, DB `CHECK` |
 
-The code is not a security parameter for funds: a bid only counts if paid to that auction's own escrow address ([2.4](commitments.md#binding)).
+The code is not a security parameter for funds: a bid only counts if paid to that auction's own escrow address ([2.4](/protocol/commitments#binding)).
 
 ## Bid memo: `SF1`
 
@@ -33,7 +37,7 @@ refund-ua  = 1*(%x01-39 / %x3B-FF)   ; any byte except NUL and ":"; must be a va
 | `:` | 1 | |
 | code | 10 | |
 | `:` | 1 | |
-| commitment | 64 | Hex of the 32-byte commitment. Deposit mode: `receipt::commitment`. Sealed-reveal mode: `receipt::price_commitment` ([2.4](commitments.md)) |
+| commitment | 64 | Hex of the 32-byte commitment. Deposit mode: `receipt::commitment`. Sealed-reveal mode: `receipt::price_commitment` ([2.4](/protocol/commitments)) |
 | `:` | 1 | |
 | refund UA | variable | Remaining bytes. Must not contain `:` |
 
@@ -52,8 +56,8 @@ salt        = 64HEXDIG                 ; 32 bytes
 ```
 
 - Split on `:` into exactly 5 fields, else `BadShape`.
-- `price` MUST be canonical decimal: empty, signed (`-1`), or leading-zero (`042000000`) values are rejected (`reveal_memo_round_trips`). It MUST parse as `u64`. Selection then requires `1 ≤ price ≤ deposit` ([2.5](selection.md#sealed-reveal-mode)).
-- The reveal is a separate payment to the escrow. The web flow pays `REVEAL_AMOUNT_ZAT = 10_000` zat (`packages/bid/src/receipt.ts`); a counting reveal's amount is refunded with the deposit (see the testnet tables in [evidence/testnet-genesis.md](../../evidence/testnet-genesis.md)).
+- `price` MUST be canonical decimal: empty, signed (`-1`), or leading-zero (`042000000`) values are rejected (`reveal_memo_round_trips`). It MUST parse as `u64`. Selection then requires `1 ≤ price ≤ deposit` ([2.5](/protocol/selection#sealed-reveal-mode)).
+- The reveal is a separate payment to the escrow. The web flow pays `REVEAL_AMOUNT_ZAT = 10_000` zat (`packages/bid/src/receipt.ts`); a counting reveal's amount is refunded with the deposit (see the testnet tables in [evidence/testnet-genesis.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/testnet-genesis.md)).
 
 Code: `sealforge_core::memo::RevealMemo`; TS `revealMemo`.
 
@@ -91,7 +95,7 @@ Status: `Testnet`. Created and kept in the browser (IndexedDB, `apps/web/src/lib
 | `commitment` | hex, 32 bytes | |
 | `price_zat` | integer, optional | Version 2 only: the hidden price. Omitted when absent (`skip_serializing_if`) |
 
-Rust type: `sealforge_core::receipt::Receipt`. The web app's stored form may add `wallet_address_index` and `paid_txid` ([WALLET-INTEGRATION.md](../../WALLET-INTEGRATION.md)).
+Rust type: `sealforge_core::receipt::Receipt`. The web app's stored form may add `wallet_address_index` and `paid_txid` ([WALLET-INTEGRATION.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/WALLET-INTEGRATION.md)).
 
 ## Published result
 
@@ -106,11 +110,11 @@ Rust type: `sealforge_core::receipt::Receipt`. The web app's stored form may add
 | `algorithm_version` | `sealforge-core/<crate version>/clearing-v1` (`clearing::ALGORITHM_VERSION`) |
 | `clearing_price_zat` | `null` when no bid met the reserve |
 | `total_volume_zat`, `valid_bid_count`, `winner_count` | |
-| `merkle_root` | Hex, [2.4](commitments.md#merkle-tree) |
+| `merkle_root` | Hex, [2.4](/protocol/commitments#merkle-tree) |
 | `bids[]` | Per included bid: `txid`, `output_index`, `block_height`, `amount_zat` (the bid or revealed price), `deposit_zat` and `reveal_zat` (sealed-reveal), `commitment`, `leaf_hash`, `is_winner`, `price_paid_zat`, `refund_due_zat` |
 
 ## Versioning policy
 
 - Every memo starts with a version prefix. `SF1`, `SF1R` and `SF1FEE` are the only prefixes defined.
-- **Who rejects unknown prefixes:** `sealforge-core` decoders. `BidMemo::decode` returns `BadPrefix` for anything but `SF1` (test `rejects_bad_input` uses `SF2:`), and the selection rules classify such a payment `invalid(bad_memo)` ([2.5](selection.md)). An unparseable memo yields no refund address, so the payment goes to manual review rather than an automatic refund (`crates/sealforge-coordinator/src/refunds.rs` module doc). The coordinator, CLI auditor and WASM auditor all use the same decoder, so they agree.
+- **Who rejects unknown prefixes:** `sealforge-core` decoders. `BidMemo::decode` returns `BadPrefix` for anything but `SF1` (test `rejects_bad_input` uses `SF2:`), and the selection rules classify such a payment `invalid(bad_memo)` ([2.5](/protocol/selection)). An unparseable memo yields no refund address, so the payment goes to manual review rather than an automatic refund (`crates/sealforge-coordinator/src/refunds.rs` module doc). The coordinator, CLI auditor and WASM auditor all use the same decoder, so they agree.
 - **How `SF2` would coexist:** a future version would get a new prefix and its own decoder, and the auction would record which version it accepts (as `bid_mode` does today). An `SF1` auction MUST keep treating `SF2` memos as invalid, so its result never changes when new versions ship. Commitment personalizations carry their own version (`_v1`, `leaf1`), so a format change also changes every hash. The published `algorithm_version` names the clearing rules. `Specified`: there is no `SF2` today.

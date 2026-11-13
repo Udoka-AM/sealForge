@@ -1,0 +1,76 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "sealForge",
+  "description": "Auditable sealed-bid auctions on Zcash: the clearing price is public, the bidders aren't.",
+  "colors": {
+    "primary": "#b9850a",
+    "light": "#f4b728",
+    "dark": "#0b0d10"
+  },
+  "favicon": "/favicon.svg",
+  "icons": {
+    "library": "lucide"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Testnet app",
+        "href": "https://sealforge.udokaam.dev"
+      }
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/Udoka-AM/sealForge"
+    }
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get started",
+        "pages": ["index", "overview"]
+      },
+      {
+        "group": "Protocol specification",
+        "pages": [
+          "protocol/roles",
+          "protocol/lifecycle",
+          "protocol/wire-formats",
+          "protocol/commitments",
+          "protocol/selection",
+          "protocol/clearing",
+          "protocol/refunds"
+        ]
+      },
+      {
+        "group": "Zcash and system design",
+        "pages": ["zcash-integration", "architecture", "security", "verification"]
+      },
+      {
+        "group": "Using sealForge",
+        "pages": ["guides", "api-reference"]
+      },
+      {
+        "group": "Product and roadmap",
+        "pages": ["product", "roadmap", "open-questions"]
+      },
+      {
+        "group": "Appendices",
+        "pages": [
+          "appendix/glossary",
+          "appendix/test-vectors",
+          "appendix/specs",
+          "appendix/changelog"
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Udoka-AM/sealForge"
+    }
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude"]
+  }
+}
