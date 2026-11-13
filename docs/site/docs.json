@@ -56,7 +56,12 @@
       },
       {
         "group": "Appendices",
-        "pages": ["appendix/glossary", "appendix/test-vectors", "appendix/specs", "appendix/changelog"]
+        "pages": [
+          "appendix/glossary",
+          "appendix/test-vectors",
+          "appendix/specs",
+          "appendix/changelog"
+        ]
       }
     ]
   },
