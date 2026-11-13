@@ -1,0 +1,23 @@
+---
+title: "Changelog and memo versioning"
+sidebarTitle: "Changelog"
+description: "Documentation changes and the memo-format version history."
+keywords: ["changelog", "versioning", "SF1"]
+---
+
+## Documentation
+
+| Date | Change |
+|---|---|
+| 2026-11-13 | First public docs site, written against `main` at `3a6002e` plus the commits on branch `docs/public-site`: repository fixes (threat model brought up to date, escrow key comments, receipt comment, denomination wording, VERSIONS, docs index, BUSINESS labels, generated test inventory), shared cross-language test vectors, and these pages. Findings D1–D4 recorded in [5 Security](/security#findings) |
+
+## Protocol and memo formats
+
+| Version | Prefixes and domains | Status | Notes |
+|---|---|---|---|
+| `SF1` | Memos `SF1`, `SF1R`, `SF1FEE`. Personalizations `sealforge_bid_v1`, `sealforge_rev_v1`, `sealforge_leaf1\0`, `sealforge_node1\0`, `sealforge_root1\0`. Clearing `clearing-v1` | `Testnet` | Current. Both bid modes |
+| `SF2` | Not defined | `Specified` (policy only) | Would get its own prefix, decoder and personalizations. `SF1` auctions keep treating `SF2` memos as invalid ([2.3 §Versioning policy](/protocol/wire-formats#versioning-policy)) |
+
+## Earlier engineering history
+
+Milestones and decisions before these pages are in the design history ([`docs/README.md`](https://github.com/Udoka-AM/sealForge/blob/main/docs/README.md#design-history)) and the git log.

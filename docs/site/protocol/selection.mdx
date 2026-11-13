@@ -1,10 +1,14 @@
-# 2.5 Bid selection
+---
+title: "Bid selection"
+description: "The ordered rules that classify each escrow payment, in deposit and sealed-reveal mode, shared by the coordinator and every auditor."
+keywords: ["selection", "classify", "commit-reveal", "duplicate commitment"]
+---
 
 Status: `Testnet`. Code: `crates/sealforge-core/src/selection.rs` (`classify`, `classify_commit_reveal`, `included_bids`, `included_bids_commit_reveal`).
 
 **One function, three callers.** The coordinator at close (`crates/sealforge-coordinator/src/closer.rs`), the CLI auditor and the WASM auditor (`crates/sealforge-auditor/src/lib.rs` `audit_chain`) all call these functions on the same inputs: each payment's txid, output index, block height, amount and decoded memo. All of these are visible to the published UIVK. That's what makes the bid set, and so the result, reproducible from the chain.
 
-Input per payment (`selection::Payment`): `txid`, `output_index`, `block_height`, `amount`, and `memo: Option<BidMemo>` (`None` if the memo didn't parse as `SF1`, [2.3](wire-formats.md)).
+Input per payment (`selection::Payment`): `txid`, `output_index`, `block_height`, `amount`, and `memo: Option<BidMemo>` (`None` if the memo didn't parse as `SF1`, [2.3](/protocol/wire-formats)).
 
 ## Deposit mode
 
@@ -23,14 +27,14 @@ Rules applied in this order (`classify`). Each payment ends with exactly one cla
 Rule 5 runs only over payments still `valid` after rules 1–4, so a late or invalid payment can't block a commitment (`late_or_invalid_payments_do_not_block_a_commitment`).
 
 **What happens to each class:**
-- `valid` and `under_reserve` are **included**: they go into the Merkle tree, so every bidder can prove their bid was seen. Only `valid` bids take part in clearing ([2.6](clearing.md)).
+- `valid` and `under_reserve` are **included**: they go into the Merkle tree, so every bidder can prove their bid was seen. Only `valid` bids take part in clearing ([2.6](/protocol/clearing)).
 - Every other class is refunded in full, if it has a usable refund address. Payments with no parseable memo go to manual review. Late payments are refunded by a separate late-refund planner (SECURITY-REVIEW F8; `crates/sealforge-coordinator/src/refunds.rs` `plan_late`).
 
 `InvalidReason::as_str` gives the strings stored in `bids.invalid_reason`: `bad_memo`, `wrong_auction`, `before_open`, `duplicate_commitment`, `not_revealed`.
 
 ## Sealed-reveal mode
 
-The deposit's amount is a **budget**, not the bid. Its memo carries `price_commitment` ([2.4](commitments.md)). After the bidding close, each bidder sends a separate reveal payment with an `SF1R` memo ([2.3](wire-formats.md#reveal-memo-sf1r-sealed-reveal-mode)).
+The deposit's amount is a **budget**, not the bid. Its memo carries `price_commitment` ([2.4](/protocol/commitments)). After the bidding close, each bidder sends a separate reveal payment with an `SF1R` memo ([2.3](/protocol/wire-formats#reveal-memo-sf1r-sealed-reveal-mode)).
 
 `classify_commit_reveal(window, deposits, reveals)`:
 

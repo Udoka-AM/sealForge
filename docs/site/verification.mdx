@@ -1,4 +1,9 @@
-# 6. Verification and evidence
+---
+title: "Verification and evidence"
+sidebarTitle: "Verification"
+description: "How to audit any auction from the chain, the testnet record, reproducibility, CI and the test inventory."
+keywords: ["audit", "verification", "testnet", "evidence", "CI"]
+---
 
 ## Audit any auction
 
@@ -27,7 +32,7 @@ What it does (`crates/sealforge-chain/src/audit.rs` `scan_incoming`, `sealforge_
 3. Reclassifies every payment with `sealforge_core::selection` and recomputes with `compute_result`.
 4. Compares clearing price, volume, valid bid count, winner count, Merkle root and every per-bid outcome. Exit code 1 on any mismatch.
 
-Sample output and the **tamper test** (a result edited to hide a bid and claim a lower price is caught, with exit code 1): [evidence/audit-rescan.md](../evidence/audit-rescan.md).
+Sample output and the **tamper test** (a result edited to hide a bid and claim a lower price is caught, with exit code 1): [evidence/audit-rescan.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/audit-rescan.md).
 
 ### In the browser
 
@@ -43,24 +48,24 @@ Both auctions ran on public Zcash testnet through the hosted instance, in sealed
 
 | Auction | Shape | Evidence |
 |---|---|---|
-| `KE5DFF4PDA` "Genesis Pass" | 7 sealed bids, 4 units | [evidence/testnet-genesis.md](../evidence/testnet-genesis.md): open/close/reveal heights, refund and payout txids with signer pairs, every wallet's end balance, escrow fees, CLI and browser audits |
-| `K7GHHBC4GP` "Community Pass" | 25 sealed bids, 10 units | [evidence/test-run.md §The 25-bid auction](../evidence/test-run.md#the-25-bid-auction-k7ghhbc4gp): timeline, 5 refund transactions and the payout, signer pairs, spot-checked wallets, CLI audit |
+| `KE5DFF4PDA` "Genesis Pass" | 7 sealed bids, 4 units | [evidence/testnet-genesis.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/testnet-genesis.md): open/close/reveal heights, refund and payout txids with signer pairs, every wallet's end balance, escrow fees, CLI and browser audits |
+| `K7GHHBC4GP` "Community Pass" | 25 sealed bids, 10 units | [evidence/test-run.md §The 25-bid auction](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/test-run.md#the-25-bid-auction-k7ghhbc4gp): timeline, 5 refund transactions and the payout, signer pairs, spot-checked wallets, CLI audit |
 
 Both used test-network-only settings (`SF_MIN_WINDOW_BLOCKS`, `SF_REFUND_DELAY_SECS`) so they'd fit in about an hour. Both were run from one machine holding all three trustee keystores (`scripts/testnet-demo.sh`), which defeats the threshold and is acceptable only on test networks. Trustee aliases in the evidence are labels for those keystores.
 
 ## Regtest
 
-- **Full auction on a local chain** (Zebra + Zaino regtest, real binaries): [evidence/regtest-e2e.md](../evidence/regtest-e2e.md). Deposit mode, 4 bids, close, publish, receipt check, refund planning.
-- **FROST spike:** the first 2-of-3 FROST escrow spend mined on regtest, txid `8367e1c6ca8ef305678a7179faf3d161647f90da40bb5462ecc6dc6275ec016f` ([docs/spikes/frost-pczt.md](../spikes/frost-pczt.md)).
+- **Full auction on a local chain** (Zebra + Zaino regtest, real binaries): [evidence/regtest-e2e.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/regtest-e2e.md). Deposit mode, 4 bids, close, publish, receipt check, refund planning.
+- **FROST spike:** the first 2-of-3 FROST escrow spend mined on regtest, txid `8367e1c6ca8ef305678a7179faf3d161647f90da40bb5462ecc6dc6275ec016f` ([docs/spikes/frost-pczt.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/spikes/frost-pczt.md)).
 
 ## Reproducibility
 
 | What | How |
 |---|---|
 | Local chain | `scripts/regtest.sh up <dev-wallet-UA>` (Zebra + Zaino), `scripts/regtest.sh envoy` (gRPC-web), `scripts/regtest.sh mine N`. See `infra/regtest/README.md` |
-| Your own auction | [QUICKSTART.md](../QUICKSTART.md), starting from `examples/auction.toml` |
+| Your own auction | [QUICKSTART.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/QUICKSTART.md), starting from `examples/auction.toml` |
 | A whole testnet auction with simulated bidders and trustees | `scripts/testnet-demo.sh <plan.conf>` (plan format at the top of the script). Test networks only |
-| Test vectors | `cargo run -p sealforge-core --example vectors` ([Appendix](appendix-test-vectors.md)) |
+| Test vectors | `cargo run -p sealforge-core --example vectors` ([Appendix](/appendix/test-vectors)) |
 | Linkability figures | `cargo run -p sealforge-linkability --release -- --out docs/evidence` |
 | Test inventory and counts | `DATABASE_URL=… scripts/test-inventory.sh` |
 
@@ -77,7 +82,7 @@ Both used test-network-only settings (`SF_MIN_WINDOW_BLOCKS`, `SF_REFUND_DELAY_S
 
 ## Test inventory
 
-Generated from test-runner output by `scripts/test-inventory.sh` into [evidence/test-inventory.md](../evidence/test-inventory.md), the single source for counts and names. Don't hand-count.
+Generated from test-runner output by `scripts/test-inventory.sh` into [evidence/test-inventory.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/test-inventory.md), the single source for counts and names. Don't hand-count.
 
 Adversarial tests worth reading first:
 

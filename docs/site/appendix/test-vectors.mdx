@@ -1,9 +1,13 @@
-# Appendix: test vectors
+---
+title: "Test vectors"
+description: "Cross-language vectors for commitments, memos, ZIP 321 URIs, Merkle leaves, nodes, roots and a 20-bid result."
+keywords: ["test vectors", "commitment", "merkle"]
+---
 
 **Authoritative file:** `crates/sealforge-core/tests/fixtures/vectors.json`. Values below are copied from it for reading; if they ever differ, the file wins and this page is wrong.
 
 - Generate: `cargo run -p sealforge-core --example vectors` (prints the JSON).
-- Generator: `crates/sealforge-core/tests/support/vectors.rs`. It also recomputes the Merkle node and roots straight from the byte layouts in [2.4](02-protocol/commitments.md#domain-table), independently of `MerkleTree`, and asserts they agree.
+- Generator: `crates/sealforge-core/tests/support/vectors.rs`. It also recomputes the Merkle node and roots straight from the byte layouts in [2.4](/protocol/commitments#domain-table), independently of `MerkleTree`, and asserts they agree.
 - Checked in CI by Rust (`crates/sealforge-core/tests/vectors.rs`, `vectors_match_the_checked_in_file`) and TypeScript (`packages/bid/src/bid.test.ts`, "shared vectors file": commitments, memos, URI). The Merkle and result vectors are Rust-only, because the browser runs the Rust auditor as WASM.
 - Regenerate after an intentional change: `UPDATE_FIXTURES=1 cargo test -p sealforge-core --test vectors`, then review the diff.
 

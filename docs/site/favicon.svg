@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>sealForge</title>
+  <!-- The sealForge mark; paths from src/lib/brand.ts. -->
+  <path fill="#f4b728" fill-rule="evenodd" d="M32 4 56.2 18V46L32 60 7.8 46V18ZM21 20H40L43 23V26H30L43 38V44H24L21 41V38H34L21 26Z"/>
+  <path fill="#fff" fill-opacity=".22" d="M32 4 56.2 18H7.8Z"/>
+  <path fill="#000" fill-opacity=".2" d="M7.8 46H56.2L32 60Z"/>
+</svg>

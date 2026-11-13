@@ -1,4 +1,9 @@
-# 4. Architecture and infrastructure
+---
+title: "Architecture and infrastructure"
+sidebarTitle: "Architecture"
+description: "Components, crate map, sequence diagrams, DKG relay security, API authentication, data model, deployment and browser supply chain."
+keywords: ["architecture", "coordinator", "DKG", "SF-Sig", "deployment", "WASM"]
+---
 
 ## Components
 
@@ -54,8 +59,8 @@ The trustees, the auditor and the bidder's wallet can each use a lightwallet ser
 | `sealforge-chain` | No | Escrow wallets (`zcash_client_sqlite`), PCZT building, broadcast, chain audit over gRPC |
 | `sealforge-coordinator` | No | axum API, Postgres, scanner/closer/refund loops, DKG relay, batch signing rounds |
 | `sealforge-cli` | No | `sealforge` CLI for organisers and trustees |
-| `tools/linkability-harness` (`sealforge-linkability`) | Seeded RNG, deterministic | Refund linkability simulation ([2.7](02-protocol/refunds.md#measurement-methodology)) |
-| `@sealforge/bid` (TS) | Pure except salt generation | Amounts, commitments, memos, ZIP 321, receipts. Byte-compatible with `sealforge-core` ([2.4](02-protocol/commitments.md#rust-and-typescript-parity)) |
+| `tools/linkability-harness` (`sealforge-linkability`) | Seeded RNG, deterministic | Refund linkability simulation ([2.7](/protocol/refunds#measurement-methodology)) |
+| `@sealforge/bid` (TS) | Pure except salt generation | Amounts, commitments, memos, ZIP 321, receipts. Byte-compatible with `sealforge-core` ([2.4](/protocol/commitments#rust-and-typescript-parity)) |
 | `@sealforge/shieldramp` (TS) | Pure | Linkability Score (`Tested`). The rest of ShieldRamp is `Specified` |
 
 ## Sequences
@@ -207,7 +212,7 @@ signed message = "SF-Sig-v1\n" + METHOD + "\n" + path_and_query + "\n" + ts + "\
 
 ## Data model
 
-Postgres, forward-only migrations in `migrations/`, applied when the coordinator starts. Schema reference: [05-BACKEND-SCHEMA.md](../05-BACKEND-SCHEMA.md) (design history).
+Postgres, forward-only migrations in `migrations/`, applied when the coordinator starts. Schema reference: [05-BACKEND-SCHEMA.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/05-BACKEND-SCHEMA.md) (design history).
 
 | Migration | Adds |
 |---|---|
@@ -221,7 +226,7 @@ Postgres, forward-only migrations in `migrations/`, applied when the coordinator
 
 **Encrypted columns** (`pgp_sym_encrypt` with `SF_DATA_KEY`): `auctions.escrow_ufvk_enc`, `bids.refund_ua_enc`, `bids.memo_refund_ua_enc`.
 
-**Retention.** The documented policy keeps escrow UFVKs until settled + 30 days and refund addresses until refunds confirm + 30 days ([THREAT-MODEL.md](../THREAT-MODEL.md#data-the-coordinator-holds)). **No code purges them yet** (`Specified`). Code does purge relayed DKG packages once the escrow exists, used signature shares on a reset, and API nonces after 10 minutes.
+**Retention.** The documented policy keeps escrow UFVKs until settled + 30 days and refund addresses until refunds confirm + 30 days ([THREAT-MODEL.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/THREAT-MODEL.md#data-the-coordinator-holds)). **No code purges them yet** (`Specified`). Code does purge relayed DKG packages once the escrow exists, used signature shares on a reset, and API nonces after 10 minutes.
 
 ## Deployment
 
@@ -230,17 +235,17 @@ Status: `Testnet` (hosted instance at `sealforge.udokaam.dev`).
 - **Compose:** `infra/docker-compose.yml`: Postgres; Zebra, Zaino and Envoy (profile `node`); coordinator and Caddy (profile `app`). Coordinator image: `infra/coordinator.Dockerfile`. Runbook: `infra/README.md`.
 - **Caddy** (`infra/Caddyfile`): TLS, and access logs with `remote_ip`, `client_ip` and `X-Forwarded-For` deleted. Caddy redacts `Authorization` by default (SECURITY-REVIEW AC14).
 - **Envoy** (`infra/envoy.yaml`, `infra/envoy-tls.yaml`): gRPC-web to gRPC in front of Zaino, CORS limited to the gRPC-web headers.
-- **Backups:** `scripts/backup.sh` (custom-format dump plus the wallet directory), `scripts/restore-drill.sh` (restores into a scratch database and checks migrations, row counts, and that every UFVK and refund address decrypts). Drill record: [evidence/backup-drill.md](../evidence/backup-drill.md). Encryption with `age` and the off-site copy are not drilled yet.
+- **Backups:** `scripts/backup.sh` (custom-format dump plus the wallet directory), `scripts/restore-drill.sh` (restores into a scratch database and checks migrations, row counts, and that every UFVK and refund address decrypts). Drill record: [evidence/backup-drill.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/backup-drill.md). Encryption with `age` and the off-site copy are not drilled yet.
 - **If `SF_DATA_KEY` is lost, escrows can't be spent.** The FVK (`nk`, `rivk`) exists only inside the encrypted UFVK, and building a spend needs it. Trustee shares alone are not enough (`infra/README.md` §Backups). Keep it outside every backup, in a password manager plus an offline copy.
 
 ## Browser supply chain
 
 - **WASM provenance.** Each module in `apps/web/public/{auditor,scanner,signer,wallet}/` ships a `BUILD.json` with the crate, git commit, `rustc`, `wasm-bindgen` version and the module's SHA-256. Build scripts: `scripts/build-{auditor,scanner,signer,wallet}-wasm.sh`. CI rebuilds all four from source and uploads them as an artifact for comparison (`.github/workflows/ci.yml`, job `wasm`).
 - **To check a module:** run the matching build script at the recorded commit with the recorded toolchain, then compare `sha256` with `wasm_sha256`.
-- **Current state, stated plainly:** on 2026-11-13 every committed module's SHA-256 matched its `BUILD.json`. But three of the four (`auditor`, `signer`, `wallet`) record `"source_dirty": true`. They were built from a working tree with uncommitted changes, so they can't be reproduced from the recorded commit alone. Rebuilding them from a clean tree and committing the result is a mainnet gate ([10 Roadmap](10-roadmap.md)).
+- **Current state, stated plainly:** on 2026-11-13 every committed module's SHA-256 matched its `BUILD.json`. But three of the four (`auditor`, `signer`, `wallet`) record `"source_dirty": true`. They were built from a working tree with uncommitted changes, so they can't be reproduced from the recorded commit alone. Rebuilding them from a clean tree and committing the result is a mainnet gate ([10 Roadmap](/roadmap)).
 - **CSP** (`apps/web/next.config.ts`, production): `default-src 'self'`; `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'`; `connect-src 'self' https:` plus the configured lightwalletd origin, so the browser rescan can reach the auditor's chosen server; `object-src 'none'`; `frame-ancestors 'none'`; plus `X-Frame-Options: DENY` and `X-Content-Type-Options: nosniff`. `'unsafe-inline'` remains for Next.js hydration (SECURITY-REVIEW open item).
 - **No third-party requests:** fonts and scripts are self-hosted. The only cross-origin traffic is to the lightwallet server the user chooses.
 
 ## Performance
 
-Measured figures, hardware and method are in [evidence/perf.md](../evidence/perf.md), the single source. Two targets are **not yet measured on real testnet blocks**: the CLI auditor's 3,500-block rescan target and the browser rescan target. Regtest blocks are nearly empty, so trial decryption there is cheaper than on testnet.
+Measured figures, hardware and method are in [evidence/perf.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/perf.md), the single source. Two targets are **not yet measured on real testnet blocks**: the CLI auditor's 3,500-block rescan target and the browser rescan target. Regtest blocks are nearly empty, so trial decryption there is cheaper than on testnet.

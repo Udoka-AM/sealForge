@@ -1,6 +1,6 @@
 # sealForge docs
 
-The public documentation site lives in [site/](site/README.md). The files below are the engineering record it cites.
+The public documentation site is published with Mintlify at <https://sealforge.mintlify.site>. Its source is [site/](site/) (MDX pages plus `docs.json`). The files below are the engineering record it cites.
 
 ## Current reference
 

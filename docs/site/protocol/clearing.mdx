@@ -1,4 +1,8 @@
-# 2.6 Clearing
+---
+title: "Clearing"
+description: "Uniform-price and first-price clearing: eligibility, the canonical sort key, undersubscribed auctions and the determinism guarantee."
+keywords: ["clearing", "uniform price", "first price", "determinism"]
+---
 
 Status: `Testnet` (uniform price). First price is `Tested` only: both testnet auctions were uniform price.
 
@@ -7,7 +11,7 @@ Code: `crates/sealforge-core/src/clearing.rs` `clear`, called only through `crat
 ## Inputs
 
 - `AuctionRules { mode, quantity, reserve }`. `quantity ≥ 1` (`ZeroQuantity` otherwise; the database also limits it to 1–100,000).
-- One `ClearingBid { leaf_hash, block_height, amount }` per **included** bid ([2.5](selection.md)): `valid` and `under_reserve`. In sealed-reveal mode, `amount` is the revealed price.
+- One `ClearingBid { leaf_hash, block_height, amount }` per **included** bid ([2.5](/protocol/selection)): `valid` and `under_reserve`. In sealed-reveal mode, `amount` is the revealed price.
 - Leaf hashes MUST be unique (`DuplicateLeaf` otherwise).
 
 ## Algorithm
@@ -32,14 +36,14 @@ Code: `crates/sealforge-core/src/clearing.rs` `clear`, called only through `crat
 
 `total_volume` = the sum of eligible amounts (checked against the ZEC supply, `VolumeOverflow`). `valid_bid_count` = number of eligible bids. Outcomes are returned **sorted by leaf hash**, one per included bid.
 
-In sealed-reveal mode the refund also returns `deposit − price` plus the counting reveal payment. The coordinator adds those at close ([2.5](selection.md#sealed-reveal-mode)).
+In sealed-reveal mode the refund also returns `deposit − price` plus the counting reveal payment. The coordinator adds those at close ([2.5](/protocol/selection#sealed-reveal-mode)).
 
 ## Determinism guarantee
 
 The result is a pure function of `(rules, set of bids)`:
-- **Independent of input order.** Eligibility is per bid, the priority is a total order, and outcomes are sorted by leaf hash (`result_is_independent_of_input_order`). The Merkle root sorts leaves too ([2.4](commitments.md#merkle-tree)).
+- **Independent of input order.** Eligibility is per bid, the priority is a total order, and outcomes are sorted by leaf hash (`result_is_independent_of_input_order`). The Merkle root sorts leaves too ([2.4](/protocol/commitments#merkle-tree)).
 - **Byte-identical across implementations.** The coordinator, `sealforge-audit` and the WASM auditor link the same `sealforge-core`. Only the build target differs. `sealforge-core` has no I/O, clock, randomness or floating point (amounts are `u64` zatoshi).
-- **Golden fixtures.** `crates/sealforge-core/tests/pipeline.rs` pins the exact clearing outcome and Merkle root for a 20-bid uniform-price auction and a 500-bid first-price auction (`tests/fixtures/bids-20*.json`, `bids-500*.json`). It also checks that payments plus refunds equal deposits for every bid, that every refund splits exactly into notes plus dust, and that every bidder has a valid inclusion proof. Values: [Appendix: test vectors](../appendix-test-vectors.md#20-bid-result).
-- **Scale.** 20,000 bids in under one second is a test (`clears_twenty_thousand_bids_quickly`). Measured timing is in [evidence/perf.md](../../evidence/perf.md).
+- **Golden fixtures.** `crates/sealforge-core/tests/pipeline.rs` pins the exact clearing outcome and Merkle root for a 20-bid uniform-price auction and a 500-bid first-price auction (`tests/fixtures/bids-20*.json`, `bids-500*.json`). It also checks that payments plus refunds equal deposits for every bid, that every refund splits exactly into notes plus dust, and that every bidder has a valid inclusion proof. Values: [Appendix: test vectors](/appendix/test-vectors#20-bid-result).
+- **Scale.** 20,000 bids in under one second is a test (`clears_twenty_thousand_bids_quickly`). Measured timing is in [evidence/perf.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/perf.md).
 
 The published `algorithm_version` (`sealforge-core/<version>/clearing-v1`) names these rules. A change to them MUST change the `clearing-v1` suffix.

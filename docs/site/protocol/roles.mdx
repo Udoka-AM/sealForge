@@ -1,4 +1,9 @@
-# 2.1 Roles and what each one knows
+---
+title: "Roles and what each one knows"
+sidebarTitle: "Roles"
+description: "Who holds which keys and data, and what each role can see or do: organiser, bidder, trustees, coordinator, observers and auditors."
+keywords: ["roles", "trust", "coordinator", "trustee", "visibility"]
+---
 
 Protocol version `SF1`. The key words MUST, SHOULD and MAY are used as in RFC 2119.
 
@@ -30,20 +35,20 @@ Columns:
 | Bidder | No (of others) | No | No | Own payment only | No |
 | One trustee | No | No. Holds no viewing key | No | No. One share can't sign (`one_trustee_cannot_sign_alone`) | No |
 | Any two trustees | No | No | No | Can produce a spend signature, but need the escrow FVK (coordinator database + `SF_DATA_KEY`) to build a transaction | No |
-| Coordinator | No. Shielded senders are not in the note | **Yes**, via the UFVK | No. Sees deposits and price commitments only | Not alone. **With two trustees signing as instructed, yes**: trustees sign the sighash without seeing the PCZT ([5 Security](../05-security.md#trust-assumptions)) | No |
+| Coordinator | No. Shielded senders are not in the note | **Yes**, via the UFVK | No. Sees deposits and price commitments only | Not alone. **With two trustees signing as instructed, yes**: trustees sign the sighash without seeing the PCZT ([5 Security](/security#trust-assumptions)) | No |
 | Chain observer, before publish | No | No | No | No | n/a |
 | Chain observer or auditor, after publish (has UIVK) | No | Yes, after the fact | Yes, after the fact | No | No |
 
 Sources, in cell order:
 - **A**: shielded payments don't carry the sender in decryptable form. Scanning is incoming-only (`sealforge-scan`, `zcash_note_encryption::try_note_decryption` with the Orchard/Ironwood domains).
 - **B, coordinator**: `crates/sealforge-coordinator/src/scanner.rs` syncs each escrow's view-only wallet from the UFVK (`crates/sealforge-chain/src/wallet.rs`) and records amounts and memos as bids arrive.
-- **C**: in sealed-reveal mode the deposit memo carries `price_commitment` ([2.4](commitments.md)), and the price appears only in an `SF1R` reveal mined after `close_height` ([2.5](selection.md#sealed-reveal-mode)). Tests: `commit_reveal_tests::*`, `tests/commit_reveal.rs`.
+- **C**: in sealed-reveal mode the deposit memo carries `price_commitment` ([2.4](/protocol/commitments)), and the price appears only in an `SF1R` reveal mined after `close_height` ([2.5](/protocol/selection#sealed-reveal-mode)). Tests: `commit_reveal_tests::*`, `tests/commit_reveal.rs`.
 - **D**: `crates/sealforge-escrow/src/signing.rs`. Trustees sign `SpendAuthRequest { sighash, alpha }` (`crates/sealforge-cli/src/trustee.rs`, `sign_step`).
-- **E**: anyone recomputes with `sealforge_auditor::audit_chain`. Tamper tests: `inflated_volume_or_hidden_bid_is_caught`, `rewritten_outcome_is_caught`, `tampered_root_breaks_inclusion`, `a_suppressed_reveal_is_caught`. The check covers the published scan range ([6 Verification](../06-verification.md)).
+- **E**: anyone recomputes with `sealforge_auditor::audit_chain`. Tamper tests: `inflated_volume_or_hidden_bid_is_caught`, `rewritten_outcome_is_caught`, `tampered_root_breaks_inclusion`, `a_suppressed_reveal_is_caught`. The check covers the published scan range ([6 Verification](/verification)).
 
 ## Requirements on each role
 
-- A bidder MUST use a refund Unified Address with an Orchard receiver ([3 Zcash integration](../03-zcash-integration.md#no-transparent-or-sapling-hops)). A bidder SHOULD use a fresh address for each bid, because the address is readable by anyone with the UIVK after publish.
+- A bidder MUST use a refund Unified Address with an Orchard receiver ([3 Zcash integration](/zcash-integration#no-transparent-or-sapling-hops)). A bidder SHOULD use a fresh address for each bid, because the address is readable by anyone with the UIVK after publish.
 - A bidder MUST keep the receipt (salt included). The salt is never sent to the server. Without it, a sealed-reveal bidder can't reveal, and the deposit is refunded as `not_revealed`.
-- Trustees MUST compare the DKG fingerprint out of band before the auction opens ([4 Architecture](../04-architecture.md#dkg-relay-security)).
+- Trustees MUST compare the DKG fingerprint out of band before the auction opens ([4 Architecture](/architecture#dkg-relay-security)).
 - The organiser MUST publish after close for refunds to start. Nothing publishes automatically (`POST /v1/auctions/{code}/publish`, organiser-signed).

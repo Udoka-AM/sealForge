@@ -1,0 +1,51 @@
+---
+title: "sealForge documentation"
+sidebarTitle: "Introduction"
+description: "Auditable sealed-bid auctions on Zcash: the clearing price is public, the bidders aren't. How these docs are organised and what the status labels mean."
+keywords: ["sealforge", "zcash", "sealed-bid auction", "status labels"]
+---
+
+Auditable sealed-bid auctions on Zcash: the clearing price is public, the bidders aren't.
+
+These pages are written for Zcash protocol and wallet engineers first. Every technical claim cites the code (`path`, function or constant) or an evidence file. Every behaviour carries a status label from the table below. The source of every page is in [`docs/site`](https://github.com/Udoka-AM/sealForge/tree/main/docs/site) in the repository. The engineering documents in [`docs/`](https://github.com/Udoka-AM/sealForge/blob/main/docs/README.md) (PRD, TRD and the rest) are the design history these pages cite.
+
+## Status labels
+
+| Label | Meaning |
+|---|---|
+| `Mainnet` | Has run on Zcash mainnet. **Nothing has yet.** |
+| `Testnet` | Has run on public Zcash testnet. The page cites the auction code and transactions |
+| `Regtest` | Exercised end to end on the local Zebra + Zaino chain |
+| `Tested` | Unit or integration tests only |
+| `Specified` | Types or design exist, not built |
+| `Not built` | Neither |
+
+## Contents
+
+1. [Overview](/overview): what it is, status of every component, the three guarantees and what isn't guaranteed
+2. Protocol specification (`SF1`)
+   - [2.1 Roles and what each one knows](/protocol/roles)
+   - [2.2 Lifecycle state machine](/protocol/lifecycle)
+   - [2.3 Wire formats](/protocol/wire-formats)
+   - [2.4 Commitments and domain separation](/protocol/commitments)
+   - [2.5 Bid selection](/protocol/selection)
+   - [2.6 Clearing](/protocol/clearing)
+   - [2.7 Refund privacy](/protocol/refunds)
+3. [Zcash integration reference](/zcash-integration): every protocol touchpoint, and the upstream dependency risks
+4. [Architecture and infrastructure](/architecture)
+5. [Security](/security): trust assumptions, threat model, key custody, findings, mainnet gates
+6. [Verification and evidence](/verification): audit any auction, the testnet record, reproducibility, test inventory
+7. [Guides](/guides): organiser, trustee, bidder, auditor, integrator
+8. [API and SDK reference](/api-reference)
+9. [Product and economics](/product)
+10. [Roadmap and mainnet gates](/roadmap)
+11. [Open questions for reviewers](/open-questions)
+
+Appendices: [glossary](/appendix/glossary), [test vectors](/appendix/test-vectors), [ZIP and spec index](/appendix/specs), [changelog and memo versioning](/appendix/changelog).
+
+## Conventions
+
+- Amounts are integer zatoshi (1 ZEC = 10^8 zat). "TAZ" is testnet ZEC.
+- `‖` is byte concatenation. `u32 LE` and `u64 LE` are little-endian unsigned integers.
+- Paths are relative to the repository root. Code citations are to `main` at the commit these pages were written against (see the [changelog](/appendix/changelog)).
+- Upstream behaviour (Orchard, Ironwood, PCZT, RedPallas, note encryption, consensus) is cited to the ZIP, the protocol specification or the upstream source and version. It is not restated from memory.
