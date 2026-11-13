@@ -1,0 +1,14 @@
+# Keeps the build context small: without this, `COPY . .` in
+# infra/web.Dockerfile sends the 2+ GB Rust target/ and every node_modules,
+# and the web image grows from ~2.8 GB to ~10 GB.
+target
+**/node_modules
+**/.next
+.git
+# Secrets never belong in an image.
+.env
+.env.*
+!.env.example
+*.key
+*.seed
+secrets
