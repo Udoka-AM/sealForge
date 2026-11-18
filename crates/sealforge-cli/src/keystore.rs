@@ -141,5 +141,8 @@ pub fn write_private(path: &Path, contents: &[u8]) -> anyhow::Result<()> {
         .open(path)
         .with_context(|| format!("creating {}", path.display()))?;
     file.write_all(contents)?;
+    // Durable before the caller acts on it (e.g. the signed record must survive
+    // a crash before the shares it covers are sent).
+    file.sync_all()?;
     Ok(())
 }

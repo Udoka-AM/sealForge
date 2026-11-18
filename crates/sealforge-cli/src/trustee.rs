@@ -363,11 +363,27 @@ use sealforge_escrow::signing;
 /// What one `sign_step` did for a batch.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SignProgress {
-    Committed { batch: String },
-    Signed { batch: String },
-    WaitingForSecondSigner { batch: String },
-    NotSelected { batch: String },
-    Done { batch: String },
+    Committed {
+        batch: String,
+    },
+    Signed {
+        batch: String,
+    },
+    WaitingForSecondSigner {
+        batch: String,
+    },
+    NotSelected {
+        batch: String,
+    },
+    /// The coordinator now shows different round 2 inputs than the ones this
+    /// trustee already signed. Signing again would reuse nonces, so it waits
+    /// for the round to reset and start over with fresh ones.
+    InputsChanged {
+        batch: String,
+    },
+    Done {
+        batch: String,
+    },
 }
 
 impl std::fmt::Display for SignProgress {
@@ -388,6 +404,13 @@ impl std::fmt::Display for SignProgress {
                 "Batch {}: two other trustees are signing; you're not needed.",
                 short(batch)
             ),
+            Self::InputsChanged { batch } => write!(
+                f,
+                "Batch {}: the coordinator changed what it is asking you to sign after you signed. \
+                 Not signing again with the same nonces. The round restarts after 30 minutes; \
+                 if this repeats, treat the coordinator as compromised.",
+                short(batch)
+            ),
             Self::Done { batch } => {
                 write!(f, "Batch {}: nothing left for you to do.", short(batch))
             }
@@ -397,6 +420,58 @@ impl std::fmt::Display for SignProgress {
 
 fn nonces_file(batch: &str) -> String {
     format!("batch-{batch}.nonces")
+}
+
+fn signed_file(batch: &str) -> String {
+    format!("batch-{batch}.signed")
+}
+
+/// What this trustee signed in round 2, kept so a failed send can be retried
+/// with the same bytes instead of signing again with the same nonces.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SignedRecord {
+    /// [`signing_inputs_digest`] of the round 2 inputs, hex.
+    inputs: String,
+    shares: Vec<String>,
+}
+
+/// Digest of everything a round 2 share depends on besides the key and the
+/// nonces: the sighash, each spend's alpha, and every signer's commitments.
+fn signing_inputs_digest(
+    sighash: &[u8; 32],
+    alphas: &[[u8; 32]],
+    commitments: &BTreeMap<u16, Vec<Vec<u8>>>,
+) -> String {
+    fn len(h: &mut Sha256, n: usize) {
+        h.update((n as u64).to_le_bytes());
+    }
+    let mut h = Sha256::new();
+    h.update(b"sealforge/round2-inputs/v1");
+    h.update(sighash);
+    len(&mut h, alphas.len());
+    for alpha in alphas {
+        h.update(alpha);
+    }
+    len(&mut h, commitments.len());
+    for (slot, values) in commitments {
+        h.update(slot.to_le_bytes());
+        len(&mut h, values.len());
+        for v in values {
+            len(&mut h, v.len());
+            h.update(v);
+        }
+    }
+    hex::encode(h.finalize())
+}
+
+async fn post_shares(client: &Client, batch: &str, shares: Vec<String>) -> anyhow::Result<()> {
+    let _: BatchView = client
+        .post(
+            &format!("/v1/batches/{batch}/shares"),
+            &PostShares { shares },
+        )
+        .await?;
+    Ok(())
 }
 
 fn hex32(value: &str) -> anyhow::Result<[u8; 32]> {
@@ -442,7 +517,10 @@ pub async fn sign_step(
             let nonces: Vec<String> = round1.nonces.iter().map(hex::encode).collect();
             let commitments: Vec<String> = round1.commitments.iter().map(hex::encode).collect();
             // Nonces from a round the coordinator reset are discarded, never reused.
+            // The signed record goes too: its nonces are already gone, and the
+            // new round signs with new ones.
             std::fs::remove_file(store.trustee_dir(code).join(nonces_file(&batch.id))).ok();
+            std::fs::remove_file(store.trustee_dir(code).join(signed_file(&batch.id))).ok();
             store.write(
                 code,
                 &nonces_file(&batch.id),
@@ -476,10 +554,6 @@ pub async fn sign_step(
         }
 
         // Round 2: sign each spend with its alpha against the agreed commitments.
-        let nonce_hex: Vec<String> =
-            serde_json::from_slice(&store.read(code, &nonces_file(&batch.id))?.ok_or_else(
-                || anyhow!("nonces for batch {} are missing on this machine", batch.id),
-            )?)?;
         let alphas = batch
             .spends
             .iter()
@@ -498,28 +572,53 @@ pub async fn sign_step(
                 ))
             })
             .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
+        let sighash = hex32(&batch.sighash)?;
+        let inputs = signing_inputs_digest(&sighash, &alphas, &commitments);
+
+        // A share made with these nonces may already have left this machine
+        // (the POST below can fail after the coordinator received it). Never
+        // sign again with them: resend the exact same bytes, and only for the
+        // exact same inputs. Different inputs over the same nonces would let
+        // the coordinator solve for this trustee's signing share.
+        if let Some(bytes) = store.read(code, &signed_file(&batch.id))? {
+            let record: SignedRecord = serde_json::from_slice(&bytes)?;
+            if record.inputs != inputs {
+                out.push(SignProgress::InputsChanged { batch: batch.id });
+                continue;
+            }
+            post_shares(&client, &batch.id, record.shares).await?;
+            out.push(SignProgress::Signed { batch: batch.id });
+            continue;
+        }
+
+        let nonce_hex: Vec<String> =
+            serde_json::from_slice(&store.read(code, &nonces_file(&batch.id))?.ok_or_else(
+                || anyhow!("nonces for batch {} are missing on this machine", batch.id),
+            )?)?;
         let nonces = nonce_hex
             .iter()
             .map(hex::decode)
             .collect::<Result<Vec<_>, _>>()?;
-        let shares: Vec<String> = signing::sign_batch(
-            &key_package,
-            hex32(&batch.sighash)?,
-            &alphas,
-            &commitments,
-            &nonces,
-        )?
-        .iter()
-        .map(hex::encode)
-        .collect();
-        let _: BatchView = client
-            .post(
-                &format!("/v1/batches/{}/shares", batch.id),
-                &PostShares { shares },
-            )
-            .await?;
-        // Nonces must never be reused.
-        std::fs::remove_file(store.trustee_dir(code).join(nonces_file(&batch.id))).ok();
+        let shares: Vec<String> =
+            signing::sign_batch(&key_package, sighash, &alphas, &commitments, &nonces)?
+                .iter()
+                .map(hex::encode)
+                .collect();
+        // Consume the nonces before the shares leave this machine: record what
+        // was signed (synced to disk), then delete the nonces. If either step
+        // fails, nothing is sent.
+        store.write(
+            code,
+            &signed_file(&batch.id),
+            &serde_json::to_vec(&SignedRecord {
+                inputs,
+                shares: shares.clone(),
+            })?,
+        )?;
+        let nonce_path = store.trustee_dir(code).join(nonces_file(&batch.id));
+        std::fs::remove_file(&nonce_path)
+            .with_context(|| format!("deleting used nonces {}", nonce_path.display()))?;
+        post_shares(&client, &batch.id, shares).await?;
         out.push(SignProgress::Signed { batch: batch.id });
     }
     Ok(out)

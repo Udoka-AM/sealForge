@@ -27,6 +27,7 @@
 | F6 | Low | Escrow wallet files (viewing-key material) were created with default permissions | The wallet directory is created owner-only (0700) |
 | F7 | Low | The restore drill passed `SF_DATA_KEY` on the `psql` command line, where `ps` can see it | SQL goes through stdin |
 | F8 | Medium | Payments arriving after close were recorded as valid bids with no refund planned | Stored as `late`, refunded in full by a late-refund planner |
+| F9 | **High** | Reported privately by an external reviewer on 2026-11-17. A trustee kept its round 1 nonces until the shares upload succeeded. After a failed upload, the next CLI run (or the browser's 5-second poll) signed again with the same nonces over whatever sighash, alphas and commitments the coordinator returned. A malicious coordinator collecting shares over one nonce set on different messages can solve for the trustee's signing share; with two trustees' shares it spends alone | Nonces are consumed before any share leaves the device: the trustee records the shares and a digest of their inputs (synced to disk), then deletes the nonces, then sends. A retry resends those exact bytes only if the inputs are identical; otherwise it refuses and waits for the round to reset with fresh nonces. CLI and browser. Test: `dkg_e2e` ("a coordinator that loses a share") |
 
 ## Key handling (what an attacker gets)
 
@@ -36,7 +37,7 @@
 | Escrow UFVK | Coordinator DB, encrypted with `SF_DATA_KEY` | Bids become visible before close (breaks sealing). Can't spend without two shares |
 | `SF_DATA_KEY` | Coordinator environment, password manager, offline copy | With a DB dump: UFVKs and refund addresses. **If lost, escrows can't be spent** (see `infra/README.md` §Backups) |
 | Organiser key | `~/.sealforge/organiser.key`, or a non-extractable WebCrypto key in IndexedDB | Can create, open, publish and cancel that organiser's auctions. Can't move funds |
-| Nonces (FROST round 1) | Trustee disk until round 2, then deleted. Browser memory only | A nonce plus that round's share would reveal the trustee's signing share. Never reused, and deleted after use |
+| Nonces (FROST round 1) | Trustee disk until round 2, then deleted. Browser memory only | A nonce plus that round's share would reveal the trustee's signing share. Deleted before any share is sent; a failed send is retried with the same bytes, only over the same inputs (F9) |
 
 ## Open items
 

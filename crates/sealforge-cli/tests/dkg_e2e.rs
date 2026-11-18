@@ -354,6 +354,87 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
             .unwrap();
     assert_eq!((status.as_str(), slots), ("signed", vec![3, 2]));
 
+    // A coordinator that "loses" a share and then asks for one over a different
+    // sighash must not get a second share over the same nonces (two shares
+    // over one nonce pair, on different messages, reveal the signing share).
+    let replayed: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO tx_batches (auction_id, kind, status, sighash, spend_auth, total_out_zat, output_count) \
+         SELECT id, 'refund', 'awaiting_signatures', $2, $3, 5000000, 1 FROM auctions WHERE code = $1 RETURNING id",
+    )
+    .bind(&code)
+    .bind(&sighash[..])
+    .bind(serde_json::to_value(&spends[..1]).unwrap())
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let replayed_id = replayed.to_string();
+    for i in [0, 1] {
+        let progress = trustee::sign_step(&trustees[i], &url, &code).await.unwrap();
+        assert!(
+            progress.contains(&SignProgress::Committed {
+                batch: replayed_id.clone()
+            }),
+            "{progress:?}"
+        );
+    }
+    let progress = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    assert!(
+        progress.contains(&SignProgress::Signed {
+            batch: replayed_id.clone()
+        }),
+        "{progress:?}"
+    );
+    let share_of_slot_1 = |db: PgPool| async move {
+        sqlx::query_scalar::<_, Option<serde_json::Value>>(
+            "SELECT s.shares_json FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id \
+             WHERE s.batch_id = $1 AND t.slot = 1",
+        )
+        .bind(replayed)
+        .fetch_one(&db)
+        .await
+        .unwrap()
+    };
+    let first_share = share_of_slot_1(db.clone()).await.expect("share stored");
+    let other_sighash: [u8; 32] = random_alpha();
+    sqlx::query("UPDATE signature_shares SET shares_json = NULL WHERE batch_id = $1")
+        .bind(replayed)
+        .execute(&db)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE tx_batches SET sighash = $2 WHERE id = $1")
+        .bind(replayed)
+        .bind(&other_sighash[..])
+        .execute(&db)
+        .await
+        .unwrap();
+    let progress = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    assert!(
+        progress.contains(&SignProgress::InputsChanged {
+            batch: replayed_id.clone()
+        }),
+        "a trustee never signs new inputs with nonces it already used: {progress:?}"
+    );
+    assert_eq!(share_of_slot_1(db.clone()).await, None, "nothing was sent");
+    // Back to the original inputs, the trustee resends exactly what it signed.
+    sqlx::query("UPDATE tx_batches SET sighash = $2 WHERE id = $1")
+        .bind(replayed)
+        .bind(&sighash[..])
+        .execute(&db)
+        .await
+        .unwrap();
+    let progress = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    assert!(
+        progress.contains(&SignProgress::Signed {
+            batch: replayed_id.clone()
+        }),
+        "{progress:?}"
+    );
+    assert_eq!(share_of_slot_1(db.clone()).await, Some(first_share));
+    assert!(!trustees[0]
+        .trustee_dir(&code)
+        .join(format!("batch-{replayed_id}.nonces"))
+        .exists());
+
     // And the organiser can open it.
     state.set_chain_tip(3_900_000);
     let opened = organiser::auction_open(&org, &url, &code).await.unwrap();
