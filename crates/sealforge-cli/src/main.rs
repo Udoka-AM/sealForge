@@ -138,15 +138,20 @@ async fn main() -> anyhow::Result<()> {
         Command::Trustee(TrusteeCommand::Dkg { code, wait }) => loop {
             let progress = trustee::dkg_step(&store, url, &code).await?;
             println!("{}", describe(&progress));
+            // Finished only once this trustee has checked the escrow address.
             let finished = matches!(
                 progress,
-                DkgProgress::Ready { .. }
+                DkgProgress::Ready { .. } | DkgProgress::Verified { .. }
+            );
+            let moved = matches!(
+                progress,
+                DkgProgress::SentRound1
+                    | DkgProgress::SentRound2
                     | DkgProgress::Completed {
                         escrow_ua: Some(_),
                         ..
                     }
             );
-            let moved = matches!(progress, DkgProgress::SentRound1 | DkgProgress::SentRound2);
             if finished || !wait {
                 break;
             }
@@ -264,6 +269,9 @@ fn describe(progress: &DkgProgress) -> String {
                 None => "Waiting for the other trustees to finish.".into(),
             }
         ),
+        DkgProgress::Verified { escrow_ua } => {
+            format!("Escrow address checked against your own group key and attested: {escrow_ua}")
+        }
         DkgProgress::Ready { escrow_ua } => {
             format!("Key generation complete. Escrow address: {escrow_ua}")
         }

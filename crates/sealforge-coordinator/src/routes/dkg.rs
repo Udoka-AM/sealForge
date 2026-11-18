@@ -3,7 +3,10 @@
 //! The coordinator relays packages but never sees secrets: round 1 packages
 //! are signed by the sending trustee, and round 2 packages are also sealed to
 //! the recipient's X25519 key. When all three trustees report the same public
-//! key package, the coordinator derives the escrow address and viewing keys.
+//! key package, the coordinator derives the escrow address and viewing keys,
+//! and seals `nk ‖ rivk` to each trustee. Each trustee then rebuilds the
+//! address from its own copy of the group key and signs an attestation over it
+//! (`verify_escrow`); the auction can't open until all three have.
 
 use std::collections::BTreeSet;
 
@@ -13,10 +16,10 @@ use axum::{
 };
 use rand::rngs::OsRng;
 use sealforge_api::{
-    auth::verify_dkg_package,
+    auth::{verify_dkg_package, verify_escrow_attestation},
     types::{
         AuctionStatus, CompleteDkg, DkgPackage, DkgState, DkgStatus, DkgTrustee, JoinAsTrustee,
-        PostRound1, PostRound2, TrusteeJoined,
+        PostRound1, PostRound2, TrusteeJoined, VerifyEscrow,
     },
 };
 use sealforge_escrow::{address, dkg as frost_dkg, frost::keys::PublicKeyPackage, Threshold};
@@ -42,6 +45,8 @@ struct TrusteeRow {
     enc_pubkey: Option<Vec<u8>>,
     dkg_status: DkgStatus,
     public_key_package: Option<Vec<u8>>,
+    escrow_view_sealed: Option<Vec<u8>>,
+    escrow_verified: bool,
 }
 
 #[derive(Debug, FromRow)]
@@ -88,7 +93,8 @@ const THRESHOLD: Threshold = Threshold {
 
 async fn trustees_of(state: &AppState, auction_id: Uuid) -> Result<Vec<TrusteeRow>, ApiError> {
     Ok(sqlx::query_as(
-        "SELECT id, slot, label, pubkey, enc_pubkey, dkg_status, public_key_package \
+        "SELECT id, slot, label, pubkey, enc_pubkey, dkg_status, public_key_package, \
+         escrow_view_sealed, escrow_verified_at IS NOT NULL AS escrow_verified \
          FROM trustees WHERE auction_id = $1 ORDER BY slot",
     )
     .bind(auction_id)
@@ -118,6 +124,8 @@ async fn as_trustee(
         enc_pubkey: me.enc_pubkey.clone(),
         dkg_status: me.dkg_status,
         public_key_package: me.public_key_package.clone(),
+        escrow_view_sealed: me.escrow_view_sealed.clone(),
+        escrow_verified: me.escrow_verified,
     };
     Ok((auction, me, trustees))
 }
@@ -289,11 +297,13 @@ pub async fn state(
                 pubkey: t.pubkey.map(hex::encode),
                 enc_pubkey: t.enc_pubkey.map(hex::encode),
                 dkg_status: t.dkg_status,
+                escrow_verified: t.escrow_verified,
             })
             .collect(),
         round1: round1.into_iter().map(Into::into).collect(),
         round2_for_me: round2.into_iter().map(Into::into).collect(),
         escrow_ua: auction.escrow_ua,
+        escrow_view_secret_for_me: me.escrow_view_sealed.map(hex::encode),
     }))
 }
 
@@ -545,6 +555,31 @@ pub async fn complete(
         .bind(state.chain_tip().map(|h| h as i32))
         .execute(&mut *tx)
         .await?;
+        // Seal nk || rivk to each trustee so it can rebuild the address from its
+        // own group key. Without this, only the coordinator could tell whether
+        // escrow_ua really belongs to the trustees' key.
+        let view_secret = address::view_secret(&fvk);
+        let recipients: Vec<(Uuid, Option<Vec<u8>>)> =
+            sqlx::query_as("SELECT id, enc_pubkey FROM trustees WHERE auction_id = $1")
+                .bind(auction.id)
+                .fetch_all(&mut *tx)
+                .await?;
+        for (trustee_id, enc_pubkey) in recipients {
+            let enc_pubkey: [u8; 32] =
+                enc_pubkey.and_then(|k| k.try_into().ok()).ok_or_else(|| {
+                    ApiError::Internal(anyhow::anyhow!("trustee without an encryption key"))
+                })?;
+            let sealed = crypto_box::PublicKey::from(enc_pubkey)
+                .seal(&mut crypto_box::aead::OsRng, &view_secret)
+                .map_err(|_| {
+                    ApiError::Internal(anyhow::anyhow!("sealing the escrow view secret failed"))
+                })?;
+            sqlx::query("UPDATE trustees SET escrow_view_sealed = $1 WHERE id = $2")
+                .bind(&sealed)
+                .bind(trustee_id)
+                .execute(&mut *tx)
+                .await?;
+        }
         sqlx::query("DELETE FROM dkg_packages WHERE auction_id = $1")
             .bind(auction.id)
             .execute(&mut *tx)
@@ -552,5 +587,68 @@ pub async fn complete(
         system_transition(&mut tx, &auction, AuctionStatus::Dkg, AuctionStatus::Ready).await?;
     }
     tx.commit().await?;
+    self::state(State(state), Path(code), req).await
+}
+
+/// `POST /v1/auctions/{code}/dkg/verify-escrow`: a trustee attests that it
+/// rebuilt the escrow address from its own copy of the group key. The organiser
+/// can't open the auction until every trustee has.
+pub async fn verify_escrow(
+    State(state): State<AppState>,
+    Path(code): Path<String>,
+    req: Signed,
+) -> Result<Json<DkgState>, ApiError> {
+    let (auction, me, _) = as_trustee(&state, &req, &code).await?;
+    if auction.status != AuctionStatus::Ready {
+        return Err(ApiError::conflict(
+            "not_ready",
+            "the escrow can be verified once key generation completes, before the auction opens",
+        ));
+    }
+    let input: VerifyEscrow = req.json()?;
+    let signature = decode_hex::<64>(&input.signature, "signature")?;
+    let escrow_ua = auction
+        .escrow_ua
+        .as_deref()
+        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("ready auction without an escrow")))?;
+    if input.escrow_ua != escrow_ua {
+        db::audit(
+            &state.db,
+            Some(auction.id),
+            "trustee",
+            Some(me.id),
+            "dkg.escrow_mismatch",
+            json!({ "slot": me.slot }),
+        )
+        .await?;
+        return Err(ApiError::conflict(
+            "escrow_mismatch",
+            "the address you derived doesn't match the escrow address",
+        ));
+    }
+    let pubkey: [u8; 32] = me
+        .pubkey
+        .clone()
+        .and_then(|k| k.try_into().ok())
+        .ok_or(ApiError::NotFound)?;
+    if !verify_escrow_attestation(
+        &pubkey,
+        &signature,
+        &auction.code,
+        me.slot as u16,
+        escrow_ua,
+    ) {
+        return Err(ApiError::BadRequest(
+            "attestation signature does not verify".into(),
+        ));
+    }
+    sqlx::query(
+        "UPDATE trustees SET escrow_attestation = $1, escrow_verified_at = now() \
+         WHERE id = $2 AND escrow_verified_at IS NULL",
+    )
+    .bind(&signature[..])
+    .bind(me.id)
+    .execute(&state.db)
+    .await?;
     self::state(State(state), Path(code), req).await
 }

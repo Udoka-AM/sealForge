@@ -45,6 +45,10 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/auctions/{code}/dkg/round1", post(dkg::round1))
         .route("/v1/auctions/{code}/dkg/round2", post(dkg::round2))
         .route("/v1/auctions/{code}/dkg/complete", post(dkg::complete))
+        .route(
+            "/v1/auctions/{code}/dkg/verify-escrow",
+            post(dkg::verify_escrow),
+        )
         .route("/v1/auctions/{code}/publish", post(auctions::publish))
         .route("/v1/auctions/{code}/result", get(results::result))
         .route("/v1/auctions/{code}/refunds", get(results::refund_progress))

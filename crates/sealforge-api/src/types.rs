@@ -174,6 +174,10 @@ pub struct DkgTrustee {
     pub pubkey: Option<String>,
     pub enc_pubkey: Option<String>,
     pub dkg_status: DkgStatus,
+    /// The trustee rebuilt the escrow address from its own group key and
+    /// signed an attestation over it.
+    #[serde(default)]
+    pub escrow_verified: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -199,6 +203,20 @@ pub struct DkgState {
     /// Round 2 packages addressed to the caller.
     pub round2_for_me: Vec<DkgPackage>,
     pub escrow_ua: Option<String>,
+    /// `nk ‖ rivk` of the escrow FVK, sealed to the caller's X25519 key (hex).
+    /// With its own group key the trustee rebuilds the escrow address and
+    /// checks it against `escrow_ua` before attesting.
+    #[serde(default)]
+    pub escrow_view_secret_for_me: Option<String>,
+}
+
+/// A trustee's attestation that the escrow address derives from the FROST
+/// group key it holds.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VerifyEscrow {
+    pub escrow_ua: String,
+    /// Ed25519 signature over [`crate::auth::escrow_attestation_message`] (hex).
+    pub signature: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

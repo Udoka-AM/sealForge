@@ -137,14 +137,33 @@ fn auction_input() -> Value {
     })
 }
 
-/// Stand-in for DKG completion (task 2.4).
-async fn mark_ready(db: &PgPool, code: &str) {
+/// Stand-in for DKG completion (task 2.4). Trustees have not yet verified the
+/// escrow address; see [`mark_escrow_verified`].
+async fn mark_ready_unverified(db: &PgPool, code: &str) {
     sqlx::query("UPDATE auctions SET status = 'ready', escrow_ua = $1 WHERE code = $2")
         .bind(TESTNET_UA)
         .bind(code)
         .execute(db)
         .await
         .unwrap();
+}
+
+/// Stand-in for every trustee attesting to the escrow address (the real flow
+/// is covered in sealforge-cli's dkg_e2e).
+async fn mark_escrow_verified(db: &PgPool, code: &str) {
+    sqlx::query(
+        "UPDATE trustees SET escrow_verified_at = now() \
+         WHERE auction_id = (SELECT id FROM auctions WHERE code = $1)",
+    )
+    .bind(code)
+    .execute(db)
+    .await
+    .unwrap();
+}
+
+async fn mark_ready(db: &PgPool, code: &str) {
+    mark_ready_unverified(db, code).await;
+    mark_escrow_verified(db, code).await;
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -301,7 +320,14 @@ async fn lifecycle_open_edit_and_cancel(db: PgPool) {
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(body["code"], "invalid_transition");
 
-    mark_ready(&db, &code).await;
+    // Ready, but no trustee has checked the escrow address yet.
+    mark_ready_unverified(&db, &code).await;
+    let (status, body) = api
+        .signed(&k, Method::POST, &format!("{path}/open"), None)
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["code"], "escrow_unverified");
+    mark_escrow_verified(&db, &code).await;
 
     // Chain height unknown → 503. Then a close height that's too soon → 422.
     assert_eq!(

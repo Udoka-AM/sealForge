@@ -11,10 +11,10 @@ use std::collections::BTreeMap;
 use anyhow::{anyhow, bail, ensure, Context};
 use rand::rngs::OsRng;
 use sealforge_api::{
-    auth::{sign_dkg_package, verify_dkg_package},
+    auth::{sign_dkg_package, sign_escrow_attestation, verify_dkg_package},
     types::{
         AuctionStatus, CompleteDkg, DkgPackage, DkgState, JoinAsTrustee, PostRound1, PostRound2,
-        Round2Out, TrusteeJoined,
+        Round2Out, TrusteeJoined, VerifyEscrow,
     },
 };
 use sealforge_escrow::{
@@ -61,6 +61,12 @@ pub enum DkgProgress {
         fingerprint: String,
         escrow_ua: Option<String>,
     },
+    /// This step rebuilt the escrow address from this trustee's own group key,
+    /// found it matches, and sent a signed attestation.
+    Verified {
+        escrow_ua: String,
+    },
+    /// Key generation is done and this trustee already verified the escrow.
     Ready {
         escrow_ua: String,
     },
@@ -178,9 +184,16 @@ pub async fn dkg_step(
                 store.read(code, KEY_PACKAGE)?.is_some(),
                 "key generation finished without this machine's key share"
             );
-            return Ok(DkgProgress::Ready {
-                escrow_ua: state.escrow_ua.clone().unwrap_or_default(),
-            });
+            let escrow_ua = state.escrow_ua.clone().unwrap_or_default();
+            let verified = state
+                .trustees
+                .iter()
+                .any(|t| t.slot == me && t.escrow_verified);
+            if state.auction_status == AuctionStatus::Ready && !verified {
+                verify_escrow(store, &client, &identity, code, &state).await?;
+                return Ok(DkgProgress::Verified { escrow_ua });
+            }
+            return Ok(DkgProgress::Ready { escrow_ua });
         }
     }
 
@@ -336,6 +349,62 @@ pub async fn dkg_step(
         fingerprint: fingerprint(&pubkeys),
         escrow_ua: after.escrow_ua,
     })
+}
+
+/// Rebuild the escrow address from this trustee's own group key and the
+/// `nk ‖ rivk` the coordinator sealed to it, and attest to it only if it
+/// matches the address the coordinator shows. A coordinator showing the
+/// address of a wallet it controls alone fails here. The view secret is used
+/// in memory only and never written to disk.
+async fn verify_escrow(
+    store: &Keystore,
+    client: &Client,
+    identity: &TrusteeIdentity,
+    code: &str,
+    state: &DkgState,
+) -> anyhow::Result<()> {
+    use sealforge_escrow::address::{self, EncodingParams};
+    use zcash_protocol::consensus::NetworkType;
+
+    let shown = state
+        .escrow_ua
+        .as_deref()
+        .ok_or_else(|| anyhow!("the coordinator shows no escrow address"))?;
+    let sealed = hex::decode(state.escrow_view_secret_for_me.as_deref().ok_or_else(|| {
+        anyhow!(
+            "the coordinator sent no escrow view secret, so the escrow address can't be checked. \
+             Don't let auction {code} open; tell the organiser and the other trustees."
+        )
+    })?)?;
+    let view_secret: [u8; 64] = identity
+        .enc_secret()?
+        .unseal(&sealed)
+        .map_err(|_| anyhow!("could not open the escrow view secret"))?
+        .try_into()
+        .map_err(|_| anyhow!("the escrow view secret has the wrong length"))?;
+    let (_, pubkeys) = key_share(store, code)?;
+    let ak = dkg::group_key_bytes(&pubkeys)?;
+    let fvk = address::escrow_fvk_from_parts(&ak, &view_secret)?;
+    let matches = [NetworkType::Main, NetworkType::Test, NetworkType::Regtest]
+        .into_iter()
+        .any(|n| address::escrow_address(&fvk, &EncodingParams(n)).is_ok_and(|ua| ua == shown));
+    ensure!(
+        matches,
+        "ESCROW ADDRESS MISMATCH for auction {code}: the address the coordinator shows ({shown}) \
+         does not come from the trustees' group key. Do not send funds to it, don't let the \
+         auction open, and tell the organiser and the other trustees now."
+    );
+    let signature = sign_escrow_attestation(&identity.signing_key()?, code, state.my_slot, shown);
+    let _: DkgState = client
+        .post(
+            &format!("/v1/auctions/{code}/dkg/verify-escrow"),
+            &VerifyEscrow {
+                escrow_ua: shown.to_string(),
+                signature: hex::encode(signature),
+            },
+        )
+        .await?;
+    Ok(())
 }
 
 /// Load this trustee's FROST key share and the group's public key package.

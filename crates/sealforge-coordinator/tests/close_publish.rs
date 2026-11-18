@@ -149,6 +149,15 @@ async fn closes_at_close_height_and_publishes_an_auditable_result(db: PgPool) {
         .execute(&db)
         .await
         .unwrap();
+    // Stand-in for every trustee attesting to the escrow (real flow: dkg_e2e).
+    sqlx::query(
+        "UPDATE trustees SET escrow_verified_at = now() \
+         WHERE auction_id = (SELECT id FROM auctions WHERE code = $1)",
+    )
+    .bind(&code)
+    .execute(&db)
+    .await
+    .unwrap();
     state.set_chain_tip(OPEN);
     assert_eq!(
         call(

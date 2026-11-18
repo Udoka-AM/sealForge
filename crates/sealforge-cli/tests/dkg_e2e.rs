@@ -125,7 +125,9 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
                     fingerprints.insert(i, fingerprint);
                     escrow = escrow_ua.or(escrow);
                 }
-                DkgProgress::Ready { escrow_ua } => escrow = Some(escrow_ua),
+                DkgProgress::Ready { escrow_ua } | DkgProgress::Verified { escrow_ua } => {
+                    escrow = Some(escrow_ua)
+                }
                 _ => {}
             }
         }
@@ -157,6 +159,75 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .await
         .unwrap();
     assert_eq!(leftover, 0);
+
+    // A coordinator showing an address the trustees' key doesn't control is
+    // caught by every trustee, and the auction can't open.
+    sqlx::query(
+        "UPDATE trustees SET escrow_verified_at = NULL, escrow_attestation = NULL \
+         WHERE auction_id = (SELECT id FROM auctions WHERE code = $1)",
+    )
+    .bind(&code)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query("UPDATE auctions SET escrow_ua = $2 WHERE code = $1")
+        .bind(&code)
+        .bind(TESTNET_UA)
+        .execute(&db)
+        .await
+        .unwrap();
+    for t in &trustees {
+        let err = trustee::dkg_step(t, &url, &code).await.unwrap_err();
+        assert!(err.to_string().contains("ESCROW ADDRESS MISMATCH"), "{err}");
+    }
+    let refused = organiser::auction_open(&org, &url, &code)
+        .await
+        .unwrap_err();
+    assert!(
+        refused.to_string().contains("verify the escrow"),
+        "{refused}"
+    );
+
+    // With the real address, each trustee rebuilds it from its own group key
+    // and signs an attestation anyone can check with the trustee's public key.
+    sqlx::query("UPDATE auctions SET escrow_ua = $2 WHERE code = $1")
+        .bind(&code)
+        .bind(&escrow)
+        .execute(&db)
+        .await
+        .unwrap();
+    for t in &trustees {
+        assert_eq!(
+            trustee::dkg_step(t, &url, &code).await.unwrap(),
+            DkgProgress::Verified {
+                escrow_ua: escrow.clone()
+            }
+        );
+        assert_eq!(
+            trustee::dkg_step(t, &url, &code).await.unwrap(),
+            DkgProgress::Ready {
+                escrow_ua: escrow.clone()
+            }
+        );
+    }
+    let attestations: Vec<(i16, Vec<u8>, Vec<u8>)> = sqlx::query_as(
+        "SELECT slot, pubkey, escrow_attestation FROM trustees \
+         WHERE auction_id = (SELECT id FROM auctions WHERE code = $1) ORDER BY slot",
+    )
+    .bind(&code)
+    .fetch_all(&db)
+    .await
+    .unwrap();
+    assert_eq!(attestations.len(), 3);
+    for (slot, pubkey, signature) in attestations {
+        assert!(sealforge_api::auth::verify_escrow_attestation(
+            &pubkey.try_into().unwrap(),
+            &signature.try_into().unwrap(),
+            &code,
+            slot as u16,
+            &escrow,
+        ));
+    }
 
     // Two trustees' saved shares sign an escrow spend that passes Orchard's check.
     let ak: [u8; 32] = group_key.try_into().unwrap();
