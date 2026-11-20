@@ -142,7 +142,7 @@ export function EscrowAttestations({ auction }: { auction: AuctionView }) {
   return (
     <div className="space-y-3 border-t border-border pt-4">
       <Summary state={state} older={predatesAttestations(auction)} />
-      {state.status === "done" && state.check.total > 0 ? (
+      {state.status === "done" && state.check.total > 0 && state.check.verdict !== "unattested" ? (
         <details className="group">
           <summary className="cursor-pointer text-[13px] text-muted hover:text-text">
             Trustee keys
@@ -228,7 +228,8 @@ export function EscrowAudit({
       ok: result.escrow_ua === shownUa,
       detail: "",
     });
-  const hasTrustees = state.status === "done" && state.check.total > 0;
+  const hasTrustees =
+    state.status === "done" && state.check.total > 0 && state.check.verdict !== "unattested";
 
   return (
     <div className="space-y-4 rounded-[var(--radius-card)] border border-border bg-surface p-5 text-sm">
