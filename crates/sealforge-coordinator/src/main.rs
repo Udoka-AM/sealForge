@@ -66,6 +66,17 @@ async fn main() -> anyhow::Result<()> {
         sealforge_coordinator::validate::set_min_window_blocks(blocks);
         tracing::warn!(blocks, "shortened minimum auction window (test network)");
     }
+    if let Some(notes) = config.max_notes_per_tx {
+        anyhow::ensure!(
+            config.network != "mainnet",
+            "SF_MAX_NOTES_PER_TX is not allowed on mainnet"
+        );
+        scanner::set_max_notes_per_tx(notes);
+        tracing::warn!(
+            notes = scanner::max_notes_per_tx(),
+            "lowered escrow notes per transaction (test network)"
+        );
+    }
     if config.refund_delay_secs.is_some() {
         tracing::warn!(
             min = policy.min_delay_secs,

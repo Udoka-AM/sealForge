@@ -31,11 +31,14 @@ async fn main() -> anyhow::Result<()> {
     escrow.sync(&mut client).await?;
 
     let started = std::time::Instant::now();
-    let unsigned = escrow.build_payment(&[PaymentOut {
-        address: to.clone(),
-        amount_zat: amount,
-        memo: Some("sealForge escrow payout (2-of-3 FROST)".into()),
-    }])?;
+    let unsigned = escrow.build_payment(
+        &[PaymentOut {
+            address: to.clone(),
+            amount_zat: amount,
+            memo: Some("sealForge escrow payout (2-of-3 FROST)".into()),
+        }],
+        sealforge_chain::spend::MAX_NOTES_PER_TX,
+    )?;
     println!(
         "built and proved PCZT in {:.1}s: {} escrow spend(s) to authorize",
         started.elapsed().as_secs_f64(),

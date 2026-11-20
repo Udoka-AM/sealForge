@@ -95,3 +95,18 @@ Auction `PT6G5C67G7`: 2 lots, uniform price, reserve 0.01 ZEC. Bidding closed at
 - **Refunds and payout:** two refund batches (0.2003 and 0.9 ZEC) were confirmed at 996 and 1000, and the 0.5993 ZEC payout at 1007. The auction then settled.
 
 While auditing this run, the chain audit first flagged all 3 bid outcomes. The published refunds (deposit + reveal − paid) were correct, but the auditor compared them with the clearing-only refund (price − paid). The published result now carries `reveal_zat` per bid, and both the chain audit and the browser's quick check account for the deposit and reveal. Tests now cover a coordinator that keeps part of a deposit.
+
+## Bounded escrow transactions (issue #41)
+
+**Date:** 2026-11-20. Auction `MAQYJGC8QF` on the same local regtest chain, with the per-transaction note limit lowered to 3 (`SF_MAX_NOTES_PER_TX=3`, test networks only; production uses 100) so a few bids exercise both new paths. Uniform price, 4 lots, reserve 0.01 ZEC. Eight real shielded bids, oldest first: four of 0.02 ZEC (losing), then four of 0.1 ZEC (winning at 0.1).
+
+| Step | What happened | Result |
+|---|---|---|
+| Refund | Four 0.02 ZEC refunds (0.08 ZEC) would have spent 5 escrow notes | Not built: `the payment would spend 5 escrow notes, over the limit of 3 per transaction`. A `consolidate` batch was planned instead |
+| Consolidate | The 3 oldest notes (0.06 ZEC) merged into one at the escrow's internal address, 0.00015 ZEC fee | Signed by two trustees (CLI shows it as a note merge), confirmed at **1058**. The bid count stayed at 8: the merged note arrived as change, not as a bid |
+| Refund, again | 4 outputs, 0.08 ZEC, now **2** escrow spends | Confirmed at **1064** |
+| Payout 1 | The escrow still held more than 3 notes: the oldest 3 swept, 0.29985 ZEC, `more_after = true` | Confirmed at **1072** |
+| Payout 2 | The remaining 2 notes, 0.0995 ZEC | Confirmed at **1081**, auction `settled` automatically |
+| Audit | `sealforge-audit` rescanned from Zaino | Every published figure matches; the UIVK receives at the escrow address and all 3 trustee attestations verify (exit 0) |
+
+Escrow arithmetic: 0.48 ZEC in, 0.08 ZEC refunded, 0.39935 ZEC paid out in two sweeps, 0.00065 ZEC in fees across four transactions. No transaction spent more than 3 notes.

@@ -10,13 +10,14 @@ import { HashChip } from "@/components/hash-chip";
 import { StatusPill } from "@/components/status-pill";
 import { blocksEta, modeLabel, zec } from "@/lib/format";
 import { ApiError, api, type StoredSigner } from "@/lib/sfsig";
-import type {
-  AuctionView,
-  ChainView,
-  ConsoleBatch,
-  Network,
-  RefundProgress,
-  TrusteeView,
+import {
+  type AuctionView,
+  BATCH_KIND_LABEL,
+  type ChainView,
+  type ConsoleBatch,
+  type Network,
+  type RefundProgress,
+  type TrusteeView,
 } from "@/lib/types";
 import { usePolling, useSigner } from "./use-signer";
 
@@ -147,7 +148,7 @@ export function ConsoleAuction({ code }: { code: string }) {
       {progress ? (
         <Refunds
           progress={progress}
-          batches={batches.filter((b) => b.kind === "refund")}
+          batches={batches.filter((b) => b.kind === "refund" || b.kind === "consolidate")}
           network={auction.network}
         />
       ) : null}
@@ -549,7 +550,7 @@ function Refunds({
                 {batches.map((b) => (
                   <tr key={b.id} className="border-t border-border align-top">
                     <td className="py-2.5 pr-4">
-                      <span className="capitalize">{b.kind}</span>
+                      <span>{BATCH_KIND_LABEL[b.kind] ?? b.kind}</span>
                       {b.output_count !== null ? (
                         <span className="text-muted"> · {b.output_count} out</span>
                       ) : null}
@@ -588,7 +589,9 @@ function Refunds({
 }
 
 function PayoutStatus({ auction, batches }: { auction: AuctionView; batches: ConsoleBatch[] }) {
-  const payout = batches.find((b) => b.kind === "payout");
+  // A payout from an escrow with many notes goes out in several transactions (#41).
+  const payouts = batches.filter((b) => b.kind === "payout");
+  const payout = payouts[payouts.length - 1];
   if (!payout)
     return (
       <p className="text-muted">
@@ -601,8 +604,15 @@ function PayoutStatus({ auction, batches }: { auction: AuctionView; batches: Con
       <p>
         {auction.status === "settled" && payout.confirmed_height ? (
           <>
-            Paid <span className="num">{zec(payout.total_out_zat ?? 0, auction.network)}</span> at
-            block <span className="num">{payout.confirmed_height.toLocaleString("en-US")}</span>
+            Paid{" "}
+            <span className="num">
+              {zec(
+                payouts.reduce((sum, b) => sum + (b.total_out_zat ?? 0), 0),
+                auction.network,
+              )}
+            </span>{" "}
+            {payouts.length > 1 ? `in ${payouts.length} transactions, the last ` : ""}at block{" "}
+            <span className="num">{payout.confirmed_height.toLocaleString("en-US")}</span>
           </>
         ) : (
           <>

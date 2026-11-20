@@ -640,6 +640,16 @@ fn hex32(value: &str) -> anyhow::Result<[u8; 32]> {
 
 /// One-line summary trustees review before signing.
 pub fn describe_batch(b: &BatchView) -> String {
+    if b.kind == "consolidate" {
+        return format!(
+            "note merge batch {}: merges {} escrow notes into one note inside the escrow \
+             ({} ZEC; nothing leaves except the fee), sighash {}",
+            &b.id[..8],
+            b.spends.len(),
+            sealforge_core::zip321::format_zec(sealforge_core::Zatoshi(b.total_out_zat)),
+            &b.sighash[..b.sighash.len().min(16)]
+        );
+    }
     format!(
         "{} batch {}: {} output(s), {} ZEC total, {} escrow spend(s) to authorize, sighash {}",
         b.kind,
