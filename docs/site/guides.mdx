@@ -14,7 +14,7 @@ Status: `Testnet` (CLI and `/console`).
 2. Describe the auction in a TOML file (`examples/auction.toml`): mode (`uniform_price` | `first_price`), quantity, reserve, close height, payout UA (Orchard receiver required), three trustee labels. For sealed-reveal, set `bid_mode = "commit_reveal"` and `reveal_close_height ≥ close_height + 144`.
 3. `sealforge auction new <file>` prints three one-time trustee invites. Send each over a private channel.
 4. After the trustees finish the DKG, `sealforge auction open <CODE>`. The close height must be at least the tip + 144 ([2.2 Lifecycle](/protocol/lifecycle#height-rules)).
-5. Optional: `sealforge auction fund-fees <CODE>` prints a ZIP 321 request for a fee buffer (`SF1FEE`). Useful if the auction may end with no winners.
+5. Optional, once open: `sealforge auction fund-fees <CODE>` prints a ZIP 321 request for a fee buffer (`SF1FEE`). Useful if the auction may end with no winners. An open auction can't be cancelled, so the buffer always comes back with the payout.
 6. After close, **you must publish**: `sealforge auction publish <CODE>`. Refunds don't start until you do.
 7. The payout (proceeds plus unspent fee buffer plus refund dust, minus fees) goes to your payout UA after the last refund confirms.
 

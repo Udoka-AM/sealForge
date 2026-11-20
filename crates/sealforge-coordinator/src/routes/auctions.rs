@@ -351,7 +351,9 @@ pub async fn open(
     Ok(Json(db::auction_view(&state.db, &row, true).await?))
 }
 
-/// `POST /v1/auctions/{code}/cancel`: before opening, or while open with no bids.
+/// `POST /v1/auctions/{code}/cancel`: before opening only. Once open, a payment
+/// can be on its way to the escrow before the scanner sees it, and a cancelled
+/// escrow is never scanned again, so open auctions always run to close (#40).
 pub async fn cancel(
     State(state): State<AppState>,
     Path(code): Path<String>,
@@ -359,16 +361,11 @@ pub async fn cancel(
 ) -> Result<Json<AuctionView>, ApiError> {
     let (organiser, row) = owned_auction(&state, &req, &code).await?;
     if row.status == AuctionStatus::Open {
-        let bids: i64 = sqlx::query_scalar("SELECT count(*) FROM bids WHERE auction_id = $1")
-            .bind(row.id)
-            .fetch_one(&state.db)
-            .await?;
-        if bids > 0 {
-            return Err(ApiError::conflict(
-                "has_bids",
-                "an auction with bids can't be cancelled; it closes with full refunds instead",
-            ));
-        }
+        return Err(ApiError::conflict(
+            "already_open",
+            "an open auction can't be cancelled: a bid may already be on its way to the escrow. \
+             It runs to its close height, and every bid that doesn't win is refunded",
+        ));
     }
     transition(
         &state,

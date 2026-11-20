@@ -365,9 +365,23 @@ async fn lifecycle_open_edit_and_cancel(db: PgPool) {
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(body["code"], "not_editable");
 
-    // Cancelling an open auction with no bids works.
+    // Open auctions can't be cancelled, even before any bid is seen (#40).
     let (status, body) = api
         .signed(&k, Method::POST, &format!("{path}/cancel"), None)
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["code"], "already_open");
+
+    // Before opening, cancelling works.
+    let other = api.create_auction(&k).await.auction.code;
+    mark_ready(&db, &other).await;
+    let (status, body) = api
+        .signed(
+            &k,
+            Method::POST,
+            &format!("/v1/auctions/{other}/cancel"),
+            None,
+        )
         .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["status"], "cancelled");
@@ -424,7 +438,7 @@ async fn organisers_cannot_touch_each_others_auctions(db: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn open_auction_with_bids_cannot_be_cancelled(db: PgPool) {
+async fn open_auction_cannot_be_cancelled_while_a_bid_is_unscanned(db: PgPool) {
     let api = Api::new(db.clone());
     let k = key(1);
     api.register(&k).await;
@@ -438,16 +452,9 @@ async fn open_auction_with_bids_cannot_be_cancelled(db: PgPool) {
         StatusCode::OK
     );
 
-    sqlx::query(
-        "INSERT INTO bids (auction_id, txid, output_index, pool, block_height, block_time, amount_zat, status) \
-         SELECT id, $2, 0, 'ironwood', 3900001, now(), 5000000, 'valid' FROM auctions WHERE code = $1",
-    )
-    .bind(&code)
-    .bind(&[7u8; 32][..])
-    .execute(&db)
-    .await
-    .unwrap();
-
+    // A bid is in the mempool, or mined but not yet scanned: the coordinator
+    // has no row for it. Cancelling now would leave it in an escrow nobody
+    // scans or refunds (#40), so it's refused.
     let (status, body) = api
         .signed(
             &k,
@@ -457,7 +464,13 @@ async fn open_auction_with_bids_cannot_be_cancelled(db: PgPool) {
         )
         .await;
     assert_eq!(status, StatusCode::CONFLICT);
-    assert_eq!(body["code"], "has_bids");
+    assert_eq!(body["code"], "already_open");
+
+    // The auction stays open and public, so the scanner keeps following it
+    // and the bid is ingested (and, if it loses, refunded) as usual.
+    let (status, body) = api.public(&format!("/v1/auctions/{code}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "open");
 }
 
 #[sqlx::test(migrations = "../../migrations")]

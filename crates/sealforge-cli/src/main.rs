@@ -242,6 +242,17 @@ async fn auction(store: &Keystore, url: &str, cmd: AuctionCommand) -> anyhow::Re
         }
         AuctionCommand::FundFees { code, zat } => {
             let view = organiser::auction_show(store, url, &code).await?;
+            // Before opening, the auction can still be cancelled, and a cancelled
+            // escrow isn't scanned: a buffer sent then would be stranded (#40).
+            anyhow::ensure!(
+                matches!(
+                    view.status,
+                    sealforge_api::types::AuctionStatus::Open
+                        | sealforge_api::types::AuctionStatus::Closed
+                ),
+                "fund the fee buffer once {code} is open (it is {:?})",
+                view.status
+            );
             let escrow = view
                 .escrow_ua
                 .ok_or_else(|| anyhow::anyhow!("{code} has no escrow yet: finish the DKG first"))?;

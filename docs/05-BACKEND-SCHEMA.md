@@ -69,7 +69,7 @@ Indexes: `UNIQUE (pubkey)`.
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | ✓ | `now()` | |
 | `published_at` / `settled_at` | `TIMESTAMPTZ` | | `NULL` | |
 
-Lifecycle: `draft → dkg → ready → open → closed → published → refunding → settled`, plus `cancelled` (from `draft`, `dkg`, `ready`, or `open` with zero bids).
+Lifecycle: `draft → dkg → ready → open → closed → published → refunding → settled`, plus `cancelled` (from `draft`, `dkg` or `ready`; never once `open`).
 
 Indexes: `UNIQUE (code)`, `(organiser_id)`, `(status)`, `(network, status)`.
 

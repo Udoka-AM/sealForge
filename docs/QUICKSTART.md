@@ -56,7 +56,7 @@ Each trustee ends with a key share on their own disk and a fingerprint like `f69
 
 The close height must be at least 144 blocks (about 3 hours at 75 s blocks) after the current height. Bidders now use the web app (`pnpm dev`, then open `/a/<AUCTION_CODE>`).
 
-Optional: `sealforge auction fund-fees <AUCTION_CODE>` prints a payment request for a small fee buffer. Fees are otherwise paid out of the escrow and reduce your payout. The buffer only matters if the auction might end with no winners.
+Optional, once the auction is open: `sealforge auction fund-fees <AUCTION_CODE>` prints a payment request for a small fee buffer. Fees are otherwise paid out of the escrow and reduce your payout. The buffer only matters if the auction might end with no winners.
 
 ## 6. After close
 

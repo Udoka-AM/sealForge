@@ -24,7 +24,6 @@ stateDiagram-v2
     draft --> cancelled: organiser
     dkg --> cancelled: organiser
     ready --> cancelled: organiser
-    open --> cancelled: organiser, zero bids only
     settled --> [*]
     cancelled --> [*]
 ```
@@ -38,7 +37,7 @@ stateDiagram-v2
 | `closed → published` | Organiser | Decrypts the UFVK, derives and stores the UIVK, exposes the result | `routes/auctions.rs` `publish` |
 | `published → refunding` | System | Refund notes planned for every bid with a refund ≥ 10,000 zat and a usable refund address | `crates/sealforge-coordinator/src/refunds.rs` `plan_published` |
 | `refunding → settled` | System | Every refund batch confirmed, then the payout batch confirmed | `scanner.rs` (settle step) |
-| `* → cancelled` | Organiser | From `draft`, `dkg`, `ready`, or `open` with zero bids (`409 has_bids` otherwise) | `routes/auctions.rs` `cancel` |
+| `* → cancelled` | Organiser | From `draft`, `dkg` or `ready` only. An `open` auction returns `409 already_open` and runs to its close: a payment the scanner hasn't ingested yet would otherwise land in an escrow nobody watches (issue #40) | `routes/auctions.rs` `cancel`, `lifecycle::tests::open_auctions_cannot_be_cancelled` |
 
 `settled` and `cancelled` are terminal (`lifecycle::tests::terminal_states_have_no_exits`).
 
