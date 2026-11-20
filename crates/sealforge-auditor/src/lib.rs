@@ -9,8 +9,16 @@
 //!   (the browser's quick check). That checks the published math and root are
 //!   consistent, but not that no bid was left out.
 //! - [`verify_receipt`]: a bidder checks their receipt against the result (AC8).
+//! - [`check_escrow`]: a bidder checks that every trustee signed the escrow
+//!   address they are about to pay (security review F10).
 
 use std::collections::BTreeMap;
+
+mod escrow;
+pub use escrow::{
+    check_escrow, check_escrow_result, check_escrow_view, EscrowCheck, EscrowVerdict, TrusteeCheck,
+    TrusteeClaim, TrusteeVerdict,
+};
 
 use sealforge_api::types::{AuctionMode as ApiMode, BidMode, PublishedResult};
 use sealforge_core::{
@@ -419,6 +427,23 @@ mod wasm {
         to_json(&audit_chain(&published, &payments))
     }
 
+    /// Check every trustee's attestation over the escrow address, from either
+    /// an auction view (`GET /v1/auctions/{code}`) or a published result.
+    /// `pinned_json` is `[[slot, "pubkey hex"], …]`, or `[]`.
+    #[wasm_bindgen]
+    pub fn check_escrow_json(source_json: &str, pinned_json: &str) -> Result<String, JsError> {
+        let pinned: Vec<(u16, String)> = parse(pinned_json, "pinned keys")?;
+        let value: serde_json::Value = parse(source_json, "auction")?;
+        let check = if value.get("auction_code").is_some() {
+            let published: PublishedResult = parse(source_json, "published result")?;
+            check_escrow_result(&published, &pinned)
+        } else {
+            let view: sealforge_api::types::AuctionView = parse(source_json, "auction view")?;
+            check_escrow_view(&view, &pinned)
+        };
+        to_json(&check)
+    }
+
     /// Check a bidder's receipt against a published result.
     #[wasm_bindgen]
     pub fn check_receipt(published_json: &str, receipt_json: &str) -> Result<String, JsError> {
@@ -586,6 +611,8 @@ mod tests {
                     refund_due_zat: o.refund_due.0,
                 })
                 .collect(),
+            escrow_ua: None,
+            trustees: vec![],
         }
     }
 
@@ -717,6 +744,8 @@ mod commit_reveal_tests {
             winner_count: 0,
             merkle_root: String::new(),
             bids: vec![],
+            escrow_ua: None,
+            trustees: vec![],
         };
         let deposits: Vec<Payment> = chain()
             .iter()

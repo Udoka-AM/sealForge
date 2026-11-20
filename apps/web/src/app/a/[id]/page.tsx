@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ButtonLink } from "@/components/button";
 import { CoordinatorError } from "@/components/coordinator-error";
+import { EscrowAttestations } from "@/components/escrow-check";
 import { HashChip } from "@/components/hash-chip";
 import { BlockClock } from "@/components/motion/block-clock";
 import { CountUp } from "@/components/motion/count-up";
@@ -367,6 +368,7 @@ function EscrowCard({ auction }: { auction: AuctionView }) {
       <p className="text-[13px] text-muted">
         Auction code <span className="num text-text">{auction.code}</span>
       </p>
+      {auction.escrow_ua ? <EscrowAttestations auction={auction} /> : null}
     </div>
   );
 }

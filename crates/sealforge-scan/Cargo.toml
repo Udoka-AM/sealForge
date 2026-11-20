@@ -31,3 +31,7 @@ crate-type = ["cdylib", "rlib"]
 # Browser randomness for every getrandom version in the tree.
 getrandom = { version = "0.2", features = ["js"] }
 getrandom04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
+
+[dev-dependencies]
+sealforge-escrow = { workspace = true, features = ["address"] }
+rand.workspace = true

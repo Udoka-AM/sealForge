@@ -8,6 +8,22 @@ use zcash_client_backend::proto::compact_formats::CompactBlock;
 
 use crate::{ChainParams, EscrowScanner};
 
+fn chain_params(network: &str) -> Result<ChainParams, JsError> {
+    match network {
+        "mainnet" => Ok(ChainParams::Mainnet),
+        "testnet" => Ok(ChainParams::Testnet),
+        "regtest" => Ok(ChainParams::regtest()),
+        other => Err(JsError::new(&format!("unknown network {other}"))),
+    }
+}
+
+/// The escrow address a published viewing key receives at, to compare with
+/// the address the auction page showed bidders.
+#[wasm_bindgen]
+pub fn escrow_address(network: &str, uivk: &str) -> Result<String, JsError> {
+    crate::escrow_address(&chain_params(network)?, uivk).map_err(|e| JsError::new(&e))
+}
+
 #[wasm_bindgen]
 pub struct Scanner(EscrowScanner);
 
@@ -16,13 +32,7 @@ impl Scanner {
     /// `network`: "mainnet", "testnet" or "regtest".
     #[wasm_bindgen(constructor)]
     pub fn new(network: &str, uivk: &str) -> Result<Scanner, JsError> {
-        let params = match network {
-            "mainnet" => ChainParams::Mainnet,
-            "testnet" => ChainParams::Testnet,
-            "regtest" => ChainParams::regtest(),
-            other => return Err(JsError::new(&format!("unknown network {other}"))),
-        };
-        EscrowScanner::new(params, uivk)
+        EscrowScanner::new(chain_params(network)?, uivk)
             .map(Scanner)
             .map_err(|e| JsError::new(&e))
     }

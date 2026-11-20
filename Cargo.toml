@@ -25,7 +25,7 @@ authors = ["Udoka-AM"]
 [workspace.dependencies]
 sealforge-core = { path = "crates/sealforge-core" }
 sealforge-escrow = { path = "crates/sealforge-escrow", default-features = false }
-sealforge-auditor = { path = "crates/sealforge-auditor" }
+sealforge-auditor = { path = "crates/sealforge-auditor", default-features = false }
 sealforge-chain = { path = "crates/sealforge-chain" }
 sealforge-scan = { path = "crates/sealforge-scan" }
 sealforge-api = { path = "crates/sealforge-api" }

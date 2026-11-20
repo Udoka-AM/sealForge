@@ -85,6 +85,9 @@ Indexes: `UNIQUE (code)`, `(organiser_id)`, `(status)`, `(network, status)`.
 | `invite_code_hash` | `BYTEA` | ✓ | — | SHA-256 of the one-time invite |
 | `enc_pubkey` | `BYTEA` | | `NULL` | X25519 key registered at join. Round 2 packages are sealed to it |
 | `public_key_package` | `BYTEA` | | `NULL` | FROST public key package the trustee derived. All three must match |
+| `escrow_view_sealed` | `BYTEA` | | `NULL` | `nk ‖ rivk` of the escrow FVK, sealed to `enc_pubkey` by the coordinator when key generation completes. The trustee rebuilds the escrow UA from its own group key with it |
+| `escrow_attestation` | `BYTEA` | | `NULL` | Ed25519 signature (by `pubkey`) over `sealforge-escrow-v1\n<code>\n<slot>\n<escrow UA>` |
+| `escrow_verified_at` | `TIMESTAMPTZ` | | `NULL` | Set by `POST /v1/auctions/{code}/dkg/verify-escrow`. An auction opens only when every trustee has one |
 | `joined_at` | `TIMESTAMPTZ` | | `NULL` | |
 
 Indexes: `UNIQUE (auction_id, slot)`, `UNIQUE (auction_id, pubkey)`.

@@ -24,19 +24,30 @@ cargo build --release -p sealforge-auditor
 | `--endpoint` | Any lightwalletd-compatible gRPC server (Zaino, lightwalletd). Env `SF_ZAINO_URL` |
 | `--ivk` | Check against a UIVK you got elsewhere, instead of the one in the result |
 | `--from`, `--to` | Override the scan range. Default: the published `scan_from_height..scan_to_height`. Widen it to look for bids outside the range the coordinator scanned |
+| `--trustee-key SLOT=HEX` | A trustee's key for this auction, as the trustee gave it to you (they get it from `sealforge trustee check`). Repeat per trustee. A published key that differs fails the audit |
+| `--allow-unattested` | Don't fail when no trustee attestations are published (auctions from before they existed) |
 | `--json` | Machine-readable report |
 
 What it does (`crates/sealforge-chain/src/audit.rs` `scan_incoming`, `sealforge_auditor::audit_chain`):
 1. Trial-decrypts every compact block in range with the UIVK, for both the Orchard and Ironwood pools.
 2. Fetches each matching transaction and decrypts value, output index and memo.
 3. Reclassifies every payment with `sealforge_core::selection` and recomputes with `compute_result`.
-4. Compares clearing price, volume, valid bid count, winner count, Merkle root and every per-bid outcome. Exit code 1 on any mismatch.
+4. Compares clearing price, volume, valid bid count, winner count, Merkle root and every per-bid outcome.
+5. Checks the escrow (`sealforge_auditor::check_escrow_result`, `sealforge_scan::escrow_address`): the UIVK receives at exactly the published `escrow_ua`, and every trustee's Ed25519 attestation over that address verifies.
+
+Exit code 1 on any mismatch. Auctions that ran before trustee signatures existed (testnet `KE5DFF4PDA` and `K7GHHBC4GP`) have none to check, so audit them with `--allow-unattested`: every other check still runs. The website shows a neutral note for such auctions once bidding is over, and the full warning for any auction still taking bids.
 
 Sample output and the **tamper test** (a result edited to hide a bid and claim a lower price is caught, with exit code 1): [evidence/audit-rescan.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/audit-rescan.md).
 
 ### In the browser
 
 On `/audit/<CODE>`, **Rescan the chain in my browser** runs the same `sealforge-scan` and `sealforge-auditor` compiled to WebAssembly. Blocks come over gRPC-web from a lightwallet endpoint the auditor types in. Nothing but the result being checked comes from sealForge. The older **quick check** (`payments_from_published`) only checks that the published list is self-consistent. It doesn't detect an omitted bid, and the page says so.
+
+### The escrow address, before you bid
+
+Each trustee rebuilds the escrow address from its own share of the FROST group key and signs it. The auction page checks those signatures in your browser (`check_escrow_view`, WebAssembly) and shows "All 3 trustees signed this address" with each trustee's key. If the signatures don't match the address shown, the page says so and the bid form won't continue.
+
+The coordinator publishes the trustee list, so a coordinator that invented all three trustees could sign for them. Two things cover that: each trustee runs `sealforge trustee check <CODE>` once the auction opens, which confirms the public page shows the address it signed and its own key (and `trustee sign` refuses to co-sign otherwise); and trustees post their keys somewhere the coordinator doesn't control, so bidders can compare them or pin them with `--trustee-key`. A coordinator that shows trustees one page and bidders another isn't caught by the trustee check. Comparing keys from the trustees' own channels is what catches it.
 
 ### As a bidder
 
@@ -91,6 +102,8 @@ Adversarial tests worth reading first:
 | One trustee can't sign | `one_trustee_cannot_sign_alone` | `crates/sealforge-escrow/src/signing.rs` |
 | Every 2-of-3 subset produces a consensus-valid `SpendAuth` signature (checked with reddsa 0.6.1) | `two_of_three_produces_consensus_valid_spend_auth_signatures` | `crates/sealforge-escrow/src/signing.rs` |
 | A forged DKG package, a one-signer package, concurrent joins/completions/signing | `three_trustees_run_the_dkg_through_the_coordinator` | `crates/sealforge-cli/tests/dkg_e2e.rs` |
+| Swapped escrow address, replayed or invented trustee signatures | `a_swapped_address_fails_every_trustee`, `signatures_are_bound_to_the_auction_and_slot`, `pinned_keys_catch_invented_trustees`; end to end in `three_trustees_run_the_dkg_through_the_coordinator` | `crates/sealforge-auditor/src/escrow.rs`, `crates/sealforge-cli/tests/dkg_e2e.rs` |
+| A viewing key for another escrow | `another_escrow_s_viewing_key_does_not` | `crates/sealforge-scan/tests/escrow_address.rs` |
 | Hidden bid or inflated volume | `inflated_volume_or_hidden_bid_is_caught` | `crates/sealforge-auditor/src/lib.rs` |
 | Rewritten refunds or outcomes | `rewritten_outcome_is_caught` | `crates/sealforge-auditor/src/lib.rs` |
 | Suppressed reveal | `a_suppressed_reveal_is_caught` | `crates/sealforge-auditor/src/lib.rs` |

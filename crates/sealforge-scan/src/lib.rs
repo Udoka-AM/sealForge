@@ -21,7 +21,7 @@ use orchard::{
     },
 };
 use zcash_client_backend::proto::compact_formats::{CompactBlock, CompactOrchardAction};
-use zcash_keys::keys::UnifiedIncomingViewingKey;
+use zcash_keys::{address::UnifiedAddress, keys::UnifiedIncomingViewingKey};
 use zcash_note_encryption::{try_compact_note_decryption, try_note_decryption};
 use zcash_primitives::transaction::Transaction;
 use zcash_protocol::{
@@ -40,6 +40,23 @@ pub struct ReceivedPayment {
     pub amount_zat: u64,
     /// Text memo, if the payment carried one.
     pub memo: Option<String>,
+}
+
+/// The escrow address a Unified incoming viewing key receives at: the Orchard
+/// receiver at diversifier index 0, which is the one the coordinator shows
+/// bidders. If this differs from the address bidders paid, scanning with the
+/// published key would audit a different escrow.
+pub fn escrow_address(params: &ChainParams, uivk: &str) -> Result<String, String> {
+    let uivk = UnifiedIncomingViewingKey::decode(params, uivk)
+        .map_err(|e| format!("bad viewing key: {e}"))?;
+    let ivk: &IncomingViewingKey = uivk
+        .orchard()
+        .as_ref()
+        .ok_or("viewing key has no Orchard/Ironwood component")?;
+    let receiver = ivk.address_at(0u32);
+    UnifiedAddress::from_receivers(Some(receiver), None, None, None, None)
+        .map(|ua| ua.encode(params))
+        .ok_or_else(|| "no shielded receiver".to_owned())
 }
 
 pub struct EscrowScanner {

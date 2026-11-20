@@ -20,13 +20,13 @@ Status: `Testnet`. Router: `crates/sealforge-coordinator/src/routes/mod.rs`. Req
 | `GET /v1/organisers/me` | organiser | → `OrganiserView` | |
 | `POST /v1/auctions` | organiser | `CreateAuction` → `CreatedAuction { auction, trustee_invites }` | Validation: `crates/sealforge-coordinator/src/validate.rs` |
 | `GET /v1/auctions` | public | → `[AuctionView]` | Public statuses only (`open` … `settled`) |
-| `GET /v1/auctions/{code}` | public | → `AuctionView` | `bid_count` is `null` below 5 bids (`MIN_PUBLIC_BID_COUNT`) so a count can't single out early bidders |
+| `GET /v1/auctions/{code}` | public | → `AuctionView` | `bid_count` is `null` below 5 bids (`MIN_PUBLIC_BID_COUNT`) so a count can't single out early bidders. Each `trustees[]` entry carries `pubkey` and `escrow_attestation` (hex), an Ed25519 signature over `sealforge-escrow-v1\n{code}\n{slot}\n{escrow_ua}` |
 | `PATCH /v1/auctions/{code}` | organiser | `UpdateAuction` → `AuctionView` | Only in `draft`, `dkg`, `ready` (`409 not_editable`) |
 | `DELETE /v1/auctions/{code}` | organiser | → 204 | `draft` only (`409 not_draft`) |
 | `POST /v1/auctions/{code}/open` | organiser | → `AuctionView` | `409 dkg_incomplete`; `422` if `close_height < tip + 144` |
 | `POST /v1/auctions/{code}/cancel` | organiser | → `AuctionView` | `409 has_bids` if open with bids |
 | `POST /v1/auctions/{code}/publish` | organiser | → `AuctionView` | `closed → published`; releases the UIVK |
-| `GET /v1/auctions/{code}/result` | public | → `PublishedResult` | [2.3](/protocol/wire-formats#published-result) |
+| `GET /v1/auctions/{code}/result` | public | → `PublishedResult` | [2.3](/protocol/wire-formats#published-result). Also carries `escrow_ua` and `trustees[]` (`slot`, `label`, `pubkey`, `signature`) so the auditor can check the escrow |
 | `GET /v1/auctions/{code}/refunds` | public | → refund progress | Aggregate counts only, never per bid |
 | `GET /v1/console/auctions` | organiser | → `[AuctionView]` with `owner` fields | |
 | `GET /v1/console/auctions/{code}` | organiser | → `AuctionView` | |

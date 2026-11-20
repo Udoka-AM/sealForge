@@ -1,6 +1,8 @@
 use clap::Parser;
 use sealforge_api::types::{Network, PublishedResult};
-use sealforge_auditor::{audit_chain, ChainPayment};
+use sealforge_auditor::{
+    audit_chain, check_escrow_result, ChainPayment, EscrowVerdict, TrusteeVerdict,
+};
 use sealforge_chain::{audit::scan_incoming, connect, ChainParams};
 
 /// Recompute a published sealForge auction result from the chain, using only
@@ -25,9 +27,29 @@ struct Args {
     /// Lightwallet (Zaino / lightwalletd) gRPC endpoint.
     #[arg(long, env = "SF_ZAINO_URL")]
     endpoint: String,
+    /// A trustee's key for this auction, as the trustee gave it to you:
+    /// `SLOT=HEX`. Repeat for each trustee. A published key that differs fails
+    /// the audit, which catches a coordinator that invented its own trustees.
+    #[arg(long = "trustee-key", value_parser = parse_pin)]
+    trustee_keys: Vec<(u16, String)>,
+    /// Don't fail when no trustee attestations are published (auctions from
+    /// before attestations existed).
+    #[arg(long)]
+    allow_unattested: bool,
     /// Print the report as JSON.
     #[arg(long)]
     json: bool,
+}
+
+fn parse_pin(value: &str) -> Result<(u16, String), String> {
+    let (slot, key) = value
+        .split_once('=')
+        .ok_or("expected SLOT=HEX, e.g. 1=3b6a…")?;
+    let slot = slot.parse().map_err(|_| format!("bad slot {slot}"))?;
+    match hex::decode(key) {
+        Ok(bytes) if bytes.len() == 32 => Ok((slot, key.to_ascii_lowercase())),
+        _ => Err("the key must be 32 bytes of hex".into()),
+    }
 }
 
 async fn load(published: &str) -> anyhow::Result<PublishedResult> {
@@ -72,8 +94,32 @@ async fn main() -> anyhow::Result<()> {
         .collect();
     let report = audit_chain(&published, &payments);
 
+    // The escrow: did every trustee sign the address bidders paid, and does
+    // the viewing key we just scanned with belong to that address?
+    let escrow = check_escrow_result(&published, &args.trustee_keys);
+    let key_address = sealforge_scan::escrow_address(&params, ivk);
+    let key_matches = match (&key_address, &published.escrow_ua) {
+        (Ok(derived), Some(ua)) => Some(derived == ua),
+        _ => None,
+    };
+    let escrow_ok = key_matches != Some(false)
+        && match escrow.verdict {
+            EscrowVerdict::Verified => key_matches == Some(true),
+            EscrowVerdict::Unattested => args.allow_unattested,
+            EscrowVerdict::Failed => false,
+        };
+
     if args.json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "result": report,
+                "escrow": escrow,
+                "viewing_key_address": key_address.as_ref().ok(),
+                "viewing_key_matches_escrow": key_matches,
+                "escrow_ok": escrow_ok,
+            }))?
+        );
     } else {
         println!(
             "Scanned blocks {from}–{to} of {} in {scan_secs:.1} s: {} payment(s) to the escrow.\n",
@@ -97,6 +143,50 @@ async fn main() -> anyhow::Result<()> {
                 "MISMATCH: the published result does not follow from the chain."
             }
         );
+
+        println!("\nEscrow");
+        match (&key_address, key_matches) {
+            (_, Some(true)) => {
+                println!("✓  the viewing key receives at the published escrow address")
+            }
+            (Ok(derived), Some(false)) => println!(
+                "✗  the viewing key receives at {derived}, not the published escrow address"
+            ),
+            (Err(e), _) => println!("✗  could not read the viewing key: {e}"),
+            (Ok(_), None) => println!("–  no escrow address published to compare with"),
+        }
+        for t in &escrow.trustees {
+            let key = t.pubkey.as_deref().unwrap_or("(none)");
+            let what = match t.verdict {
+                TrusteeVerdict::Signed => "✓  signed",
+                TrusteeVerdict::Missing => "✗  no attestation",
+                TrusteeVerdict::Invalid => "✗  INVALID signature",
+                TrusteeVerdict::WrongKey => "✗  NOT the key you pinned",
+            };
+            println!("{what:<26} slot {} {:<16} key {key}", t.slot, t.label);
+        }
+        if args.trustee_keys.is_empty() && escrow.verdict == EscrowVerdict::Verified {
+            println!(
+                "   These keys come from the coordinator. To rule out invented trustees, get\n   each trustee's key from them and pass --trustee-key SLOT=HEX."
+            );
+        }
+        println!(
+            "\n{}",
+            match (escrow_ok, escrow.verdict) {
+                (true, EscrowVerdict::Verified) => format!(
+                    "Escrow verified: all {} trustees signed the address bidders paid.",
+                    escrow.total
+                ),
+                (true, _) => "Escrow not attested (allowed by --allow-unattested).".to_owned(),
+                (false, EscrowVerdict::Unattested) => {
+                    "ESCROW UNVERIFIED: no trustee attestations are published. Pass\n--allow-unattested for auctions from before attestations existed."
+                        .to_owned()
+                }
+                (false, _) =>
+                    "ESCROW MISMATCH: the escrow address is not the one the trustees control."
+                        .to_owned(),
+            }
+        );
     }
-    std::process::exit(if report.matches { 0 } else { 1 });
+    std::process::exit(if report.matches && escrow_ok { 0 } else { 1 });
 }

@@ -17,6 +17,10 @@ export interface TrusteeView {
   slot: number;
   label: string;
   dkg_status: "invited" | "round1" | "round2" | "complete";
+  /** The trustee's Ed25519 key for this auction (hex). */
+  pubkey?: string | null;
+  /** The trustee's signature over the escrow address (hex). */
+  escrow_attestation?: string | null;
 }
 
 export interface AuctionView {
@@ -159,6 +163,29 @@ export interface PublishedResult {
   winner_count: number;
   merkle_root: string;
   bids: ResultBid[];
+  /** The escrow address bidders paid. */
+  escrow_ua?: string;
+  /** Each trustee's attestation over escrow_ua. */
+  trustees?: {
+    slot: number;
+    label: string;
+    pubkey: string | null;
+    signature: string | null;
+  }[];
+}
+
+/** sealforge-auditor EscrowCheck. */
+export interface EscrowCheck {
+  verdict: "verified" | "unattested" | "failed";
+  escrow_ua: string | null;
+  signed: number;
+  total: number;
+  trustees: {
+    slot: number;
+    label: string;
+    pubkey: string | null;
+    verdict: "signed" | "missing" | "invalid" | "wrong_key";
+  }[];
 }
 
 /** sealforge-auditor AuditReport. */

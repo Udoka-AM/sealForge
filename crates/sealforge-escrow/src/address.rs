@@ -52,6 +52,27 @@ pub fn escrow_fvk<R: RngCore + CryptoRng>(
     Err(EscrowError::KeyDerivation)
 }
 
+/// The `nk ‖ rivk` half of an escrow FVK (64 bytes). Sealed to each trustee
+/// so it can rebuild the FVK from its own copy of the group key and check the
+/// escrow address before reporting ready. Viewing power only, like the FVK.
+pub fn view_secret(fvk: &FullViewingKey) -> [u8; 64] {
+    let bytes = fvk.to_bytes();
+    let mut out = [0u8; 64];
+    out.copy_from_slice(&bytes[32..]);
+    out
+}
+
+/// Rebuild an escrow FVK from the group key `ak` and a [`view_secret`].
+pub fn escrow_fvk_from_parts(
+    ak: &[u8; 32],
+    view_secret: &[u8; 64],
+) -> Result<FullViewingKey, EscrowError> {
+    let mut bytes = [0u8; 96];
+    bytes[..32].copy_from_slice(ak);
+    bytes[32..].copy_from_slice(view_secret);
+    FullViewingKey::from_bytes(&bytes).ok_or(EscrowError::KeyDerivation)
+}
+
 /// The escrow Unified Address (Orchard receiver, used by the Ironwood pool).
 pub fn escrow_address<P: Parameters>(
     fvk: &FullViewingKey,
@@ -79,4 +100,32 @@ pub fn escrow_view_keys<P: Parameters>(
         .encode(params)
         .map_err(|e| EscrowError::Encoding(format!("{e:?}")))?;
     Ok((ufvk_str, uivk_str))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{dkg, Threshold};
+    use rand::rngs::OsRng;
+    use zcash_protocol::consensus::NetworkType;
+
+    #[test]
+    fn the_escrow_address_rebuilds_from_the_group_key_and_view_secret() {
+        let (_, pubkeys) = dkg::run_local(Threshold::default(), &mut OsRng).unwrap();
+        let ak = dkg::group_key_bytes(&pubkeys).unwrap();
+        let params = EncodingParams(NetworkType::Test);
+        let fvk = escrow_fvk(&ak, &mut OsRng).unwrap();
+        let ua = escrow_address(&fvk, &params).unwrap();
+
+        let rebuilt = escrow_fvk_from_parts(&ak, &view_secret(&fvk)).unwrap();
+        assert_eq!(escrow_address(&rebuilt, &params).unwrap(), ua);
+
+        // Another group key with the same view secret gives a different address,
+        // so a matching address proves the escrow is bound to this group key.
+        let (_, other) = dkg::run_local(Threshold::default(), &mut OsRng).unwrap();
+        let other_ak = dkg::group_key_bytes(&other).unwrap();
+        if let Ok(fvk) = escrow_fvk_from_parts(&other_ak, &view_secret(&fvk)) {
+            assert_ne!(escrow_address(&fvk, &params).unwrap(), ua);
+        }
+    }
 }

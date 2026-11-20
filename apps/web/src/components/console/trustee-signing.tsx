@@ -26,7 +26,23 @@ type Phase =
   | "signed"
   | "not-needed"
   | "lost-nonces"
+  | "inputs-changed"
   | "done";
+
+/** Shares already made for a batch, and the exact inputs they were made over. */
+type SignedRecord = { inputs: string; shares: string[] };
+
+/** Everything a round 2 share depends on besides the key and the nonces. */
+function signingInputs(b: TrusteeBatch): string {
+  const commitments = Object.entries(b.signer_commitments)
+    .map(([slot, values]) => [Number(slot), values.map((v) => v.toLowerCase())] as const)
+    .sort(([a], [b]) => a - b);
+  return JSON.stringify([
+    b.sighash.toLowerCase(),
+    b.spends.map((s) => s.alpha.toLowerCase()),
+    commitments,
+  ]);
+}
 
 /** S16: review escrow batches and co-sign them with this trustee's key share. */
 export function TrusteeSigning({ code }: { code: string }) {
@@ -38,8 +54,12 @@ export function TrusteeSigning({ code }: { code: string }) {
   const [batches, setBatches] = useState<TrusteeBatch[] | null>(null);
   const [network, setNetwork] = useState<Network>("mainnet");
   const [error, setError] = useState<string | null>(null);
-  // Round 1 nonces by batch id: in memory only, dropped after round 2.
+  // Round 1 nonces by batch id: in memory only, dropped the moment round 2 signs.
   const nonces = useRef(new Map<string, string[]>());
+  // Shares this page already made, by batch id. A failed send is retried with
+  // these exact bytes, and only for the exact same inputs: signing again with the
+  // same nonces over different inputs would reveal this trustee's key share.
+  const signed = useRef(new Map<string, SignedRecord>());
   const [approved, setApproved] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<Set<string>>(new Set());
 
@@ -66,28 +86,41 @@ export function TrusteeSigning({ code }: { code: string }) {
     if (!signer || !keyHex || !batches) return;
     for (const b of batches) {
       const mine = nonces.current.get(b.id);
+      const record = signed.current.get(b.id);
       const chosen = signer.slot !== undefined && b.signer_slots.includes(signer.slot);
       const ready = Object.keys(b.signer_commitments).length >= 2;
       if (
         b.status === "awaiting_signatures" &&
-        mine &&
+        (mine || record) &&
         chosen &&
         ready &&
         !b.i_shared &&
         !busy.has(b.id)
       ) {
+        const inputs = signingInputs(b);
+        // Already signed over other inputs: never sign again with these nonces.
+        if (record && record.inputs !== inputs) continue;
         setBusy((s) => new Set(s).add(b.id));
         (async () => {
           try {
-            const shares = await signBatch(
-              keyHex,
-              b.sighash,
-              b.spends.map((s) => s.alpha),
-              b.signer_commitments,
-              mine,
-            );
+            let shares: string[];
+            if (record) {
+              shares = record.shares;
+            } else if (mine) {
+              shares = await signBatch(
+                keyHex,
+                b.sighash,
+                b.spends.map((s) => s.alpha),
+                b.signer_commitments,
+                mine,
+              );
+              // Consume the nonces before the shares leave this page.
+              signed.current.set(b.id, { inputs, shares });
+              nonces.current.delete(b.id);
+            } else {
+              return;
+            }
             await api("POST", `/v1/batches/${b.id}/shares`, signer, { shares });
-            nonces.current.delete(b.id);
             await load();
           } catch (e) {
             setError(e instanceof Error ? e.message : "Signing failed.");
@@ -109,6 +142,8 @@ export function TrusteeSigning({ code }: { code: string }) {
     setBusy((s) => new Set(s).add(b.id));
     try {
       const round1 = await commitBatch(keyHex, b.spends.length);
+      // A fresh round: shares from an earlier, reset round are void.
+      signed.current.delete(b.id);
       nonces.current.set(b.id, round1.nonces);
       await api("POST", `/v1/batches/${b.id}/commitments`, signer, {
         commitments: round1.commitments,
@@ -133,7 +168,9 @@ export function TrusteeSigning({ code }: { code: string }) {
     if (!b.i_committed) return "review";
     const chosen = me !== undefined && b.signer_slots.includes(me);
     if (b.signer_slots.length >= 2 && !chosen) return "not-needed";
-    if (!nonces.current.has(b.id)) return "lost-nonces";
+    const record = signed.current.get(b.id);
+    if (record && chosen && record.inputs !== signingInputs(b)) return "inputs-changed";
+    if (!nonces.current.has(b.id) && !record) return "lost-nonces";
     return "waiting";
   }
 
@@ -316,6 +353,10 @@ function PhaseLine({ phase }: { phase: Phase }) {
     "lost-nonces": [
       null,
       "This page was reloaded after you committed. If you're chosen to sign, the round restarts after 30 minutes.",
+    ],
+    "inputs-changed": [
+      null,
+      "The coordinator changed what it's asking you to sign after you signed. Not signing again. The round restarts after 30 minutes; if this repeats, stop signing and report it.",
     ],
     done: [done, "Nothing left for you to do."],
   };

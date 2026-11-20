@@ -4,6 +4,7 @@ import { AuditRunner } from "@/components/audit-runner";
 import { ButtonLink } from "@/components/button";
 import { ChainAudit } from "@/components/chain-audit";
 import { CoordinatorError } from "@/components/coordinator-error";
+import { EscrowAudit } from "@/components/escrow-check";
 import { HashChip } from "@/components/hash-chip";
 import { CoordinatorUnavailable, getAuction, getResult } from "@/lib/coordinator";
 import { modeLabel, zec } from "@/lib/format";
@@ -110,6 +111,17 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
             </div>
           </dl>
 
+          <section aria-labelledby="escrow" className="space-y-3">
+            <h2 id="escrow" className="text-[18px] leading-6 font-semibold">
+              Check the escrow
+            </h2>
+            <p className="max-w-[68ch] text-sm text-muted">
+              Before trusting the numbers, check that bids went where the trustees can spend from:
+              each trustee rebuilt the escrow address from its own share of the key and signed it.
+            </p>
+            <EscrowAudit result={result} shownUa={auction.escrow_ua} />
+          </section>
+
           <section aria-labelledby="chain" className="space-y-3">
             <h2 id="chain" className="text-[18px] leading-6 font-semibold">
               Rescan the chain
@@ -128,7 +140,7 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
                 Prefer the command line?
               </summary>
               <pre className="num mt-2 break-all whitespace-pre-wrap rounded-[var(--radius-control)] bg-surface-2 p-3 text-[13px]">
-                {`cargo install --git https://github.com/Udoka-AM/sealForge sealforge-auditor\nsealforge-audit --published https://<this site>/api/auctions/${result.auction_code}/result --endpoint <lightwalletd URL>`}
+                {`cargo install --git https://github.com/Udoka-AM/sealForge sealforge-auditor\nsealforge-audit --published https://<this site>/api/auctions/${result.auction_code}/result --endpoint <lightwalletd URL>${result.trustees?.length ? "" : " --allow-unattested"}`}
               </pre>
             </details>
           </section>

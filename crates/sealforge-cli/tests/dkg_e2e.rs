@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use pasta_curves::group::ff::{FromUniformBytes, PrimeField};
 use rand::{rngs::OsRng, RngCore};
-use sealforge_api::types::{AuctionStatus, ConsoleBatch, DkgState, SpendAuthView};
+use sealforge_api::types::{AuctionStatus, AuctionView, ConsoleBatch, DkgState, SpendAuthView};
 use sealforge_cli::{
     client::Client,
     keystore::Keystore,
@@ -125,7 +125,9 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
                     fingerprints.insert(i, fingerprint);
                     escrow = escrow_ua.or(escrow);
                 }
-                DkgProgress::Ready { escrow_ua } => escrow = Some(escrow_ua),
+                DkgProgress::Ready { escrow_ua } | DkgProgress::Verified { escrow_ua } => {
+                    escrow = Some(escrow_ua)
+                }
                 _ => {}
             }
         }
@@ -157,6 +159,75 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .await
         .unwrap();
     assert_eq!(leftover, 0);
+
+    // A coordinator showing an address the trustees' key doesn't control is
+    // caught by every trustee, and the auction can't open.
+    sqlx::query(
+        "UPDATE trustees SET escrow_verified_at = NULL, escrow_attestation = NULL \
+         WHERE auction_id = (SELECT id FROM auctions WHERE code = $1)",
+    )
+    .bind(&code)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query("UPDATE auctions SET escrow_ua = $2 WHERE code = $1")
+        .bind(&code)
+        .bind(TESTNET_UA)
+        .execute(&db)
+        .await
+        .unwrap();
+    for t in &trustees {
+        let err = trustee::dkg_step(t, &url, &code).await.unwrap_err();
+        assert!(err.to_string().contains("ESCROW ADDRESS MISMATCH"), "{err}");
+    }
+    let refused = organiser::auction_open(&org, &url, &code)
+        .await
+        .unwrap_err();
+    assert!(
+        refused.to_string().contains("verify the escrow"),
+        "{refused}"
+    );
+
+    // With the real address, each trustee rebuilds it from its own group key
+    // and signs an attestation anyone can check with the trustee's public key.
+    sqlx::query("UPDATE auctions SET escrow_ua = $2 WHERE code = $1")
+        .bind(&code)
+        .bind(&escrow)
+        .execute(&db)
+        .await
+        .unwrap();
+    for t in &trustees {
+        assert_eq!(
+            trustee::dkg_step(t, &url, &code).await.unwrap(),
+            DkgProgress::Verified {
+                escrow_ua: escrow.clone()
+            }
+        );
+        assert_eq!(
+            trustee::dkg_step(t, &url, &code).await.unwrap(),
+            DkgProgress::Ready {
+                escrow_ua: escrow.clone()
+            }
+        );
+    }
+    let attestations: Vec<(i16, Vec<u8>, Vec<u8>)> = sqlx::query_as(
+        "SELECT slot, pubkey, escrow_attestation FROM trustees \
+         WHERE auction_id = (SELECT id FROM auctions WHERE code = $1) ORDER BY slot",
+    )
+    .bind(&code)
+    .fetch_all(&db)
+    .await
+    .unwrap();
+    assert_eq!(attestations.len(), 3);
+    for (slot, pubkey, signature) in attestations {
+        assert!(sealforge_api::auth::verify_escrow_attestation(
+            &pubkey.try_into().unwrap(),
+            &signature.try_into().unwrap(),
+            &code,
+            slot as u16,
+            &escrow,
+        ));
+    }
 
     // Two trustees' saved shares sign an escrow spend that passes Orchard's check.
     let ak: [u8; 32] = group_key.try_into().unwrap();
@@ -354,11 +425,190 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
             .unwrap();
     assert_eq!((status.as_str(), slots), ("signed", vec![3, 2]));
 
+    // A coordinator that "loses" a share and then asks for one over a different
+    // sighash must not get a second share over the same nonces (two shares
+    // over one nonce pair, on different messages, reveal the signing share).
+    let replayed: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO tx_batches (auction_id, kind, status, sighash, spend_auth, total_out_zat, output_count) \
+         SELECT id, 'refund', 'awaiting_signatures', $2, $3, 5000000, 1 FROM auctions WHERE code = $1 RETURNING id",
+    )
+    .bind(&code)
+    .bind(&sighash[..])
+    .bind(serde_json::to_value(&spends[..1]).unwrap())
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let replayed_id = replayed.to_string();
+    for i in [0, 1] {
+        let progress = trustee::sign_step(&trustees[i], &url, &code).await.unwrap();
+        assert!(
+            progress.contains(&SignProgress::Committed {
+                batch: replayed_id.clone()
+            }),
+            "{progress:?}"
+        );
+    }
+    let progress = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    assert!(
+        progress.contains(&SignProgress::Signed {
+            batch: replayed_id.clone()
+        }),
+        "{progress:?}"
+    );
+    let share_of_slot_1 = |db: PgPool| async move {
+        sqlx::query_scalar::<_, Option<serde_json::Value>>(
+            "SELECT s.shares_json FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id \
+             WHERE s.batch_id = $1 AND t.slot = 1",
+        )
+        .bind(replayed)
+        .fetch_one(&db)
+        .await
+        .unwrap()
+    };
+    let first_share = share_of_slot_1(db.clone()).await.expect("share stored");
+    let other_sighash: [u8; 32] = random_alpha();
+    sqlx::query("UPDATE signature_shares SET shares_json = NULL WHERE batch_id = $1")
+        .bind(replayed)
+        .execute(&db)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE tx_batches SET sighash = $2 WHERE id = $1")
+        .bind(replayed)
+        .bind(&other_sighash[..])
+        .execute(&db)
+        .await
+        .unwrap();
+    let progress = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    assert!(
+        progress.contains(&SignProgress::InputsChanged {
+            batch: replayed_id.clone()
+        }),
+        "a trustee never signs new inputs with nonces it already used: {progress:?}"
+    );
+    assert_eq!(share_of_slot_1(db.clone()).await, None, "nothing was sent");
+    // Back to the original inputs, the trustee resends exactly what it signed.
+    sqlx::query("UPDATE tx_batches SET sighash = $2 WHERE id = $1")
+        .bind(replayed)
+        .bind(&sighash[..])
+        .execute(&db)
+        .await
+        .unwrap();
+    let progress = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    assert!(
+        progress.contains(&SignProgress::Signed {
+            batch: replayed_id.clone()
+        }),
+        "{progress:?}"
+    );
+    assert_eq!(share_of_slot_1(db.clone()).await, Some(first_share));
+    assert!(!trustees[0]
+        .trustee_dir(&code)
+        .join(format!("batch-{replayed_id}.nonces"))
+        .exists());
+
     // And the organiser can open it.
     state.set_chain_tip(3_900_000);
     let opened = organiser::auction_open(&org, &url, &code).await.unwrap();
     assert_eq!(opened.status, AuctionStatus::Open);
     assert_eq!(opened.escrow_ua.as_deref(), Some(escrow.as_str()));
+
+    // Bidders can check the escrow themselves (F10): the public page lists each
+    // trustee's key and attestation, and they verify for the address shown.
+    let public: AuctionView = Client::new(&url, None)
+        .get(&format!("/v1/auctions/{code}"))
+        .await
+        .unwrap();
+    let keys: Vec<(u16, String)> = trustees
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (i as u16 + 1, trustee::my_key(t, &code).unwrap()))
+        .collect();
+    let check = sealforge_auditor::check_escrow_view(&public, &keys);
+    assert!(check.verified(), "{check:?}");
+    assert_eq!((check.signed, check.total), (3, 3));
+    for t in &trustees {
+        assert_eq!(
+            trustee::check_public(t, &url, &code).await.unwrap(),
+            trustee::PublicCheck::Matches {
+                escrow_ua: escrow.clone(),
+                signed: 3,
+                total: 3
+            }
+        );
+    }
+
+    // A coordinator that shows bidders another address fails every check, and
+    // no trustee will co-sign money out of the escrow while it does.
+    sqlx::query("UPDATE auctions SET escrow_ua = $2 WHERE code = $1")
+        .bind(&code)
+        .bind(TESTNET_UA)
+        .execute(&db)
+        .await
+        .unwrap();
+    let public: AuctionView = Client::new(&url, None)
+        .get(&format!("/v1/auctions/{code}"))
+        .await
+        .unwrap();
+    assert!(!sealforge_auditor::check_escrow_view(&public, &[]).verified());
+    for t in &trustees {
+        let err = trustee::check_public(t, &url, &code).await.unwrap_err();
+        assert!(err.to_string().contains("PUBLIC PAGE MISMATCH"), "{err}");
+        let err = trustee::sign_step(t, &url, &code).await.unwrap_err();
+        assert!(err.to_string().contains("PUBLIC PAGE MISMATCH"), "{err}");
+    }
+    sqlx::query("UPDATE auctions SET escrow_ua = $2 WHERE code = $1")
+        .bind(&code)
+        .bind(&escrow)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    // A coordinator that swaps in a trustee key it controls can sign for that
+    // slot, so the attestations alone still verify. The replaced trustee
+    // catches it, and so does any bidder who pinned that trustee's real key.
+    let fake = ed25519_dalek::SigningKey::from_bytes(&[9; 32]);
+    let fake_sig = sealforge_api::auth::sign_escrow_attestation(&fake, &code, 2, &escrow);
+    let (real_pubkey, real_sig): (Vec<u8>, Vec<u8>) = sqlx::query_as(
+        "SELECT pubkey, escrow_attestation FROM trustees \
+         WHERE slot = 2 AND auction_id = (SELECT id FROM auctions WHERE code = $1)",
+    )
+    .bind(&code)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let set_slot_2 = |pubkey: Vec<u8>, sig: Vec<u8>| {
+        let (db, code) = (db.clone(), code.clone());
+        async move {
+            sqlx::query(
+                "UPDATE trustees SET pubkey = $2, escrow_attestation = $3 \
+                 WHERE slot = 2 AND auction_id = (SELECT id FROM auctions WHERE code = $1)",
+            )
+            .bind(&code)
+            .bind(pubkey)
+            .bind(sig)
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+    };
+    set_slot_2(fake.verifying_key().to_bytes().to_vec(), fake_sig.to_vec()).await;
+    let public: AuctionView = Client::new(&url, None)
+        .get(&format!("/v1/auctions/{code}"))
+        .await
+        .unwrap();
+    assert!(sealforge_auditor::check_escrow_view(&public, &[]).verified());
+    assert!(!sealforge_auditor::check_escrow_view(&public, &keys).verified());
+    let err = trustee::check_public(&trustees[1], &url, &code)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("PUBLIC PAGE MISMATCH"), "{err}");
+    set_slot_2(real_pubkey, real_sig).await;
+    assert!(matches!(
+        trustee::check_public(&trustees[1], &url, &code)
+            .await
+            .unwrap(),
+        trustee::PublicCheck::Matches { .. }
+    ));
 
     std::fs::remove_dir_all(&root).ok();
 }

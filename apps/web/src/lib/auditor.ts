@@ -1,6 +1,6 @@
 "use client";
 
-import type { AuditReport, PublishedResult, ReceiptCheck } from "./types";
+import type { AuctionView, AuditReport, EscrowCheck, PublishedResult, ReceiptCheck } from "./types";
 
 /**
  * The public auditor, compiled from crates/sealforge-auditor to WebAssembly
@@ -12,6 +12,7 @@ interface AuditorModule {
   auditor_version: () => string;
   audit_published: (published: string) => string;
   check_receipt: (published: string, receipt: string) => string;
+  check_escrow_json: (source: string, pinned: string) => string;
 }
 
 let loading: Promise<AuditorModule> | null = null;
@@ -56,4 +57,18 @@ export async function auditWithPayments(
   return JSON.parse(
     mod.audit_with_payments(JSON.stringify(result), JSON.stringify(payments)),
   ) as AuditReport;
+}
+
+/**
+ * Check every trustee's signature over the escrow address, from the auction
+ * page's data or a published result. `pinned` holds keys you got from the
+ * trustees themselves; a listed key that differs fails the check.
+ */
+export async function checkEscrow(
+  source: AuctionView | PublishedResult,
+  pinned: [number, string][] = [],
+): Promise<EscrowCheck> {
+  return JSON.parse(
+    (await load()).check_escrow_json(JSON.stringify(source), JSON.stringify(pinned)),
+  ) as EscrowCheck;
 }

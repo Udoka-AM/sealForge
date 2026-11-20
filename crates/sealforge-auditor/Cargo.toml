@@ -18,7 +18,7 @@ required-features = ["cli"]
 
 [features]
 default = ["cli"]
-cli = ["dep:clap", "dep:anyhow", "dep:sealforge-chain", "dep:tokio", "dep:reqwest"]
+cli = ["dep:clap", "dep:anyhow", "dep:sealforge-chain", "dep:sealforge-scan", "dep:tokio", "dep:reqwest"]
 wasm = ["dep:wasm-bindgen"]
 
 [dependencies]
@@ -31,5 +31,9 @@ anyhow = { workspace = true, optional = true }
 clap = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 sealforge-chain = { workspace = true, optional = true }
+sealforge-scan = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
+
+[dev-dependencies]
+ed25519-dalek.workspace = true

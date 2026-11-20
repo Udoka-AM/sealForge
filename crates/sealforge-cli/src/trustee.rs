@@ -11,10 +11,10 @@ use std::collections::BTreeMap;
 use anyhow::{anyhow, bail, ensure, Context};
 use rand::rngs::OsRng;
 use sealforge_api::{
-    auth::{sign_dkg_package, verify_dkg_package},
+    auth::{sign_dkg_package, sign_escrow_attestation, verify_dkg_package},
     types::{
         AuctionStatus, CompleteDkg, DkgPackage, DkgState, JoinAsTrustee, PostRound1, PostRound2,
-        Round2Out, TrusteeJoined,
+        Round2Out, TrusteeJoined, VerifyEscrow,
     },
 };
 use sealforge_escrow::{
@@ -38,6 +38,8 @@ const ROUND2_SECRET: &str = "round2.secret";
 const ROUND2_OUT: &str = "round2.out.json";
 const KEY_PACKAGE: &str = "key-package.hex";
 const PUBLIC_KEY_PACKAGE: &str = "public-key-package.hex";
+/// The escrow address this trustee checked and signed.
+const ESCROW_ATTESTED: &str = "escrow-attested.txt";
 
 /// Where this trustee's DKG stands after a step.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -61,6 +63,12 @@ pub enum DkgProgress {
         fingerprint: String,
         escrow_ua: Option<String>,
     },
+    /// This step rebuilt the escrow address from this trustee's own group key,
+    /// found it matches, and sent a signed attestation.
+    Verified {
+        escrow_ua: String,
+    },
+    /// Key generation is done and this trustee already verified the escrow.
     Ready {
         escrow_ua: String,
     },
@@ -178,9 +186,16 @@ pub async fn dkg_step(
                 store.read(code, KEY_PACKAGE)?.is_some(),
                 "key generation finished without this machine's key share"
             );
-            return Ok(DkgProgress::Ready {
-                escrow_ua: state.escrow_ua.clone().unwrap_or_default(),
-            });
+            let escrow_ua = state.escrow_ua.clone().unwrap_or_default();
+            let verified = state
+                .trustees
+                .iter()
+                .any(|t| t.slot == me && t.escrow_verified);
+            if state.auction_status == AuctionStatus::Ready && !verified {
+                verify_escrow(store, &client, &identity, code, &state).await?;
+                return Ok(DkgProgress::Verified { escrow_ua });
+            }
+            return Ok(DkgProgress::Ready { escrow_ua });
         }
     }
 
@@ -338,6 +353,149 @@ pub async fn dkg_step(
     })
 }
 
+/// Rebuild the escrow address from this trustee's own group key and the
+/// `nk ‖ rivk` the coordinator sealed to it, and attest to it only if it
+/// matches the address the coordinator shows. A coordinator showing the
+/// address of a wallet it controls alone fails here. The view secret is used
+/// in memory only and never written to disk.
+async fn verify_escrow(
+    store: &Keystore,
+    client: &Client,
+    identity: &TrusteeIdentity,
+    code: &str,
+    state: &DkgState,
+) -> anyhow::Result<()> {
+    use sealforge_escrow::address::{self, EncodingParams};
+    use zcash_protocol::consensus::NetworkType;
+
+    let shown = state
+        .escrow_ua
+        .as_deref()
+        .ok_or_else(|| anyhow!("the coordinator shows no escrow address"))?;
+    let sealed = hex::decode(state.escrow_view_secret_for_me.as_deref().ok_or_else(|| {
+        anyhow!(
+            "the coordinator sent no escrow view secret, so the escrow address can't be checked. \
+             Don't let auction {code} open; tell the organiser and the other trustees."
+        )
+    })?)?;
+    let view_secret: [u8; 64] = identity
+        .enc_secret()?
+        .unseal(&sealed)
+        .map_err(|_| anyhow!("could not open the escrow view secret"))?
+        .try_into()
+        .map_err(|_| anyhow!("the escrow view secret has the wrong length"))?;
+    let (_, pubkeys) = key_share(store, code)?;
+    let ak = dkg::group_key_bytes(&pubkeys)?;
+    let fvk = address::escrow_fvk_from_parts(&ak, &view_secret)?;
+    let matches = [NetworkType::Main, NetworkType::Test, NetworkType::Regtest]
+        .into_iter()
+        .any(|n| address::escrow_address(&fvk, &EncodingParams(n)).is_ok_and(|ua| ua == shown));
+    ensure!(
+        matches,
+        "ESCROW ADDRESS MISMATCH for auction {code}: the address the coordinator shows ({shown}) \
+         does not come from the trustees' group key. Do not send funds to it, don't let the \
+         auction open, and tell the organiser and the other trustees now."
+    );
+    let signature = sign_escrow_attestation(&identity.signing_key()?, code, state.my_slot, shown);
+    // Remember what we signed, so later commands can check the public page
+    // shows bidders this same address (`check_public`).
+    store.write(code, ESCROW_ATTESTED, shown.as_bytes())?;
+    let _: DkgState = client
+        .post(
+            &format!("/v1/auctions/{code}/dkg/verify-escrow"),
+            &VerifyEscrow {
+                escrow_ua: shown.to_string(),
+                signature: hex::encode(signature),
+            },
+        )
+        .await?;
+    Ok(())
+}
+
+/// What [`check_public`] found on the auction's public page.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PublicCheck {
+    /// The page shows bidders the address this trustee signed, lists this
+    /// trustee's own key, and every trustee's attestation verifies.
+    Matches {
+        escrow_ua: String,
+        signed: u32,
+        total: u32,
+    },
+    /// Bidders can't see the auction yet (it opens later).
+    NotPublicYet,
+    /// This trustee never attested (an auction from before attestations).
+    NotAttested,
+}
+
+/// This trustee's Ed25519 key for `code` (hex), to share with bidders over a
+/// channel the coordinator doesn't control.
+pub fn my_key(store: &Keystore, code: &str) -> anyhow::Result<String> {
+    let identity = store.trustee_identity(code)?;
+    Ok(hex::encode(
+        identity.signing_key()?.verifying_key().to_bytes(),
+    ))
+}
+
+/// Check the auction's public page, the one bidders pay from, against what
+/// this trustee verified: the same escrow address, this trustee's own key in
+/// its slot, and valid attestations from every trustee. Errors on a mismatch.
+///
+/// This catches a coordinator that shows bidders a different address, or that
+/// lists a key it controls in this trustee's place. It can't catch one that
+/// serves this trustee a different page from everyone else.
+pub async fn check_public(
+    store: &Keystore,
+    coordinator: &str,
+    code: &str,
+) -> anyhow::Result<PublicCheck> {
+    let Some(attested) = store.read(code, ESCROW_ATTESTED)? else {
+        return Ok(PublicCheck::NotAttested);
+    };
+    let attested = String::from_utf8(attested)?;
+    let identity = store.trustee_identity(code)?;
+    let mine = my_key(store, code)?;
+    let view: sealforge_api::types::AuctionView = match Client::new(coordinator, None)
+        .get(&format!("/v1/auctions/{code}"))
+        .await
+    {
+        Ok(view) => view,
+        Err(e) if e.to_string().starts_with("404") => return Ok(PublicCheck::NotPublicYet),
+        Err(e) => return Err(e),
+    };
+    let shown = view.escrow_ua.clone().unwrap_or_default();
+    ensure!(
+        shown == attested,
+        "PUBLIC PAGE MISMATCH for auction {code}: bidders are shown the escrow address \
+         {shown}, but you checked and signed {attested}. Bids sent there don't reach the \
+         trustees. Tell the organiser, the other trustees and bidders now, and don't sign."
+    );
+    let check = sealforge_auditor::check_escrow_view(&view, &[(identity.slot, mine.clone())]);
+    if !check.verified() {
+        let problems: Vec<String> = check
+            .trustees
+            .iter()
+            .filter(|t| t.verdict != sealforge_auditor::TrusteeVerdict::Signed)
+            .map(|t| format!("slot {} ({}): {:?}", t.slot, t.label, t.verdict))
+            .collect();
+        bail!(
+            "PUBLIC PAGE MISMATCH for auction {code}: the trustee attestations bidders see \
+             don't check out ({}). Your key is {mine}. Tell the organiser and the other \
+             trustees, and don't sign.",
+            if problems.is_empty() {
+                "no trustees listed".to_owned()
+            } else {
+                problems.join("; ")
+            }
+        );
+    }
+    Ok(PublicCheck::Matches {
+        escrow_ua: shown,
+        signed: check.signed,
+        total: check.total,
+    })
+}
+
 /// Load this trustee's FROST key share and the group's public key package.
 pub fn key_share(store: &Keystore, code: &str) -> anyhow::Result<(KeyPackage, PublicKeyPackage)> {
     let read = |name| -> anyhow::Result<Vec<u8>> {
@@ -363,11 +521,27 @@ use sealforge_escrow::signing;
 /// What one `sign_step` did for a batch.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SignProgress {
-    Committed { batch: String },
-    Signed { batch: String },
-    WaitingForSecondSigner { batch: String },
-    NotSelected { batch: String },
-    Done { batch: String },
+    Committed {
+        batch: String,
+    },
+    Signed {
+        batch: String,
+    },
+    WaitingForSecondSigner {
+        batch: String,
+    },
+    NotSelected {
+        batch: String,
+    },
+    /// The coordinator now shows different round 2 inputs than the ones this
+    /// trustee already signed. Signing again would reuse nonces, so it waits
+    /// for the round to reset and start over with fresh ones.
+    InputsChanged {
+        batch: String,
+    },
+    Done {
+        batch: String,
+    },
 }
 
 impl std::fmt::Display for SignProgress {
@@ -388,6 +562,13 @@ impl std::fmt::Display for SignProgress {
                 "Batch {}: two other trustees are signing; you're not needed.",
                 short(batch)
             ),
+            Self::InputsChanged { batch } => write!(
+                f,
+                "Batch {}: the coordinator changed what it is asking you to sign after you signed. \
+                 Not signing again with the same nonces. The round restarts after 30 minutes; \
+                 if this repeats, treat the coordinator as compromised.",
+                short(batch)
+            ),
             Self::Done { batch } => {
                 write!(f, "Batch {}: nothing left for you to do.", short(batch))
             }
@@ -397,6 +578,58 @@ impl std::fmt::Display for SignProgress {
 
 fn nonces_file(batch: &str) -> String {
     format!("batch-{batch}.nonces")
+}
+
+fn signed_file(batch: &str) -> String {
+    format!("batch-{batch}.signed")
+}
+
+/// What this trustee signed in round 2, kept so a failed send can be retried
+/// with the same bytes instead of signing again with the same nonces.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SignedRecord {
+    /// [`signing_inputs_digest`] of the round 2 inputs, hex.
+    inputs: String,
+    shares: Vec<String>,
+}
+
+/// Digest of everything a round 2 share depends on besides the key and the
+/// nonces: the sighash, each spend's alpha, and every signer's commitments.
+fn signing_inputs_digest(
+    sighash: &[u8; 32],
+    alphas: &[[u8; 32]],
+    commitments: &BTreeMap<u16, Vec<Vec<u8>>>,
+) -> String {
+    fn len(h: &mut Sha256, n: usize) {
+        h.update((n as u64).to_le_bytes());
+    }
+    let mut h = Sha256::new();
+    h.update(b"sealforge/round2-inputs/v1");
+    h.update(sighash);
+    len(&mut h, alphas.len());
+    for alpha in alphas {
+        h.update(alpha);
+    }
+    len(&mut h, commitments.len());
+    for (slot, values) in commitments {
+        h.update(slot.to_le_bytes());
+        len(&mut h, values.len());
+        for v in values {
+            len(&mut h, v.len());
+            h.update(v);
+        }
+    }
+    hex::encode(h.finalize())
+}
+
+async fn post_shares(client: &Client, batch: &str, shares: Vec<String>) -> anyhow::Result<()> {
+    let _: BatchView = client
+        .post(
+            &format!("/v1/batches/{batch}/shares"),
+            &PostShares { shares },
+        )
+        .await?;
+    Ok(())
 }
 
 fn hex32(value: &str) -> anyhow::Result<[u8; 32]> {
@@ -426,6 +659,9 @@ pub async fn sign_step(
 ) -> anyhow::Result<Vec<SignProgress>> {
     let identity = store.trustee_identity(code)?;
     let (key_package, _) = key_share(store, code)?;
+    // Never co-sign money out of an escrow whose public page showed bidders
+    // something other than what this trustee verified.
+    check_public(store, coordinator, code).await?;
     let client = Client::new(coordinator, Some(identity.signing_key()?));
     let batches: Vec<BatchView> = client.get(&format!("/v1/auctions/{code}/batches")).await?;
     let me = identity.slot;
@@ -442,7 +678,10 @@ pub async fn sign_step(
             let nonces: Vec<String> = round1.nonces.iter().map(hex::encode).collect();
             let commitments: Vec<String> = round1.commitments.iter().map(hex::encode).collect();
             // Nonces from a round the coordinator reset are discarded, never reused.
+            // The signed record goes too: its nonces are already gone, and the
+            // new round signs with new ones.
             std::fs::remove_file(store.trustee_dir(code).join(nonces_file(&batch.id))).ok();
+            std::fs::remove_file(store.trustee_dir(code).join(signed_file(&batch.id))).ok();
             store.write(
                 code,
                 &nonces_file(&batch.id),
@@ -476,10 +715,6 @@ pub async fn sign_step(
         }
 
         // Round 2: sign each spend with its alpha against the agreed commitments.
-        let nonce_hex: Vec<String> =
-            serde_json::from_slice(&store.read(code, &nonces_file(&batch.id))?.ok_or_else(
-                || anyhow!("nonces for batch {} are missing on this machine", batch.id),
-            )?)?;
         let alphas = batch
             .spends
             .iter()
@@ -498,28 +733,53 @@ pub async fn sign_step(
                 ))
             })
             .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
+        let sighash = hex32(&batch.sighash)?;
+        let inputs = signing_inputs_digest(&sighash, &alphas, &commitments);
+
+        // A share made with these nonces may already have left this machine
+        // (the POST below can fail after the coordinator received it). Never
+        // sign again with them: resend the exact same bytes, and only for the
+        // exact same inputs. Different inputs over the same nonces would let
+        // the coordinator solve for this trustee's signing share.
+        if let Some(bytes) = store.read(code, &signed_file(&batch.id))? {
+            let record: SignedRecord = serde_json::from_slice(&bytes)?;
+            if record.inputs != inputs {
+                out.push(SignProgress::InputsChanged { batch: batch.id });
+                continue;
+            }
+            post_shares(&client, &batch.id, record.shares).await?;
+            out.push(SignProgress::Signed { batch: batch.id });
+            continue;
+        }
+
+        let nonce_hex: Vec<String> =
+            serde_json::from_slice(&store.read(code, &nonces_file(&batch.id))?.ok_or_else(
+                || anyhow!("nonces for batch {} are missing on this machine", batch.id),
+            )?)?;
         let nonces = nonce_hex
             .iter()
             .map(hex::decode)
             .collect::<Result<Vec<_>, _>>()?;
-        let shares: Vec<String> = signing::sign_batch(
-            &key_package,
-            hex32(&batch.sighash)?,
-            &alphas,
-            &commitments,
-            &nonces,
-        )?
-        .iter()
-        .map(hex::encode)
-        .collect();
-        let _: BatchView = client
-            .post(
-                &format!("/v1/batches/{}/shares", batch.id),
-                &PostShares { shares },
-            )
-            .await?;
-        // Nonces must never be reused.
-        std::fs::remove_file(store.trustee_dir(code).join(nonces_file(&batch.id))).ok();
+        let shares: Vec<String> =
+            signing::sign_batch(&key_package, sighash, &alphas, &commitments, &nonces)?
+                .iter()
+                .map(hex::encode)
+                .collect();
+        // Consume the nonces before the shares leave this machine: record what
+        // was signed (synced to disk), then delete the nonces. If either step
+        // fails, nothing is sent.
+        store.write(
+            code,
+            &signed_file(&batch.id),
+            &serde_json::to_vec(&SignedRecord {
+                inputs,
+                shares: shares.clone(),
+            })?,
+        )?;
+        let nonce_path = store.trustee_dir(code).join(nonces_file(&batch.id));
+        std::fs::remove_file(&nonce_path)
+            .with_context(|| format!("deleting used nonces {}", nonce_path.display()))?;
+        post_shares(&client, &batch.id, shares).await?;
         out.push(SignProgress::Signed { batch: batch.id });
     }
     Ok(out)

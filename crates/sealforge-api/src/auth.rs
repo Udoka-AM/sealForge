@@ -164,6 +164,42 @@ pub fn verify_dkg_package(
         .is_ok()
 }
 
+/// Bytes a trustee signs to attest that it rebuilt an auction's escrow address
+/// from its own copy of the FROST group key. Anyone holding the trustee's
+/// public key can check the attestation without trusting the coordinator.
+pub fn escrow_attestation_message(auction_code: &str, slot: u16, escrow_ua: &str) -> Vec<u8> {
+    format!("sealforge-escrow-v1\n{auction_code}\n{slot}\n{escrow_ua}").into_bytes()
+}
+
+/// Sign an escrow attestation as a trustee.
+pub fn sign_escrow_attestation(
+    key: &SigningKey,
+    auction_code: &str,
+    slot: u16,
+    escrow_ua: &str,
+) -> [u8; 64] {
+    key.sign(&escrow_attestation_message(auction_code, slot, escrow_ua))
+        .to_bytes()
+}
+
+/// Verify a trustee's escrow attestation.
+pub fn verify_escrow_attestation(
+    pubkey: &[u8; 32],
+    signature: &[u8; 64],
+    auction_code: &str,
+    slot: u16,
+    escrow_ua: &str,
+) -> bool {
+    VerifyingKey::from_bytes(pubkey)
+        .and_then(|key| {
+            key.verify(
+                &escrow_attestation_message(auction_code, slot, escrow_ua),
+                &Signature::from_bytes(signature),
+            )
+        })
+        .is_ok()
+}
+
 /// Sign a DKG package as the sending trustee.
 pub fn sign_dkg_package(
     key: &SigningKey,

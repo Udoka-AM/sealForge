@@ -27,6 +27,8 @@
 | F6 | Low | Escrow wallet files (viewing-key material) were created with default permissions | The wallet directory is created owner-only (0700) |
 | F7 | Low | The restore drill passed `SF_DATA_KEY` on the `psql` command line, where `ps` can see it | SQL goes through stdin |
 | F8 | Medium | Payments arriving after close were recorded as valid bids with no refund planned | Stored as `late`, refunded in full by a late-refund planner |
+| F9 | **High** | Reported privately on 2026-11-17 by @danielgorgonha from @deegalabs. A trustee kept its round 1 nonces until the shares upload succeeded. After a failed upload, the next CLI run (or the browser's 5-second poll) signed again with the same nonces over whatever sighash, alphas and commitments the coordinator returned. A malicious coordinator collecting shares over one nonce set on different messages can solve for the trustee's signing share; with two trustees' shares it spends alone | Nonces are consumed before any share leaves the device: the trustee records the shares and a digest of their inputs (synced to disk), then deletes the nonces, then sends. A retry resends those exact bytes only if the inputs are identical; otherwise it refuses and waits for the round to reset with fresh nonces. CLI and browser. Test: `dkg_e2e` ("a coordinator that loses a share") |
+| F10 | **High** | Reported in the same message. Only the coordinator could check that the escrow UA derives from the FROST group key: it sampled `nk` and `rivk` and gave trustees only the UA, and the published UIVK doesn't contain `ak`. A coordinator could show the address of its own single-key wallet and every existing check would pass | The coordinator seals `nk ‖ rivk` to each trustee. Each trustee rebuilds the UA from its own group key, refuses on a mismatch, and otherwise signs an Ed25519 attestation over the UA. `open` requires all three. Trade-off: trustees gain viewing power over the escrow (THREAT-MODEL trust assumption 2). Bidders: the auction page and the result publish each trustee's key and attestation; the page checks them in the browser and blocks the bid form on a mismatch, and `sealforge-audit` checks them plus that the UIVK receives at that address (`--trustee-key` pins keys). Trustees run `trustee check`, and `trustee sign` refuses if the public page shows another address or another key in their slot. Residual: a coordinator serving trustees and bidders different pages, unless bidders compare keys from the trustees' own channels (THREAT-MODEL known limit 2a). Smaller items from the same reviewer are tracked publicly: sealForge #40 and #41, zPass #4. Tests: `dkg_e2e` (tampered `escrow_ua`, swapped trustee key), `escrow::tests`, `escrow_address` |
 
 ## Key handling (what an attacker gets)
 
@@ -36,7 +38,7 @@
 | Escrow UFVK | Coordinator DB, encrypted with `SF_DATA_KEY` | Bids become visible before close (breaks sealing). Can't spend without two shares |
 | `SF_DATA_KEY` | Coordinator environment, password manager, offline copy | With a DB dump: UFVKs and refund addresses. **If lost, escrows can't be spent** (see `infra/README.md` §Backups) |
 | Organiser key | `~/.sealforge/organiser.key`, or a non-extractable WebCrypto key in IndexedDB | Can create, open, publish and cancel that organiser's auctions. Can't move funds |
-| Nonces (FROST round 1) | Trustee disk until round 2, then deleted. Browser memory only | A nonce plus that round's share would reveal the trustee's signing share. Never reused, and deleted after use |
+| Nonces (FROST round 1) | Trustee disk until round 2, then deleted. Browser memory only | A nonce plus that round's share would reveal the trustee's signing share. Deleted before any share is sent; a failed send is retried with the same bytes, only over the same inputs (F9) |
 
 ## Open items
 
@@ -46,4 +48,5 @@
 | Strict nonce-based CSP | Next's hydration needs `'unsafe-inline'` without per-request nonces. React escaping is the primary XSS defence, and there are no `dangerouslySetInnerHTML` sinks | Web |
 | Coordinator sees bids before close | By design for v1: it holds the UFVK to scan. Commit-reveal mode (task 4.6) removes the amount from the memo | Product |
 | Browser trustee: the key share is in JS memory while the page is open | Same trust as the CLI on that machine. Recommend the CLI for large auctions | Docs |
+| Trustee keys reach bidders only through the coordinator (F10) | Attestations are checked, but a coordinator that invents trustees or serves split views is caught only by bidders comparing keys with the trustees' own channels. A key directory or trustee-signed announcements would make this routine | Product + web |
 | ShieldRamp transparent leg (PRD Q4) | Feature not built (needs 1Click access) | Task 4.1 |

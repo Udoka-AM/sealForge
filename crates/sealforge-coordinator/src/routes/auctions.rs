@@ -309,6 +309,21 @@ pub async fn open(
             "the trustees have not finished key generation",
         ));
     }
+    // Every trustee must have rebuilt the escrow address from its own group key
+    // and signed for it; otherwise bids could go to an address the trustees
+    // don't control.
+    let unverified: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM trustees WHERE auction_id = $1 AND escrow_verified_at IS NULL",
+    )
+    .bind(row.id)
+    .fetch_one(&state.db)
+    .await?;
+    if unverified > 0 {
+        return Err(ApiError::conflict(
+            "escrow_unverified",
+            "every trustee must verify the escrow address before the auction opens",
+        ));
+    }
     // The fee buffer is optional (PRD Q8): fees come out of the escrow and the payout
     // sweep absorbs them. It only matters for an auction that may end with no winners.
     let tip = state
