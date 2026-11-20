@@ -88,6 +88,9 @@ enum TrusteeCommand {
         #[arg(long)]
         wait: bool,
     },
+    /// Check the auction's public page against the escrow address you signed,
+    /// and print your key for bidders. Run it once the auction opens.
+    Check { code: String },
     /// Review and co-sign pending refund/payout batches. Safe to re-run.
     Sign {
         code: String,
@@ -137,7 +140,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Trustee(TrusteeCommand::Dkg { code, wait }) => loop {
             let progress = trustee::dkg_step(&store, url, &code).await?;
-            println!("{}", describe(&progress));
+            println!("{}", describe(&progress, &code));
             // Finished only once this trustee has checked the escrow address.
             let finished = matches!(
                 progress,
@@ -159,6 +162,29 @@ async fn main() -> anyhow::Result<()> {
                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             }
         },
+        Command::Trustee(TrusteeCommand::Check { code }) => {
+            let key = trustee::my_key(&store, &code)?;
+            match trustee::check_public(&store, url, &code).await? {
+                trustee::PublicCheck::Matches {
+                    escrow_ua,
+                    signed,
+                    total,
+                } => println!(
+                    "The public page for {code} shows the escrow address you signed ({escrow_ua}), \
+                     lists your key, and {signed} of {total} trustee attestations verify."
+                ),
+                trustee::PublicCheck::NotPublicYet => {
+                    println!("{code} isn't public yet. Run this again once the organiser opens it.")
+                }
+                trustee::PublicCheck::NotAttested => println!(
+                    "You haven't checked the escrow for {code}. Run: sealforge trustee dkg {code}"
+                ),
+            }
+            println!(
+                "Your trustee key for {code}: {key}\nPost it where bidders can find it (your site or social account) \
+                 so they can pin it: the auction page shows each trustee's key."
+            );
+        }
         Command::Trustee(TrusteeCommand::Sign { code, wait }) => loop {
             for batch in trustee::pending_batches(&store, url, &code).await? {
                 if batch.status == "awaiting_signatures" && !batch.i_shared {
@@ -245,7 +271,7 @@ fn print_json(value: &impl serde::Serialize) {
     );
 }
 
-fn describe(progress: &DkgProgress) -> String {
+fn describe(progress: &DkgProgress, code: &str) -> String {
     match progress {
         DkgProgress::WaitingForTrustees { joined, total } => {
             format!("Waiting for trustees to join ({joined}/{total})")
@@ -269,9 +295,11 @@ fn describe(progress: &DkgProgress) -> String {
                 None => "Waiting for the other trustees to finish.".into(),
             }
         ),
-        DkgProgress::Verified { escrow_ua } => {
-            format!("Escrow address checked against your own group key and attested: {escrow_ua}")
-        }
+        DkgProgress::Verified { escrow_ua } => format!(
+            "Escrow address checked against your own group key and attested: {escrow_ua}\n\
+             Once the auction opens, run `sealforge trustee check {code}` to confirm bidders see \
+             this address, and share the key it prints."
+        ),
         DkgProgress::Ready { escrow_ua } => {
             format!("Key generation complete. Escrow address: {escrow_ua}")
         }

@@ -71,6 +71,37 @@ export function auditor_version() {
 }
 
 /**
+ * Check every trustee's attestation over the escrow address, from either
+ * an auction view (`GET /v1/auctions/{code}`) or a published result.
+ * `pinned_json` is `[[slot, "pubkey hex"], …]`, or `[]`.
+ * @param {string} source_json
+ * @param {string} pinned_json
+ * @returns {string}
+ */
+export function check_escrow_json(source_json, pinned_json) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(source_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(pinned_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.check_escrow_json(ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
  * Check a bidder's receipt against a published result.
  * @param {string} published_json
  * @param {string} receipt_json

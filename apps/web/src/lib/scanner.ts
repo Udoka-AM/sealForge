@@ -20,6 +20,7 @@ interface ScannerModule {
     };
     block_height: (block: Uint8Array) => number;
   };
+  escrow_address: (network: string, uivk: string) => string;
 }
 
 let loading: Promise<ScannerModule> | null = null;
@@ -34,6 +35,14 @@ function load(): Promise<ScannerModule> {
     return mod;
   })();
   return loading;
+}
+
+/**
+ * The escrow address a published viewing key receives at. If it differs from
+ * the address bidders paid, a rescan with that key audits a different escrow.
+ */
+export async function escrowAddressOf(network: Network, uivk: string): Promise<string> {
+  return (await load()).escrow_address(network, uivk);
 }
 
 export interface ChainPayment {

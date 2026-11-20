@@ -150,14 +150,24 @@ async fn closes_at_close_height_and_publishes_an_auditable_result(db: PgPool) {
         .await
         .unwrap();
     // Stand-in for every trustee attesting to the escrow (real flow: dkg_e2e).
-    sqlx::query(
-        "UPDATE trustees SET escrow_verified_at = now() \
-         WHERE auction_id = (SELECT id FROM auctions WHERE code = $1)",
-    )
-    .bind(&code)
-    .execute(&db)
-    .await
-    .unwrap();
+    let trustee_keys: Vec<ed25519_dalek::SigningKey> = (1..=3u8)
+        .map(|i| ed25519_dalek::SigningKey::from_bytes(&[i; 32]))
+        .collect();
+    for (i, key) in trustee_keys.iter().enumerate() {
+        let slot = i as u16 + 1;
+        let sig = sealforge_api::auth::sign_escrow_attestation(key, &code, slot, &ua);
+        sqlx::query(
+            "UPDATE trustees SET pubkey = $3, escrow_attestation = $4, escrow_verified_at = now() \
+             WHERE slot = $2 AND auction_id = (SELECT id FROM auctions WHERE code = $1)",
+        )
+        .bind(&code)
+        .bind(slot as i16)
+        .bind(&key.verifying_key().to_bytes()[..])
+        .bind(&sig[..])
+        .execute(&db)
+        .await
+        .unwrap();
+    }
     state.set_chain_tip(OPEN);
     assert_eq!(
         call(
@@ -343,6 +353,33 @@ async fn closes_at_close_height_and_publishes_an_auditable_result(db: PgPool) {
     assert_eq!(status, StatusCode::OK);
     let published: PublishedResult = serde_json::from_value(body).unwrap();
     assert_eq!(published.uivk, expected_uivk);
+    // Everything a bidder needs to check the escrow is in the result: the
+    // address they paid, each trustee's signature over it, and a viewing key
+    // that receives at exactly that address.
+    assert_eq!(published.escrow_ua.as_deref(), Some(ua.as_str()));
+    assert_eq!(published.trustees.len(), 3);
+    for (t, key) in published.trustees.iter().zip(&trustee_keys) {
+        assert_eq!(
+            t.pubkey.as_deref(),
+            Some(hex::encode(key.verifying_key().to_bytes()).as_str())
+        );
+        let sig: [u8; 64] = hex::decode(t.signature.as_deref().unwrap())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        assert!(sealforge_api::auth::verify_escrow_attestation(
+            &key.verifying_key().to_bytes(),
+            &sig,
+            &code,
+            t.slot,
+            &ua
+        ));
+    }
+    assert_eq!(
+        sealforge_scan::escrow_address(&sealforge_chain::ChainParams::Testnet, &published.uivk)
+            .unwrap(),
+        ua
+    );
     assert_eq!(
         (published.scan_from_height, published.scan_to_height),
         (OPEN, CLOSE)

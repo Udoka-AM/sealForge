@@ -18,6 +18,7 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button, buttonClass } from "@/components/button";
+import { EscrowWarning, useEscrowBlocked } from "@/components/escrow-check";
 import { HashChip } from "@/components/hash-chip";
 import { Guilloche } from "@/components/motion/guilloche";
 import { SealMark } from "@/components/seal-mark";
@@ -194,6 +195,8 @@ function AmountStep({
   const [refundTo, setRefundTo] = useState<"wallet" | "other">("wallet");
   const useWalletRefund = walletReady && refundTo === "wallet";
   const [busy, setBusy] = useState(false);
+  // Don't prepare a payment to an address the trustees' signatures contradict.
+  const escrow = useEscrowBlocked(auction);
   const amountId = useId();
   const refundId = useId();
   const depositId = useId();
@@ -241,7 +244,15 @@ function AmountStep({
             : "uregtest1"
       }).`;
     setErrors(next);
-    if (next.amount || next.refund || parsed === null || !auction.escrow_ua) return;
+    if (
+      next.amount ||
+      next.refund ||
+      parsed === null ||
+      !auction.escrow_ua ||
+      escrow.blocked ||
+      escrow.state.status === "checking"
+    )
+      return;
     // A fresh wallet address, used for this bid only, so its refunds can be recognised
     // (and can't be linked to other bids or to the funding address).
     let walletIndex: number | undefined;
@@ -286,6 +297,8 @@ function AmountStep({
   return (
     <form onSubmit={submit} noValidate className="space-y-6">
       <StepHeading heading={heading}>Your sealed bid</StepHeading>
+
+      <EscrowWarning state={escrow.state} />
 
       <div className="space-y-2">
         <label htmlFor={amountId} className="block text-sm font-medium">
@@ -457,7 +470,12 @@ function AmountStep({
         ) : null}
       </fieldset>
 
-      <Button type="submit" size="lg" className="w-full" disabled={busy}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={busy || escrow.blocked || escrow.state.status === "checking"}
+      >
         Continue
       </Button>
       <p className="text-[13px] text-muted">

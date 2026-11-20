@@ -38,6 +38,8 @@ const ROUND2_SECRET: &str = "round2.secret";
 const ROUND2_OUT: &str = "round2.out.json";
 const KEY_PACKAGE: &str = "key-package.hex";
 const PUBLIC_KEY_PACKAGE: &str = "public-key-package.hex";
+/// The escrow address this trustee checked and signed.
+const ESCROW_ATTESTED: &str = "escrow-attested.txt";
 
 /// Where this trustee's DKG stands after a step.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -395,6 +397,9 @@ async fn verify_escrow(
          auction open, and tell the organiser and the other trustees now."
     );
     let signature = sign_escrow_attestation(&identity.signing_key()?, code, state.my_slot, shown);
+    // Remember what we signed, so later commands can check the public page
+    // shows bidders this same address (`check_public`).
+    store.write(code, ESCROW_ATTESTED, shown.as_bytes())?;
     let _: DkgState = client
         .post(
             &format!("/v1/auctions/{code}/dkg/verify-escrow"),
@@ -405,6 +410,90 @@ async fn verify_escrow(
         )
         .await?;
     Ok(())
+}
+
+/// What [`check_public`] found on the auction's public page.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PublicCheck {
+    /// The page shows bidders the address this trustee signed, lists this
+    /// trustee's own key, and every trustee's attestation verifies.
+    Matches {
+        escrow_ua: String,
+        signed: u32,
+        total: u32,
+    },
+    /// Bidders can't see the auction yet (it opens later).
+    NotPublicYet,
+    /// This trustee never attested (an auction from before attestations).
+    NotAttested,
+}
+
+/// This trustee's Ed25519 key for `code` (hex), to share with bidders over a
+/// channel the coordinator doesn't control.
+pub fn my_key(store: &Keystore, code: &str) -> anyhow::Result<String> {
+    let identity = store.trustee_identity(code)?;
+    Ok(hex::encode(
+        identity.signing_key()?.verifying_key().to_bytes(),
+    ))
+}
+
+/// Check the auction's public page, the one bidders pay from, against what
+/// this trustee verified: the same escrow address, this trustee's own key in
+/// its slot, and valid attestations from every trustee. Errors on a mismatch.
+///
+/// This catches a coordinator that shows bidders a different address, or that
+/// lists a key it controls in this trustee's place. It can't catch one that
+/// serves this trustee a different page from everyone else.
+pub async fn check_public(
+    store: &Keystore,
+    coordinator: &str,
+    code: &str,
+) -> anyhow::Result<PublicCheck> {
+    let Some(attested) = store.read(code, ESCROW_ATTESTED)? else {
+        return Ok(PublicCheck::NotAttested);
+    };
+    let attested = String::from_utf8(attested)?;
+    let identity = store.trustee_identity(code)?;
+    let mine = my_key(store, code)?;
+    let view: sealforge_api::types::AuctionView = match Client::new(coordinator, None)
+        .get(&format!("/v1/auctions/{code}"))
+        .await
+    {
+        Ok(view) => view,
+        Err(e) if e.to_string().starts_with("404") => return Ok(PublicCheck::NotPublicYet),
+        Err(e) => return Err(e),
+    };
+    let shown = view.escrow_ua.clone().unwrap_or_default();
+    ensure!(
+        shown == attested,
+        "PUBLIC PAGE MISMATCH for auction {code}: bidders are shown the escrow address \
+         {shown}, but you checked and signed {attested}. Bids sent there don't reach the \
+         trustees. Tell the organiser, the other trustees and bidders now, and don't sign."
+    );
+    let check = sealforge_auditor::check_escrow_view(&view, &[(identity.slot, mine.clone())]);
+    if !check.verified() {
+        let problems: Vec<String> = check
+            .trustees
+            .iter()
+            .filter(|t| t.verdict != sealforge_auditor::TrusteeVerdict::Signed)
+            .map(|t| format!("slot {} ({}): {:?}", t.slot, t.label, t.verdict))
+            .collect();
+        bail!(
+            "PUBLIC PAGE MISMATCH for auction {code}: the trustee attestations bidders see \
+             don't check out ({}). Your key is {mine}. Tell the organiser and the other \
+             trustees, and don't sign.",
+            if problems.is_empty() {
+                "no trustees listed".to_owned()
+            } else {
+                problems.join("; ")
+            }
+        );
+    }
+    Ok(PublicCheck::Matches {
+        escrow_ua: shown,
+        signed: check.signed,
+        total: check.total,
+    })
 }
 
 /// Load this trustee's FROST key share and the group's public key package.
@@ -570,6 +659,9 @@ pub async fn sign_step(
 ) -> anyhow::Result<Vec<SignProgress>> {
     let identity = store.trustee_identity(code)?;
     let (key_package, _) = key_share(store, code)?;
+    // Never co-sign money out of an escrow whose public page showed bidders
+    // something other than what this trustee verified.
+    check_public(store, coordinator, code).await?;
     let client = Client::new(coordinator, Some(identity.signing_key()?));
     let batches: Vec<BatchView> = client.get(&format!("/v1/auctions/{code}/batches")).await?;
     let me = identity.slot;

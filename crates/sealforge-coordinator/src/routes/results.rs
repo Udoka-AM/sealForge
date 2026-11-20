@@ -4,7 +4,9 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use sealforge_api::types::{AuctionStatus, BidMode, PublishedResult, ResultBid, ResultRules};
+use sealforge_api::types::{
+    AuctionStatus, BidMode, PublishedResult, ResultBid, ResultRules, TrusteeAttestation,
+};
 use sqlx::FromRow;
 
 use crate::{db, error::ApiError, refunds, AppState};
@@ -53,6 +55,7 @@ pub async fn result(
         .bind(auction.id)
         .fetch_one(&state.db)
         .await?;
+    let trustees = db::trustees_public(&state.db, auction.id).await?;
     let r: ResultRow = sqlx::query_as(
         "SELECT algorithm_version, clearing_price_zat, total_volume_zat, valid_bid_count, winner_count, \
          merkle_root, scan_from_height, scan_to_height FROM clearing_results WHERE auction_id = $1",
@@ -108,6 +111,16 @@ pub async fn result(
                 is_winner: l.is_winner.unwrap_or(false),
                 price_paid_zat: l.price_paid_zat.unwrap_or(0) as u64,
                 refund_due_zat: l.refund_due_zat.unwrap_or(0) as u64,
+            })
+            .collect(),
+        escrow_ua: auction.escrow_ua.clone(),
+        trustees: trustees
+            .into_iter()
+            .map(|t| TrusteeAttestation {
+                slot: t.slot as u16,
+                label: t.label,
+                pubkey: t.pubkey.map(hex::encode),
+                signature: t.escrow_attestation.map(hex::encode),
             })
             .collect(),
     }))

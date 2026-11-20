@@ -86,6 +86,14 @@ pub struct TrusteeView {
     pub slot: u16,
     pub label: String,
     pub dkg_status: DkgStatus,
+    /// The trustee's Ed25519 key for this auction (hex). `None` until joined.
+    #[serde(default)]
+    pub pubkey: Option<String>,
+    /// The trustee's signature over [`crate::auth::escrow_attestation_message`]
+    /// for `escrow_ua` (hex). Anyone can check it with `pubkey`; the auditor
+    /// does (`sealforge_auditor::check_escrow`).
+    #[serde(default)]
+    pub escrow_attestation: Option<String>,
 }
 
 /// Fields only the owning organiser sees.
@@ -303,6 +311,25 @@ pub struct PublishedResult {
     pub winner_count: u32,
     pub merkle_root: String,
     pub bids: Vec<ResultBid>,
+    /// The escrow address bidders paid. The auditor checks that `uivk` views
+    /// exactly this address and that every trustee attested to it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub escrow_ua: Option<String>,
+    /// Each trustee's attestation over `escrow_ua`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trustees: Vec<TrusteeAttestation>,
+}
+
+/// A trustee's signed statement that `escrow_ua` derives from the FROST group
+/// key it holds. Signature over [`crate::auth::escrow_attestation_message`].
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrusteeAttestation {
+    pub slot: u16,
+    pub label: String,
+    /// Ed25519 public key (hex), `None` if the trustee never joined.
+    pub pubkey: Option<String>,
+    /// Ed25519 signature (hex), `None` if the trustee never attested.
+    pub signature: Option<String>,
 }
 
 // ---------------------------------------------------------------------------

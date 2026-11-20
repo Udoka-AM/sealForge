@@ -41,10 +41,27 @@ macro_rules! auction_columns {
 }
 
 #[derive(Debug, FromRow)]
-struct TrusteeRow {
-    slot: i16,
-    label: String,
-    dkg_status: DkgStatus,
+pub struct TrusteeRow {
+    pub slot: i16,
+    pub label: String,
+    pub dkg_status: DkgStatus,
+    pub pubkey: Option<Vec<u8>>,
+    pub escrow_attestation: Option<Vec<u8>>,
+}
+
+/// Every trustee of an auction with its public key and escrow attestation.
+/// Public: these are what let bidders check the escrow address themselves.
+pub async fn trustees_public(
+    db: impl PgExecutor<'_>,
+    auction_id: Uuid,
+) -> Result<Vec<TrusteeRow>, ApiError> {
+    Ok(sqlx::query_as(
+        "SELECT slot, label, dkg_status, pubkey, escrow_attestation \
+         FROM trustees WHERE auction_id = $1 ORDER BY slot",
+    )
+    .bind(auction_id)
+    .fetch_all(db)
+    .await?)
 }
 
 pub async fn auction_by_code(
@@ -95,12 +112,7 @@ pub async fn auction_view(
     row: &AuctionRow,
     owner: bool,
 ) -> Result<AuctionView, ApiError> {
-    let trustees: Vec<TrusteeRow> = sqlx::query_as(
-        "SELECT slot, label, dkg_status FROM trustees WHERE auction_id = $1 ORDER BY slot",
-    )
-    .bind(row.id)
-    .fetch_all(db)
-    .await?;
+    let trustees = trustees_public(db, row.id).await?;
     let bids: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM bids WHERE auction_id = $1 \
          AND coalesce(invalid_reason, '') NOT IN ('fee_buffer', 'reveal')",
@@ -130,6 +142,8 @@ pub async fn auction_view(
                 slot: t.slot as u16,
                 label: t.label,
                 dkg_status: t.dkg_status,
+                pubkey: t.pubkey.map(hex::encode),
+                escrow_attestation: t.escrow_attestation.map(hex::encode),
             })
             .collect(),
         bid_count: (owner || bids >= sealforge_api::types::MIN_PUBLIC_BID_COUNT).then_some(bids),
