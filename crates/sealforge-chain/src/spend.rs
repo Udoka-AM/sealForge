@@ -100,6 +100,80 @@ impl From<SignError> for anyhow::Error {
 
 type EscrowProposal = Proposal<StandardFeeRule, <Db as InputSource>::NoteRef>;
 
+/// Most escrow notes one transaction may spend. ZIP 218 limits Orchard and
+/// Ironwood actions to 330 per block, shared by every transaction in it, and a
+/// transaction above the limit can never be mined. Each spent note is at least
+/// one action, so this stays well under it (issue #41).
+pub const MAX_NOTES_PER_TX: usize = 100;
+
+/// ZIP 218: Orchard and Ironwood actions per block, shared across transactions.
+const ZIP_218_ACTIONS_PER_BLOCK: usize = 330;
+// Leave room for at least three escrow transactions per block.
+const _: () = assert!(MAX_NOTES_PER_TX * 3 <= ZIP_218_ACTIONS_PER_BLOCK);
+
+/// A payment would spend more escrow notes than the cap allows. The caller
+/// consolidates notes first ([`EscrowWallet::build_consolidation`]) and retries.
+#[derive(Debug)]
+pub struct TooManyNotes {
+    pub notes: usize,
+    pub max: usize,
+}
+
+impl std::fmt::Display for TooManyNotes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "the payment would spend {} escrow notes, over the limit of {} per transaction",
+            self.notes, self.max
+        )
+    }
+}
+
+impl std::error::Error for TooManyNotes {}
+
+/// A proved sweep and how much it sends.
+pub struct Sweep {
+    pub payment: UnsignedPayment,
+    pub amount_zat: u64,
+    /// Notes this sweep spends.
+    pub notes: usize,
+    /// The escrow held more notes than one transaction may spend, so this sweep
+    /// took only the oldest ones and another is needed for the rest.
+    pub more_left: bool,
+}
+
+/// `(commitment tree position, value)` of every note a proposal spends.
+fn spent_notes(proposal: &EscrowProposal) -> Vec<(u64, u64)> {
+    proposal
+        .steps()
+        .iter()
+        .filter_map(|step| step.shielded_inputs())
+        .flat_map(|inputs| inputs.notes().iter())
+        .map(|n| {
+            (
+                u64::from(n.note_commitment_tree_position()),
+                u64::from(n.note().value()),
+            )
+        })
+        .collect()
+}
+
+/// The amount that spends exactly the `max_notes` oldest of `notes` (the
+/// wallet selects oldest first), with `fee` taken out, and how many notes that is.
+pub fn oldest_notes_target(notes: &[(u64, u64)], max_notes: usize, fee: u64) -> (u64, usize) {
+    let mut sorted = notes.to_vec();
+    sorted.sort_unstable();
+    let taken = &sorted[..sorted.len().min(max_notes)];
+    let total: u64 = taken.iter().map(|(_, v)| v).sum();
+    (total.saturating_sub(fee), taken.len())
+}
+
+/// ZIP-317 fee for a transaction spending `notes` escrow notes into at most two
+/// outputs: 5,000 zat per logical action, at least two.
+pub fn sweep_fee(notes: usize) -> u64 {
+    5_000 * notes.max(2) as u64
+}
+
 enum ProposeFail {
     Insufficient { available: u64, required: u64 },
     Other(anyhow::Error),
@@ -191,42 +265,144 @@ impl EscrowWallet {
     }
 
     /// Propose and prove a payment from the escrow. Proving takes a while
-    /// (building the Ironwood proving key plus the proof itself).
-    pub fn build_payment(&mut self, outputs: &[PaymentOut]) -> anyhow::Result<UnsignedPayment> {
+    /// (building the Ironwood proving key plus the proof itself). Fails with
+    /// [`TooManyNotes`] if it would spend more than `max_notes` notes.
+    pub fn build_payment(
+        &mut self,
+        outputs: &[PaymentOut],
+        max_notes: usize,
+    ) -> anyhow::Result<UnsignedPayment> {
         let proposal = self.propose(outputs).map_err(anyhow::Error::from)?;
+        let notes = spent_notes(&proposal).len();
+        if notes > max_notes {
+            return Err(TooManyNotes {
+                notes,
+                max: max_notes,
+            }
+            .into());
+        }
         self.prove(&proposal)
     }
 
+    /// The escrow's own internal (change) address. Notes sent here are seen by
+    /// the escrow's full viewing key but not by the published UIVK, and the
+    /// coordinator never counts them as bids (they arrive as change).
+    fn internal_address(&self) -> anyhow::Result<String> {
+        use zcash_client_backend::data_api::Account as _;
+        let account = self.account()?;
+        let ufvk = self
+            .db()
+            .get_account(account)
+            .map_err(|e| anyhow!("{e:?}"))?
+            .ok_or_else(|| anyhow!("escrow wallet has no account"))?
+            .ufvk()
+            .cloned()
+            .ok_or_else(|| anyhow!("escrow account has no UFVK"))?;
+        let fvk = ufvk
+            .orchard()
+            .ok_or_else(|| anyhow!("escrow UFVK has no Orchard key"))?;
+        let receiver = fvk.address_at(0u32, orchard::keys::Scope::Internal);
+        let ua = zcash_keys::address::UnifiedAddress::from_receivers(
+            Some(receiver),
+            None,
+            None,
+            None,
+            None,
+        )
+        .ok_or_else(|| anyhow!("no shielded receiver"))?;
+        Ok(ua.encode(&self.params()))
+    }
+
+    /// Merge the `max_notes` oldest escrow notes into one note at the escrow's
+    /// own internal address, so a later payment needs fewer inputs. No funds
+    /// leave the escrow except the fee.
+    pub fn build_consolidation(&mut self, max_notes: usize) -> anyhow::Result<Sweep> {
+        let address = self.internal_address()?;
+        self.build_sweep(&address, 0, max_notes)
+    }
+
     /// Pay everything in the escrow to `address` except `keep_zat`, net of the
-    /// ZIP-317 fee (the organiser payout). Returns the payment and the amount sent.
+    /// ZIP-317 fee (the organiser payout), spending at most `max_notes` notes.
+    /// If the escrow holds more, this sends what its oldest `max_notes` notes
+    /// hold and sets [`Sweep::more_left`]; sweep again once it confirms.
     pub fn build_sweep(
         &mut self,
         address: &str,
         keep_zat: u64,
-    ) -> anyhow::Result<(UnsignedPayment, u64)> {
+        max_notes: usize,
+    ) -> anyhow::Result<Sweep> {
         let available = self.spendable_zat()?;
-        // ZIP-317 minimum: two logical actions.
-        let mut fee = 10_000u64;
+        let out = |amount_zat| PaymentOut {
+            address: address.to_owned(),
+            amount_zat,
+            memo: None,
+        };
+        // Everything: the fee depends on the notes selected, so learn it from
+        // the shortfall the proposal reports.
+        let mut fee = sweep_fee(2);
+        let mut full = None;
         for _ in 0..5 {
             let amount = available
                 .checked_sub(keep_zat + fee)
                 .filter(|a| *a > 0)
                 .ok_or_else(|| anyhow!("escrow holds {available} zat: nothing left to sweep"))?;
-            let out = PaymentOut {
-                address: address.to_owned(),
-                amount_zat: amount,
-                memo: None,
-            };
-            match self.propose(std::slice::from_ref(&out)) {
-                Ok(proposal) => return Ok((self.prove(&proposal)?, amount)),
-                // The fee depends on the notes selected; learn it from the shortfall.
+            match self.propose(std::slice::from_ref(&out(amount))) {
+                Ok(proposal) => {
+                    full = Some((proposal, amount));
+                    break;
+                }
                 Err(ProposeFail::Insufficient { required, .. }) => {
                     fee = required.saturating_sub(amount).max(fee + 5_000);
                 }
                 Err(ProposeFail::Other(e)) => return Err(e),
             }
         }
-        Err(anyhow!("couldn't size the sweep"))
+        let (proposal, amount) = full.ok_or_else(|| anyhow!("couldn't size the sweep"))?;
+        let notes = spent_notes(&proposal);
+        if notes.len() <= max_notes {
+            return Ok(Sweep {
+                payment: self.prove(&proposal)?,
+                amount_zat: amount,
+                notes: notes.len(),
+                more_left: false,
+            });
+        }
+
+        // Too many notes for one transaction: send what the oldest `max_notes`
+        // hold. The wallet spends oldest first, so a target just under their
+        // total selects exactly those. Anything to keep stays in the newer notes.
+        let total = available;
+        let mut fee = sweep_fee(max_notes);
+        for _ in 0..10 {
+            let (target, _) = oldest_notes_target(&notes, max_notes, fee);
+            let amount = target.min(total.saturating_sub(keep_zat + fee));
+            if amount == 0 {
+                break;
+            }
+            match self.propose(std::slice::from_ref(&out(amount))) {
+                Ok(proposal) => {
+                    let spent = spent_notes(&proposal).len();
+                    if spent <= max_notes {
+                        return Ok(Sweep {
+                            payment: self.prove(&proposal)?,
+                            amount_zat: amount,
+                            notes: spent,
+                            more_left: true,
+                        });
+                    }
+                    // The fee ran past the oldest notes' total: leave more room.
+                    fee += 5_000 * (spent - max_notes) as u64;
+                }
+                Err(ProposeFail::Insufficient { required, .. }) => {
+                    fee = required.saturating_sub(amount).max(fee + 5_000);
+                }
+                Err(ProposeFail::Other(e)) => return Err(e),
+            }
+        }
+        Err(anyhow!(
+            "couldn't size a sweep of the oldest {max_notes} of {} escrow notes",
+            notes.len()
+        ))
     }
 
     /// Spendable escrow balance under the minimum confirmations policy.
@@ -409,4 +585,31 @@ pub async fn send_raw(client: &mut Client, raw: RawTransaction) -> anyhow::Resul
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_target_covers_exactly_the_oldest_notes() {
+        // Positions out of order on purpose: selection is by age, not input order.
+        let notes = [(7, 300_000), (2, 100_000), (5, 200_000), (9, 400_000)];
+        let fee = sweep_fee(2);
+        assert_eq!(oldest_notes_target(&notes, 2, fee), (300_000 - fee, 2));
+        assert_eq!(oldest_notes_target(&notes, 10, fee), (1_000_000 - fee, 4));
+        // Notes worth less than the fee leave nothing to send.
+        assert_eq!(
+            oldest_notes_target(&[(1, 6_000), (2, 6_000)], 2, fee).0,
+            2_000
+        );
+        assert_eq!(oldest_notes_target(&[(1, 5_001)], 1, fee).0, 0);
+    }
+
+    #[test]
+    fn fees_follow_zip_317() {
+        assert_eq!(sweep_fee(0), 10_000);
+        assert_eq!(sweep_fee(1), 10_000);
+        assert_eq!(sweep_fee(MAX_NOTES_PER_TX), 500_000);
+    }
 }

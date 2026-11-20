@@ -48,6 +48,12 @@ pub struct Config {
     #[arg(long, env = "SF_MIN_WINDOW_BLOCKS")]
     pub min_window_blocks: Option<u32>,
 
+    /// Test networks only: lower the most escrow notes one transaction may spend
+    /// (default and maximum: `sealforge_chain::spend::MAX_NOTES_PER_TX`), to
+    /// exercise consolidation and split payouts with a few bids. Refused on mainnet.
+    #[arg(long, env = "SF_MAX_NOTES_PER_TX")]
+    pub max_notes_per_tx: Option<usize>,
+
     /// Development only: pretend the chain tip is at this height (when no node is available).
     #[arg(long, env = "SF_DEV_CHAIN_HEIGHT")]
     pub dev_chain_height: Option<u32>,

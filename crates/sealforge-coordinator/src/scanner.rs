@@ -14,7 +14,10 @@ use std::collections::BTreeMap;
 use sealforge_api::types::{AuctionStatus, BidMode, Network, SpendAuthView};
 use sealforge_chain::{
     chain_tip, connect,
-    spend::{apply_signatures, pczt_from_bytes, pczt_to_bytes, send_raw, PaymentOut},
+    spend::{
+        apply_signatures, pczt_from_bytes, pczt_to_bytes, send_raw, PaymentOut, TooManyNotes,
+        MAX_NOTES_PER_TX,
+    },
     ChainParams, Client, EscrowWallet, ReceivedPayment,
 };
 use sealforge_core::memo::{parse_fee_buffer_memo, BidMemo, RevealMemo};
@@ -245,6 +248,18 @@ async fn scan_auction(
     Ok(())
 }
 
+static MAX_NOTES: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+
+/// Most escrow notes one transaction may spend (issue #41, ZIP 218).
+pub fn max_notes_per_tx() -> usize {
+    *MAX_NOTES.get().unwrap_or(&MAX_NOTES_PER_TX)
+}
+
+/// Called once at startup on test networks: only ever lowers the limit.
+pub fn set_max_notes_per_tx(notes: usize) {
+    let _ = MAX_NOTES.set(notes.clamp(2, MAX_NOTES_PER_TX));
+}
+
 /// Smallest fee buffer worth sweeping back on an auction without proceeds
 /// (twice the ZIP-317 minimum fee).
 const MIN_SWEEP_ZAT: i64 = 20_000;
@@ -397,14 +412,24 @@ async fn process_batches(
     .fetch_one(&state.db)
     .await?;
     if in_flight == 0 {
+        // A consolidation goes first: it's what lets the waiting refund fit.
         let next: Option<(Uuid, String)> = sqlx::query_as(
-            "SELECT id, kind::text FROM tx_batches WHERE auction_id = $1 AND status = 'building' ORDER BY created_at LIMIT 1",
+            "SELECT id, kind::text FROM tx_batches WHERE auction_id = $1 AND status = 'building' \
+             ORDER BY (kind = 'consolidate') DESC, created_at LIMIT 1",
         )
         .bind(auction.id)
         .fetch_optional(&state.db)
         .await?;
         if let Some((batch_id, kind)) = next {
-            let (unsigned, outputs) = if kind == "payout" {
+            let max_notes = max_notes_per_tx();
+            // Consolidations move notes inside the escrow and have no refund notes.
+            let mut total_override: Option<i64> = None;
+            let (unsigned, outputs) = if kind == "consolidate" {
+                let sweep = tokio::task::block_in_place(|| wallet.build_consolidation(max_notes))?;
+                total_override = Some(sweep.amount_zat as i64);
+                tracing::info!(code = %auction.code, notes = sweep.notes, "consolidating escrow notes");
+                (sweep.payment, 1)
+            } else if kind == "payout" {
                 // The payout sweeps what's left: proceeds plus any fee buffer and
                 // refund dust, net of fees. Payments awaiting manual review stay.
                 let held: i64 = sqlx::query_scalar(
@@ -414,15 +439,21 @@ async fn process_batches(
                 .bind(auction.id)
                 .fetch_one(&state.db)
                 .await?;
-                let (unsigned, amount) = tokio::task::block_in_place(|| {
-                    wallet.build_sweep(&auction.payout_ua, held as u64)
+                let sweep = tokio::task::block_in_place(|| {
+                    wallet.build_sweep(&auction.payout_ua, held as u64, max_notes)
                 })?;
                 sqlx::query("UPDATE refund_notes SET denomination_zat = $2 WHERE batch_id = $1")
                     .bind(batch_id)
-                    .bind(amount as i64)
+                    .bind(sweep.amount_zat as i64)
                     .execute(&state.db)
                     .await?;
-                (unsigned, 1)
+                // Too many notes for one transaction: another payout follows.
+                sqlx::query("UPDATE tx_batches SET more_after = $2 WHERE id = $1")
+                    .bind(batch_id)
+                    .bind(sweep.more_left)
+                    .execute(&state.db)
+                    .await?;
+                (sweep.payment, 1)
             } else {
                 let outputs: Vec<(String, i64)> = sqlx::query_as(
                     "SELECT pgp_sym_decrypt(b.refund_ua_enc, $2), n.denomination_zat FROM refund_notes n \
@@ -441,14 +472,41 @@ async fn process_batches(
                     })
                     .collect();
                 // Proving is CPU-heavy; keep it off the async scheduler.
-                let unsigned = tokio::task::block_in_place(|| wallet.build_payment(&outs))?;
-                (unsigned, outputs.len())
+                match tokio::task::block_in_place(|| wallet.build_payment(&outs, max_notes)) {
+                    Ok(unsigned) => (unsigned, outputs.len()),
+                    // It would spend more notes than a block can hold: merge the
+                    // oldest notes first, then this refund is built again.
+                    Err(e) if e.downcast_ref::<TooManyNotes>().is_some() => {
+                        let planned: i64 = sqlx::query_scalar(
+                            "SELECT count(*) FROM tx_batches WHERE auction_id = $1 \
+                             AND kind = 'consolidate' AND status = 'building'",
+                        )
+                        .bind(auction.id)
+                        .fetch_one(&state.db)
+                        .await?;
+                        if planned == 0 {
+                            sqlx::query(
+                                "INSERT INTO tx_batches (auction_id, kind, status) VALUES ($1, 'consolidate', 'building')",
+                            )
+                            .bind(auction.id)
+                            .execute(&state.db)
+                            .await?;
+                            tracing::info!(code = %auction.code, error = %e, "refund needs a consolidation first");
+                        }
+                        return Ok(());
+                    }
+                    Err(e) => return Err(e),
+                }
             };
-            let total: i64 =
-                sqlx::query_scalar("SELECT COALESCE(sum(denomination_zat), 0)::bigint FROM refund_notes WHERE batch_id = $1")
-                    .bind(batch_id)
-                    .fetch_one(&state.db)
-                    .await?;
+            let total: i64 = match total_override {
+                Some(total) => total,
+                None => sqlx::query_scalar(
+                    "SELECT COALESCE(sum(denomination_zat), 0)::bigint FROM refund_notes WHERE batch_id = $1",
+                )
+                .bind(batch_id)
+                .fetch_one(&state.db)
+                .await?,
+            };
             let spend_auth: Vec<SpendAuthView> = unsigned
                 .spends
                 .iter()
@@ -492,7 +550,17 @@ async fn process_batches(
     // With no winners the organiser still gets their fee buffer back, unless
     // too little is left to pay a transaction fee; then there's nothing to send.
     let to_pay = proceeds > 0 || auction.fee_buffer_zat >= MIN_SWEEP_ZAT;
-    if open_refunds == 0 && payout_notes == 0 && to_pay {
+    // The last payout stopped at the per-transaction note limit (#41).
+    let more_to_pay: bool = sqlx::query_scalar(
+        "SELECT COALESCE((SELECT more_after FROM tx_batches WHERE auction_id = $1 AND kind = 'payout' \
+         ORDER BY created_at DESC LIMIT 1), false)",
+    )
+    .bind(auction.id)
+    .fetch_one(&state.db)
+    .await?;
+    let next_payout =
+        open_refunds == 0 && to_pay && (payout_notes == 0 || (open_payout == 0 && more_to_pay));
+    if next_payout {
         let mut tx = state.db.begin().await?;
         let batch_id: Uuid = sqlx::query_scalar(
             "INSERT INTO tx_batches (auction_id, kind, status) VALUES ($1, 'payout', 'building') RETURNING id",
@@ -512,7 +580,7 @@ async fn process_batches(
         .await?;
         tx.commit().await?;
         tracing::info!(code = %auction.code, proceeds, "payout batch planned");
-    } else if open_refunds == 0 && open_payout == 0 {
+    } else if open_refunds == 0 && open_payout == 0 && !more_to_pay {
         let moved = sqlx::query(
             "UPDATE auctions SET status = 'settled', settled_at = now(), updated_at = now() WHERE id = $1 AND status = 'refunding'",
         )

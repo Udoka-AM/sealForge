@@ -12,7 +12,7 @@ import {
   type StoredSigner,
 } from "@/lib/sfsig";
 import { commitBatch, keyInfo, signBatch } from "@/lib/signer";
-import type { AuctionView, Network, TrusteeBatch } from "@/lib/types";
+import { type AuctionView, BATCH_KIND_LABEL, type Network, type TrusteeBatch } from "@/lib/types";
 import { KeyLoader } from "./key-loader";
 import { usePolling, useSigner } from "./use-signer";
 
@@ -318,10 +318,12 @@ function BatchSummary({ b, network }: { b: TrusteeBatch; network: Network }) {
     <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
       <div>
         <dt className="text-muted">Kind</dt>
-        <dd className="capitalize">{b.kind}</dd>
+        <dd>{BATCH_KIND_LABEL[b.kind] ?? b.kind}</dd>
       </div>
       <div>
-        <dt className="text-muted">Pays out</dt>
+        <dt className="text-muted">
+          {b.kind === "consolidate" ? "Moves within the escrow" : "Pays out"}
+        </dt>
         <dd className="num">{zec(b.total_out_zat, network)}</dd>
       </div>
       <div>
@@ -333,6 +335,13 @@ function BatchSummary({ b, network }: { b: TrusteeBatch; network: Network }) {
         <dd className="num">{b.spends.length}</dd>
       </div>
       <div className="col-span-2 sm:col-span-4">
+        {b.kind === "consolidate" ? (
+          <p className="mb-3 text-muted">
+            Merges the escrow&rsquo;s oldest notes into one note at the escrow&rsquo;s own internal
+            address, so the next refund fits in one transaction. Nothing leaves the escrow except
+            the fee.
+          </p>
+        ) : null}
         <dt className="text-muted">Sighash (compare with the CLI)</dt>
         <dd className="num text-[13px] break-all">{b.sighash}</dd>
       </div>

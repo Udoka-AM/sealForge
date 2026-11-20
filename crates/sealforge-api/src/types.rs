@@ -347,7 +347,8 @@ pub struct SpendAuthView {
 pub struct BatchView {
     pub id: String,
     pub auction_code: String,
-    /// `refund` or `payout`
+    /// `refund`, `payout`, or `consolidate` (merges escrow notes into one note
+    /// at the escrow's internal address so a refund fits in one transaction)
     pub kind: String,
     /// `awaiting_signatures`, `signed`, `broadcast`, `confirmed`
     pub status: String,

@@ -97,9 +97,18 @@ export type BatchStatus =
   | "failed";
 
 /** GET /v1/console/auctions/{code}/batches */
+/** `consolidate` merges escrow notes inside the escrow so a refund fits in one transaction. */
+export type BatchKind = "refund" | "payout" | "consolidate";
+
+export const BATCH_KIND_LABEL: Record<BatchKind, string> = {
+  refund: "Refund",
+  payout: "Payout",
+  consolidate: "Note merge",
+};
+
 export interface ConsoleBatch {
   id: string;
-  kind: "refund" | "payout";
+  kind: BatchKind;
   status: BatchStatus;
   output_count: number | null;
   total_out_zat: number | null;
@@ -113,7 +122,7 @@ export interface ConsoleBatch {
 export interface TrusteeBatch {
   id: string;
   auction_code: string;
-  kind: "refund" | "payout";
+  kind: BatchKind;
   status: BatchStatus;
   sighash: string;
   spends: { action_index: number; alpha: string }[];

@@ -19,7 +19,7 @@ Related: [02-TRD.md](02-TRD.md)
 | `bids` | One shielded payment detected in the escrow, with its parsed memo and outcome |
 | `clearing_results` | The deterministic result of an auction: price, volume, winners, Merkle root, scan range |
 | `refund_notes` | One denominated refund (or payout) output to be paid to a bidder's refund UA |
-| `tx_batches` | One escrow transaction (refund batch or payout) built as a PCZT and co-signed |
+| `tx_batches` | One escrow transaction (refund batch, payout, or note consolidation) built as a PCZT and co-signed |
 | `signature_shares` | A trustee's FROST signature share for a batch |
 | `scanner_state` | Last scanned block per auction escrow (resume point) |
 | `api_nonces` | Replay protection for signed API requests |
@@ -151,7 +151,7 @@ Indexes: `UNIQUE (txid, output_index)`, `(auction_id, status)`, `(auction_id, co
 |---|---|---|---|---|
 | `id` | `UUID` | ✓ | `gen_random_uuid()` | PK |
 | `auction_id` | `UUID` | ✓ | — | FK |
-| `kind` | `batch_kind` | ✓ | — | `refund` · `payout` |
+| `kind` | `batch_kind` | ✓ | — | `refund` · `payout` · `consolidate` (merges the oldest escrow notes into one at the escrow's internal address so a refund fits under the per-transaction note limit; no `refund_notes`) |
 | `status` | `batch_status` | ✓ | `'building'` | `building` · `awaiting_signatures` · `signed` · `broadcast` · `confirmed` · `failed` |
 | `pczt` | `BYTEA` | | `NULL` | Serialized PCZT |
 | `signing_package_hash` | `BYTEA` | | `NULL` | Shown to trustees for review |
@@ -159,8 +159,11 @@ Indexes: `UNIQUE (txid, output_index)`, `(auction_id, status)`, `(auction_id, co
 | `txid` | `BYTEA` | | `NULL` | After broadcast |
 | `confirmed_height` | `INTEGER` | | `NULL` | |
 | `created_at` / `broadcast_at` | `TIMESTAMPTZ` | | `now()` / `NULL` | |
+| `more_after` | `BOOLEAN` | ✓ | `false` | Payout only: the sweep stopped at the per-transaction note limit, so another payout follows once it confirms |
 
 Indexes: `(auction_id, status)`, `UNIQUE (txid) WHERE txid IS NOT NULL`.
+
+No escrow transaction spends more than `sealforge_chain::spend::MAX_NOTES_PER_TX` (100) notes. ZIP 218 limits Orchard and Ironwood actions to 330 per block, shared across transactions, so a larger one could never be mined (issue #41). A refund batch that would need more notes waits behind a `consolidate` batch, and the payout goes out in as many sweeps as it takes. The auction settles after the last one confirms.
 
 ### `refund_notes`
 | Field | Type | Required | Default | Notes |
