@@ -395,7 +395,9 @@ function Escrow({ auction }: { auction: AuctionView }) {
       .catch(() => setQr(null));
   }, [showFund, uri]);
 
-  const fundable = ["ready", "open", "closed"].includes(auction.status);
+  // Not before opening: a ready auction can still be cancelled, and a cancelled
+  // escrow is no longer watched, so a buffer sent then would be stranded (#40).
+  const fundable = ["open", "closed"].includes(auction.status);
 
   return (
     <section aria-labelledby="escrow" className="space-y-3">
@@ -445,6 +447,8 @@ function Escrow({ auction }: { auction: AuctionView }) {
               Fund fee buffer
             </Button>
           )
+        ) : auction.status === "ready" ? (
+          <p className="text-muted">You can fund it once the auction opens.</p>
         ) : null}
       </div>
     </section>

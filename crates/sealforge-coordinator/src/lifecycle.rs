@@ -1,7 +1,9 @@
 //! Auction lifecycle state machine (docs/05-BACKEND-SCHEMA.md §5.2).
 //!
 //! `draft → dkg → ready → open → closed → published → refunding → settled`,
-//! plus `cancelled` from `draft`, `dkg`, `ready`, or `open` with zero bids.
+//! plus `cancelled` from `draft`, `dkg` or `ready`. Never once `open`: a payment
+//! the scanner hasn't ingested yet would land in an escrow nobody watches
+//! (issue #40). An open auction always runs to its close.
 
 use sealforge_api::types::AuctionStatus;
 
@@ -13,8 +15,7 @@ pub enum Actor {
 }
 
 /// Whether `actor` may move an auction from `from` to `to`. Preconditions that
-/// need data (e.g. zero bids before cancelling an open auction) are checked by
-/// the caller.
+/// need data (e.g. verified trustees before opening) are checked by the caller.
 pub fn can_transition(from: AuctionStatus, to: AuctionStatus, actor: Actor) -> bool {
     use AuctionStatus::*;
     matches!(
@@ -26,7 +27,7 @@ pub fn can_transition(from: AuctionStatus, to: AuctionStatus, actor: Actor) -> b
             | (Closed, Published, _)
             | (Published, Refunding, Actor::System)
             | (Refunding, Settled, Actor::System)
-            | (Draft | Dkg | Ready | Open, Cancelled, Actor::Organiser)
+            | (Draft | Dkg | Ready, Cancelled, Actor::Organiser)
     )
 }
 
@@ -82,6 +83,18 @@ mod tests {
         );
         assert!(!can_transition(Closed, Open, Actor::Organiser));
         assert!(!can_transition(Published, Cancelled, Actor::Organiser));
+    }
+
+    #[test]
+    fn open_auctions_cannot_be_cancelled() {
+        // A bid can be in the mempool, or mined but not yet scanned, at any
+        // moment while an auction is open; cancelling would strand it.
+        for from in [Draft, Dkg, Ready] {
+            assert!(can_transition(from, Cancelled, Actor::Organiser));
+        }
+        for actor in [Actor::Organiser, Actor::System] {
+            assert!(!can_transition(Open, Cancelled, actor));
+        }
     }
 
     #[test]

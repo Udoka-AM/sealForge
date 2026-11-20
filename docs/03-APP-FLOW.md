@@ -91,7 +91,7 @@ After close: notification banner on **S2/S9** → **S10 Verify** → "Included �
 | **ShieldRamp swap refunded by Intents** | S8 shows "Swap refunded to your EVM wallet". No bid placed |
 | **Bid arrives late** | S5 shows "Arrived after close, full refund scheduled" |
 | **Organiser aborts before open** | S15 → **Delete draft** |
-| **Organiser cancels an open auction** | Allowed only before the first bid. After that, cancellation = close with no winners and full refunds |
+| **Organiser cancels an open auction** | Not allowed: cancelling is possible only before the auction opens. Once open, a bid can be on its way to the escrow before the coordinator sees it, so the auction runs to its close and every bid that doesn't win is refunded (issue #40) |
 
 ## 3.6 Navigation rules
 

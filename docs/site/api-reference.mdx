@@ -24,7 +24,7 @@ Status: `Testnet`. Router: `crates/sealforge-coordinator/src/routes/mod.rs`. Req
 | `PATCH /v1/auctions/{code}` | organiser | `UpdateAuction` → `AuctionView` | Only in `draft`, `dkg`, `ready` (`409 not_editable`) |
 | `DELETE /v1/auctions/{code}` | organiser | → 204 | `draft` only (`409 not_draft`) |
 | `POST /v1/auctions/{code}/open` | organiser | → `AuctionView` | `409 dkg_incomplete`; `422` if `close_height < tip + 144` |
-| `POST /v1/auctions/{code}/cancel` | organiser | → `AuctionView` | `409 has_bids` if open with bids |
+| `POST /v1/auctions/{code}/cancel` | organiser | → `AuctionView` | `409 already_open` once open: open auctions run to close |
 | `POST /v1/auctions/{code}/publish` | organiser | → `AuctionView` | `closed → published`; releases the UIVK |
 | `GET /v1/auctions/{code}/result` | public | → `PublishedResult` | [2.3](/protocol/wire-formats#published-result). Also carries `escrow_ua` and `trustees[]` (`slot`, `label`, `pubkey`, `signature`) so the auditor can check the escrow |
 | `GET /v1/auctions/{code}/refunds` | public | → refund progress | Aggregate counts only, never per bid |
