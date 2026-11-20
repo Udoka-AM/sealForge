@@ -8,7 +8,7 @@ What sealForge protects, against whom, and where the limits are. Every row point
 
 Stated first because every protection below depends on them.
 
-1. **Deposit mode: the coordinator sees bid amounts live.** The coordinator holds the escrow UFVK to scan for bids, so it decrypts each bid's amount and memo as it arrives, and so does whoever operates it. Trustees hold no viewing key and are not sent bid data. Sealed-reveal mode removes the price from what the coordinator sees until the reveal window (see below).
+1. **Deposit mode: the coordinator sees bid amounts live.** The coordinator holds the escrow UFVK to scan for bids, so it decrypts each bid's amount and memo as it arrives, and so does whoever operates it. Since the F10 fix, **trustees can too**: to check the escrow address they receive `nk ‖ rivk`, which with `ak` gives the incoming viewing key (trust assumption 2). A trustee working with one bidder could tell them rival bids before close. Checking the address and reading its notes can't be separated without a zero-knowledge proof. Sealed-reveal mode is the mitigation: it removes the price from what the coordinator and trustees see until the reveal window (see below).
 2. **The coordinator samples `nk` and `rivk` and holds the escrow UFVK.** When the last trustee completes the DKG, the coordinator builds the Orchard FVK `ak ‖ nk ‖ rivk` from the FROST group key `ak` and fresh `nk`, `rivk` from `OsRng` (`crates/sealforge-coordinator/src/routes/dkg.rs`, `sealforge_escrow::address::escrow_fvk`). It stores the UFVK encrypted with `SF_DATA_KEY`. This gives the coordinator viewing power over the escrow, not spending power: spends need a RedPallas signature under `ak`, which needs two FROST shares.
    - The coordinator also seals `nk ‖ rivk` to each trustee. Each trustee rebuilds the UA from its own copy of `ak` and signs an attestation over it before the auction can open (`verify-escrow`). The cost: **trustees can view the escrow too** (incoming bids live, in deposit mode, and outgoing refunds), the same viewing power the coordinator has. The CLI uses the secret in memory and never writes it to disk, but a dishonest trustee could keep it. Sealed-reveal mode still hides prices until the reveal window.
    - A database dump **plus** `SF_DATA_KEY`: the attacker reads every escrow's incoming and outgoing notes, including bids before close (sealing breaks for deposit-mode amounts) and refund addresses. Funds don't move.
@@ -52,7 +52,7 @@ Stated first because every protection below depends on them.
 | Data | Protection | Retention |
 |---|---|---|
 | Escrow UFVK | `pgp_sym_encrypt` with `SF_DATA_KEY` | Until settled + 30 days |
-| `nk`, `rivk` | Inside the UFVK above. Sampled by the coordinator (trust assumption 2) | As the UFVK |
+| `nk`, `rivk` | Inside the UFVK above. Sampled by the coordinator, and sealed to each trustee so it can check the escrow address (trust assumption 2) | As the UFVK |
 | Refund addresses (from memos) | Encrypted column. Also readable by anyone with the published UIVK after publish | Until refunds confirm + 30 days |
 | Organiser and trustee public keys | Public keys only | Life of the auction |
 | FROST key shares | **Never held.** They stay on trustee machines (owner-only files) or browser memory | n/a |
@@ -61,8 +61,10 @@ Stated first because every protection below depends on them.
 
 ## Known limits
 
-1. **Deposit mode exposes amounts to the coordinator operator.** Use sealed-reveal mode when that matters. Sealed-reveal still shows deposit sizes, which bound each price from above.
-2. **The coordinator samples `nk`/`rivk`** and so can always view the escrow. Alternatives (organiser-sampled, or jointly derived by trustees) are an open question for reviewers.
+1. **Deposit mode exposes amounts to the coordinator operator and to every trustee.** Use sealed-reveal mode when that matters. Sealed-reveal still shows deposit sizes, which bound each price from above.
+2. **The coordinator samples `nk`/`rivk`** and so can always view the escrow, and trustees get the same view so they can check the address. Who samples them doesn't affect spending: a UA rebuilt from the trustees' own `ak` can only be spent with the group key.
+   - **Bidders get trustee keys from the coordinator.** The auction page checks every trustee's attestation over the exact address it shows, before the bid form continues, but the keys themselves are served by the coordinator. A coordinator that invents three trustees for bidders, or shows real trustees a different page, is caught only by bidders comparing keys with ones the trustees post themselves (`sealforge-audit --trustee-key`). Related: the organiser receives all three trustee invite codes to forward, so an organiser who keeps them can join as every trustee. Trustee independence rests on the trustees confirming, publicly, that they hold their slot.
+   - **The UFVK is never published.** The UIVK published at close shows incoming notes only. Refunds and the payout are built with the escrow's outgoing viewing key (`OvkPolicy::Sender`), so publishing the UFVK, even at settlement, would let anyone read who was refunded what. Post-settlement disclosure of `nk ‖ rivk` alone would let an auditor rebuild the address from a group key, but trustees already do that before the auction opens.
 3. **Trustees sign blind.** They can't verify a batch's outputs before signing (trust assumption 3).
 4. **Audit range.** The auditor scans the published block range by default. Bids outside it are not checked unless the auditor widens the range. Bidders' own receipt checks (`/verify`) catch omission of their own bid.
 5. **Exit behaviour matters.** A bidder who exits all refund notes at once recreates their refund amount. The exit path must warn about this.
