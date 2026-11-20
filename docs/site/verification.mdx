@@ -35,7 +35,7 @@ What it does (`crates/sealforge-chain/src/audit.rs` `scan_incoming`, `sealforge_
 4. Compares clearing price, volume, valid bid count, winner count, Merkle root and every per-bid outcome.
 5. Checks the escrow (`sealforge_auditor::check_escrow_result`, `sealforge_scan::escrow_address`): the UIVK receives at exactly the published `escrow_ua`, and every trustee's Ed25519 attestation over that address verifies.
 
-Exit code 1 on any mismatch.
+Exit code 1 on any mismatch. Auctions that ran before trustee signatures existed (testnet `KE5DFF4PDA` and `K7GHHBC4GP`) have none to check, so audit them with `--allow-unattested`: every other check still runs. The website shows a neutral note for such auctions once bidding is over, and the full warning for any auction still taking bids.
 
 Sample output and the **tamper test** (a result edited to hide a bid and claim a lower price is caught, with exit code 1): [evidence/audit-rescan.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/audit-rescan.md).
 

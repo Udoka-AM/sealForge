@@ -140,7 +140,7 @@ export default async function AuditPage({ params }: { params: Promise<{ id: stri
                 Prefer the command line?
               </summary>
               <pre className="num mt-2 break-all whitespace-pre-wrap rounded-[var(--radius-control)] bg-surface-2 p-3 text-[13px]">
-                {`cargo install --git https://github.com/Udoka-AM/sealForge sealforge-auditor\nsealforge-audit --published https://<this site>/api/auctions/${result.auction_code}/result --endpoint <lightwalletd URL>`}
+                {`cargo install --git https://github.com/Udoka-AM/sealForge sealforge-auditor\nsealforge-audit --published https://<this site>/api/auctions/${result.auction_code}/result --endpoint <lightwalletd URL>${result.trustees?.length ? "" : " --allow-unattested"}`}
               </pre>
             </details>
           </section>

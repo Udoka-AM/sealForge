@@ -1,11 +1,31 @@
 "use client";
 
-import { CircleCheck, CircleX, LoaderCircle, ShieldAlert, ShieldCheck } from "lucide-react";
+import { CircleCheck, CircleX, Info, LoaderCircle, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { HashChip } from "@/components/hash-chip";
 import { checkEscrow } from "@/lib/auditor";
 import { escrowAddressOf } from "@/lib/scanner";
 import type { AuctionView, EscrowCheck, PublishedResult } from "@/lib/types";
+
+/**
+ * Trustee signatures shipped with this block height (per network). Auctions
+ * that started earlier, and whose bidding is over, can't have them, so the page
+ * explains that instead of warning. Anything still taking bids is held to the
+ * full check, so a coordinator can't use "older auction" to skip it. The CLI
+ * auditor stays strict either way (`--allow-unattested`).
+ */
+const ATTESTATIONS_SINCE: Record<AuctionView["network"], number> = {
+  mainnet: 0,
+  testnet: 4_641_000,
+  regtest: 0,
+};
+
+function predatesAttestations(source: AuctionView | PublishedResult): boolean {
+  const since = ATTESTATIONS_SINCE[source.network] ?? 0;
+  if ("auction_code" in source) return source.scan_from_height < since;
+  const biddingOver = !["draft", "dkg", "ready", "open"].includes(source.status);
+  return biddingOver && (source.open_height ?? source.close_height) < since;
+}
 
 type State =
   | { status: "checking" }
@@ -35,7 +55,7 @@ export function useEscrowCheck(source: AuctionView | PublishedResult): State {
   return state;
 }
 
-function Summary({ state }: { state: State }) {
+function Summary({ state, older = false }: { state: State; older?: boolean }) {
   if (state.status === "checking")
     return (
       <p className="inline-flex items-center gap-2 text-muted">
@@ -59,6 +79,14 @@ function Summary({ state }: { state: State }) {
       <p className="inline-flex items-center gap-2 text-success">
         <ShieldCheck size={16} aria-hidden="true" />
         All {check.total} trustees signed this address
+      </p>
+    );
+  if (check.verdict === "unattested" && older)
+    return (
+      <p className="inline-flex items-start gap-2 text-muted">
+        <Info size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+        This auction ran before trustees signed escrow addresses, so there are no signatures to
+        check. The chain rescan still checks every bid.
       </p>
     );
   if (check.verdict === "unattested")
@@ -113,7 +141,7 @@ export function EscrowAttestations({ auction }: { auction: AuctionView }) {
   const state = useEscrowCheck(auction);
   return (
     <div className="space-y-3 border-t border-border pt-4">
-      <Summary state={state} />
+      <Summary state={state} older={predatesAttestations(auction)} />
       {state.status === "done" && state.check.total > 0 ? (
         <details className="group">
           <summary className="cursor-pointer text-[13px] text-muted hover:text-text">
@@ -192,16 +220,19 @@ export function EscrowAudit({
             ? `It receives at ${keyMatch.derived}`
             : "",
     },
-    {
-      label: "The result names the address the auction page showed",
-      ok: result.escrow_ua && shownUa ? result.escrow_ua === shownUa : null,
-      detail: "",
-    },
   ];
+  // Results from before attestations don't name the address; skip the row.
+  if (result.escrow_ua && shownUa)
+    rows.push({
+      label: "The result names the address the auction page showed",
+      ok: result.escrow_ua === shownUa,
+      detail: "",
+    });
+  const hasTrustees = state.status === "done" && state.check.total > 0;
 
   return (
     <div className="space-y-4 rounded-[var(--radius-card)] border border-border bg-surface p-5 text-sm">
-      <Summary state={state} />
+      <Summary state={state} older={predatesAttestations(result)} />
       <ul className="space-y-2">
         {rows.map((r) => (
           <li key={r.label} className="flex items-start gap-2">
@@ -222,14 +253,18 @@ export function EscrowAudit({
           </li>
         ))}
       </ul>
-      {state.status === "done" && state.check.total > 0 ? (
-        <TrusteeKeys check={state.check} />
-      ) : null}
+      {hasTrustees && state.status === "done" ? <TrusteeKeys check={state.check} /> : null}
       <p className="max-w-[68ch] text-[13px] text-muted">
         If the viewing key belonged to another address, the rescan below would audit the wrong
-        escrow. To rule out invented trustees, compare the keys with the ones the trustees post
-        themselves, or pass them to the command-line auditor with{" "}
-        <code className="num">--trustee-key SLOT=KEY</code>.
+        escrow.
+        {hasTrustees ? (
+          <>
+            {" "}
+            To rule out invented trustees, compare the keys with the ones the trustees post
+            themselves, or pass them to the command-line auditor with{" "}
+            <code className="num">--trustee-key SLOT=KEY</code>.
+          </>
+        ) : null}
       </p>
     </div>
   );
