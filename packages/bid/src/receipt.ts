@@ -15,6 +15,12 @@ export interface Receipt {
   salt: string;
   commitment: string;
   price_zat?: number;
+  /**
+   * The escrow address that passed the trustee-signature check when the bid
+   * was prepared. Later payments and reveals go only here, and only while it
+   * still checks out. Not part of the commitment.
+   */
+  escrow_ua?: string;
 }
 
 export interface PreparedBid {
@@ -42,6 +48,7 @@ export function prepareBid(args: {
       refund_ua: args.refundUa,
       salt: bytesToHex(salt),
       commitment: bytesToHex(commitment),
+      escrow_ua: args.escrowUa,
     },
     memo,
     uri: paymentUri(args.escrowUa, args.amountZat, memo),
@@ -73,6 +80,7 @@ export function prepareSealedBid(args: {
       salt: bytesToHex(salt),
       commitment: bytesToHex(commitment),
       price_zat: Number(args.priceZat),
+      escrow_ua: args.escrowUa,
     },
     memo,
     uri: paymentUri(args.escrowUa, args.depositZat, memo),

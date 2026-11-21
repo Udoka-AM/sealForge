@@ -68,6 +68,12 @@ pub struct Receipt {
     /// Commit-reveal mode only: the hidden price. `amount_zat` is then the deposit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub price_zat: Option<u64>,
+    /// The escrow address the bidder's browser checked (every trustee signed
+    /// it) when the bid was prepared. A later payment or reveal goes only to
+    /// this address, and only if it still checks out. Not part of the
+    /// commitment; receipts from before it existed omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub escrow_ua: Option<String>,
 }
 
 mod hex_32 {

@@ -94,6 +94,7 @@ Status: `Testnet`. Created and kept in the browser (IndexedDB, `apps/web/src/lib
 | `salt` | hex, 32 bytes | Never sent to the server |
 | `commitment` | hex, 32 bytes | |
 | `price_zat` | integer, optional | Version 2 only: the hidden price. Omitted when absent (`skip_serializing_if`) |
+| `escrow_ua` | string, optional | The escrow address that passed the trustee-signature check when the bid was prepared. Later payments and reveals go only to this address, and only if it still passes. Not part of the commitment; omitted in older receipts |
 
 Rust type: `sealforge_core::receipt::Receipt`. The web app's stored form may add `wallet_address_index` and `paid_txid` ([WALLET-INTEGRATION.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/WALLET-INTEGRATION.md)).
 
