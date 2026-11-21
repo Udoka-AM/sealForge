@@ -119,6 +119,23 @@ export interface ConsoleBatch {
 }
 
 /** GET /v1/auctions/{code}/batches (trustee view). */
+/** GET /v1/auctions/{code}/dkg: only the field the signing page needs. */
+export interface TrusteeDkgState {
+  escrow_ua: string | null;
+  /** `nk ‖ rivk`, sealed to this trustee's encryption key (hex). */
+  escrow_view_secret_for_me?: string | null;
+}
+
+/** What the trustee's browser checked in a batch's transaction (sealforge-verify). */
+export interface VerifiedBatch {
+  sighash: string;
+  lines: string[];
+  warnings: string[];
+  payments: [string, number][];
+  fee_zat: number;
+  expiry_height: number;
+}
+
 export interface TrusteeBatch {
   id: string;
   auction_code: string;
@@ -132,6 +149,10 @@ export interface TrusteeBatch {
   signer_commitments: Record<string, string[]>;
   i_committed: boolean;
   i_shared: boolean;
+  /** The transaction to check before signing (PCZT, hex). */
+  pczt?: string | null;
+  /** Payout batches: the organiser's payout address. */
+  payout_ua?: string | null;
 }
 
 /** GET /v1/auctions/{code}/result (sealforge-api PublishedResult). */

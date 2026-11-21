@@ -30,13 +30,15 @@ struct BatchRow {
     total_out_zat: Option<i64>,
     output_count: Option<i32>,
     signer_slots: Option<Vec<i16>>,
+    pczt: Option<Vec<u8>>,
+    payout_ua: String,
 }
 
 /// Shared SELECT for `BatchRow`, spliced in at compile time so queries stay static.
 macro_rules! batch_select {
     () => {
         "SELECT b.id, b.auction_id, a.code, b.kind::text AS kind, b.status::text AS status, b.sighash, \
-         b.spend_auth, b.total_out_zat, b.output_count, b.signer_slots \
+         b.spend_auth, b.total_out_zat, b.output_count, b.signer_slots, b.pczt, a.payout_ua \
          FROM tx_batches b JOIN auctions a ON a.id = b.auction_id"
     };
 }
@@ -97,6 +99,8 @@ async fn view(state: &AppState, row: &BatchRow, trustee_id: Uuid) -> Result<Batc
         signer_commitments,
         i_committed: mine.is_some_and(|(_, c, _)| c.is_some()),
         i_shared: mine.is_some_and(|(_, _, s)| s.is_some()),
+        pczt: row.pczt.as_ref().map(hex::encode),
+        payout_ua: (row.kind == "payout").then(|| row.payout_ua.clone()),
     })
 }
 

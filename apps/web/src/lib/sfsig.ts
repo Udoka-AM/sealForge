@@ -22,6 +22,12 @@ export interface StoredSigner {
   /** Trustee slot and label, from identity.json. */
   slot?: number;
   label?: string;
+  /**
+   * Trustee only: the X25519 secret from identity.json (hex) that opens the
+   * escrow's sealed viewing key, so this browser can check each transaction
+   * before signing it (security review D1). Viewing power only.
+   */
+  encSecret?: string;
 }
 
 // PKCS#8 wrapper for a raw Ed25519 seed (RFC 8410).
@@ -95,7 +101,13 @@ export async function loadOrganiserKey(text: string): Promise<StoredSigner> {
 export async function loadTrusteeIdentity(
   text: string,
 ): Promise<{ code: string; signer: StoredSigner }> {
-  let parsed: { auction_code?: string; slot?: number; label?: string; signing_key?: string };
+  let parsed: {
+    auction_code?: string;
+    slot?: number;
+    label?: string;
+    signing_key?: string;
+    enc_secret?: string;
+  };
   try {
     parsed = JSON.parse(text);
   } catch {
@@ -108,6 +120,10 @@ export async function loadTrusteeIdentity(
     ...(await importSeed(seed)),
     slot: parsed.slot,
     label: parsed.label,
+    encSecret:
+      parsed.enc_secret && /^[0-9a-f]{64}$/i.test(parsed.enc_secret)
+        ? parsed.enc_secret
+        : undefined,
   };
   seed.fill(0);
   await set(storeKey(`trustee:${parsed.auction_code}`), signer);

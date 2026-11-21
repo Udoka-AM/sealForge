@@ -3,6 +3,9 @@
 //! The same batch helpers the CLI uses (`sealforge_escrow::signing`), exposed
 //! with hex/JSON strings. The page keeps the key package and nonces in memory
 //! only: nothing here touches storage or the network.
+//!
+//! [`verify_batch`] runs the same transaction checks as `sealforge trustee
+//! sign` (security review D1) before the page commits or signs.
 
 use std::collections::BTreeMap;
 
@@ -249,4 +252,129 @@ mod tests {
         assert!(key_info_inner("deadbeef").is_err());
         assert!(commit_batch_inner("not hex", 1).is_err());
     }
+}
+
+/// Decode and check a batch's transaction before taking part in signing it
+/// (security review D1): the shared co-signer checks (frost-zec spec § 6) and
+/// sealForge's rule that every payment is owed.
+///
+/// The escrow's viewing key is rebuilt here from this trustee's own key share
+/// (`ak`) and the coordinator's sealed `nk ‖ rivk`, and must give exactly
+/// `escrow_ua`: the address on the public page, which the caller has already
+/// checked carries this trustee's own valid attestation.
+///
+/// - `network`: "mainnet", "testnet" or "regtest"
+/// - `batch_json`: the trustee's `BatchView`
+/// - `refund_total_due_zat`: refunds owed in total by the published result
+///   (refund batches), or a negative number when there is none
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn verify_batch(
+    key_package_hex: &str,
+    enc_secret_hex: &str,
+    sealed_view_secret_hex: &str,
+    escrow_ua: &str,
+    network: &str,
+    now_secs: f64,
+    batch_json: &str,
+    refund_total_due_zat: f64,
+) -> Result<String, JsError> {
+    js(verify_batch_inner(
+        key_package_hex,
+        enc_secret_hex,
+        sealed_view_secret_hex,
+        escrow_ua,
+        network,
+        now_secs,
+        batch_json,
+        refund_total_due_zat,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verify_batch_inner(
+    key_package_hex: &str,
+    enc_secret_hex: &str,
+    sealed_view_secret_hex: &str,
+    escrow_ua: &str,
+    network: &str,
+    now_secs: f64,
+    batch_json: &str,
+    refund_total_due_zat: f64,
+) -> Res<String> {
+    use sealforge_verify::{frost_zec::keys, BatchKind, BatchRules};
+    use zcash_protocol::consensus::NetworkType;
+
+    let network = match network {
+        "mainnet" => NetworkType::Main,
+        "testnet" => NetworkType::Test,
+        "regtest" => NetworkType::Regtest,
+        other => return Err(format!("unknown network {other}")),
+    };
+    let kp = key_package(key_package_hex)?;
+    let ak: [u8; 32] = kp
+        .verifying_key()
+        .serialize()
+        .map_err(err)?
+        .try_into()
+        .map_err(|_| "unexpected group key".to_string())?;
+    let enc_secret = crypto_box::SecretKey::from(hex32(enc_secret_hex)?);
+    let view_secret: [u8; 64] = enc_secret
+        .unseal(&hex::decode(sealed_view_secret_hex).map_err(err)?)
+        .map_err(|_| "could not open the escrow view secret".to_string())?
+        .try_into()
+        .map_err(|_| "the escrow view secret has the wrong length".to_string())?;
+    // The escrow FVK is ak ‖ nk ‖ rivk (sealforge_escrow::address).
+    let mut fvk_bytes = [0u8; 96];
+    fvk_bytes[..32].copy_from_slice(&ak);
+    fvk_bytes[32..].copy_from_slice(&view_secret);
+    let fvk = orchard::keys::FullViewingKey::from_bytes(&fvk_bytes)
+        .ok_or("the escrow viewing key is invalid")?;
+    let shown = keys::encode_address(
+        &fvk.address_at(0u32, orchard::keys::Scope::External),
+        network,
+    )
+    .map_err(err)?;
+    if shown != escrow_ua {
+        return Err(
+            "ESCROW KEY MISMATCH: the viewing key the coordinator sent doesn't give the escrow address you attested. Don't sign."
+                .into(),
+        );
+    }
+
+    let batch: sealforge_api::types::BatchView = serde_json::from_str(batch_json).map_err(err)?;
+    let pczt = hex::decode(
+        batch
+            .pczt
+            .as_deref()
+            .ok_or("REFUSED: the coordinator sent no transaction to check")?,
+    )
+    .map_err(err)?;
+    let kind = BatchKind::parse(&batch.kind).ok_or("REFUSED: unknown batch kind")?;
+    let rules = BatchRules {
+        kind,
+        refund_total_due_zat: (refund_total_due_zat >= 0.0).then_some(refund_total_due_zat as u64),
+        payout_ua: batch.payout_ua.clone(),
+    };
+    let spends = batch
+        .spends
+        .iter()
+        .map(|s| Ok((s.action_index as usize, hex32(&s.alpha)?)))
+        .collect::<Res<Vec<_>>>()?;
+    let verified = sealforge_verify::verify_batch(
+        &pczt,
+        &fvk,
+        network,
+        now_secs as u64,
+        &hex32(&batch.sighash)?,
+        &spends,
+        &rules,
+    )
+    .map_err(|r| {
+        format!(
+            "REFUSED ({}): {}. Don't sign; tell the organiser and the other trustees.",
+            r.class, r.message
+        )
+    })?;
+    serde_json::to_string(&verified).map_err(err)
 }

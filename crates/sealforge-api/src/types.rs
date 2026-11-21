@@ -369,6 +369,14 @@ pub struct BatchView {
     pub signer_commitments: std::collections::BTreeMap<u16, Vec<String>>,
     pub i_committed: bool,
     pub i_shared: bool,
+    /// The transaction itself (PCZT bytes, hex). Trustees decode it, check it
+    /// and compute the sighash themselves before signing (security review D1).
+    #[serde(default)]
+    pub pczt: Option<String>,
+    /// Payout batches: the organiser's payout address, which the one payment
+    /// must go to.
+    #[serde(default)]
+    pub payout_ua: Option<String>,
 }
 
 /// `GET /v1/console/auctions/{code}/batches`: the organiser's view of escrow
