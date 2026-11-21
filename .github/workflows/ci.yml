@@ -53,6 +53,7 @@ jobs:
         with:
           context: infra/wasm-build
           tags: sealforge-wasm-build:ci
+          platforms: linux/amd64
           load: true
           cache-from: type=gha,scope=wasm-build
           cache-to: type=gha,mode=max,scope=wasm-build

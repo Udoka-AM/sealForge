@@ -10,7 +10,12 @@
 # that doesn't match a fresh build of the source.
 #
 # WASM_BUILD_IMAGE: use an image you already built (CI does).
+#
+# Always linux/amd64: Cargo mixes the host's `rustc -vV` (which names the host
+# CPU) into every crate's hash, and those hashes reach the .wasm, so an arm64
+# build and an amd64 build differ. On Apple silicon this runs under emulation.
 set -euo pipefail
+platform=linux/amd64
 cd "$(dirname "$0")/.."
 
 modules=("$@")
@@ -21,10 +26,10 @@ done
 
 image=${WASM_BUILD_IMAGE:-}
 if [[ -z "$image" ]]; then
-  tag=$( (cat infra/wasm-build/Dockerfile) | git hash-object --stdin | cut -c1-12)
+  tag=$( (cat infra/wasm-build/Dockerfile; echo "$platform") | git hash-object --stdin | cut -c1-12)
   image="sealforge-wasm-build:$tag"
   docker image inspect "$image" >/dev/null 2>&1 \
-    || docker build -t "$image" infra/wasm-build
+    || docker build --platform "$platform" -t "$image" infra/wasm-build
 fi
 
 # Caches live outside the repository and the host target/: Docker volumes, or
@@ -33,11 +38,11 @@ if [[ -n "${WASM_CACHE_DIR:-}" ]]; then
   mkdir -p "$WASM_CACHE_DIR/registry" "$WASM_CACHE_DIR/target"
   registry="$WASM_CACHE_DIR/registry" target="$WASM_CACHE_DIR/target"
 else
-  registry=sealforge-wasm-registry target=sealforge-wasm-target
+  registry=sealforge-wasm-amd64-registry target=sealforge-wasm-amd64-target
 fi
 cmd=""
 for m in "${modules[@]}"; do cmd+="scripts/build-$m-wasm.sh && "; done
-docker run --rm \
+docker run --rm --platform "$platform" \
   -v "$PWD":/sealforge \
   -v "$registry":/usr/local/cargo/registry \
   -v "$target":/target \
