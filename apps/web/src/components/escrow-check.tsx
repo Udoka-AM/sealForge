@@ -4,6 +4,7 @@ import { CircleCheck, CircleX, Info, LoaderCircle, ShieldAlert, ShieldCheck } fr
 import { useEffect, useState } from "react";
 import { HashChip } from "@/components/hash-chip";
 import { checkEscrow, type EscrowSource } from "@/lib/auditor";
+import { type EscrowCheckState, type EscrowGate, escrowGate } from "@/lib/escrow-gate";
 import { escrowAddressOf } from "@/lib/scanner";
 import type { AuctionView, EscrowCheck, PublishedResult } from "@/lib/types";
 
@@ -27,10 +28,7 @@ function predatesAttestations(source: AuctionView | PublishedResult): boolean {
   return biddingOver && (source.open_height ?? source.close_height) < since;
 }
 
-type State =
-  | { status: "checking" }
-  | { status: "done"; check: EscrowCheck }
-  | { status: "error"; message: string };
+type State = EscrowCheckState;
 
 /**
  * Checks, in this browser with the WebAssembly auditor, that every trustee
@@ -38,13 +36,14 @@ type State =
  * the trustees' keys, though it could list keys of its own: hence the keys are
  * shown so bidders can compare them with what the trustees post themselves.
  */
-export function useEscrowCheck(source: EscrowSource): State {
+export function useEscrowCheck(source: EscrowSource | null): State {
   const [state, setState] = useState<State>({ status: "checking" });
   const key = JSON.stringify(source);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `key` stands in for `source`
   useEffect(() => {
     let live = true;
     setState({ status: "checking" });
+    if (!source) return;
     checkEscrow(source)
       .then((check) => live && setState({ status: "done", check }))
       .catch((e: Error) => live && setState({ status: "error", message: e.message }));
@@ -161,22 +160,36 @@ export function EscrowAttestations({ auction }: { auction: AuctionView }) {
   );
 }
 
-/** Bid flow guard: true when the trustees' signatures contradict the address. */
-export function useEscrowBlocked(auction: AuctionView): {
-  blocked: boolean;
-  state: State;
-} {
-  const state = useEscrowCheck({ kind: "view", view: auction });
-  return { blocked: state.status === "done" && state.check.verdict === "failed", state };
+export function useEscrowGate(
+  auction: AuctionView | null,
+  receipt?: { escrow_ua?: string },
+): EscrowGate {
+  const state = useEscrowCheck(auction ? { kind: "view", view: auction } : null);
+  return escrowGate(state, auction, receipt);
 }
 
-export function EscrowWarning({ state }: { state: State }) {
-  if (state.status === "checking") return null;
-  if (state.status === "done" && state.check.verdict === "verified") return null;
+/** Why a payment is blocked, in place of the pay button. Nothing once it's allowed. */
+export function EscrowGateNotice({ gate }: { gate: EscrowGate }) {
+  if (gate.ok) return null;
+  if (gate.state.status === "checking")
+    return (
+      <p className="inline-flex items-center gap-2 text-sm text-muted">
+        <LoaderCircle
+          size={16}
+          aria-hidden="true"
+          className="animate-spin motion-reduce:animate-none"
+        />
+        {gate.reason}
+      </p>
+    );
   return (
-    <div className="rounded-[var(--radius-control)] border border-current p-3 text-sm">
-      <Summary state={state} />
-    </div>
+    <p
+      role="alert"
+      className="flex items-start gap-2 rounded-[var(--radius-control)] border border-current p-3 text-sm text-danger"
+    >
+      <ShieldAlert size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+      {gate.reason}
+    </p>
   );
 }
 

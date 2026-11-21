@@ -503,6 +503,7 @@ mod tests {
             salt: salt(i),
             commitment: commitment(CODE, REFUND, &salt(i)),
             price_zat: None,
+            escrow_ua: None,
         }
     }
 
@@ -854,6 +855,7 @@ mod commit_reveal_tests {
             salt: salt(1),
             commitment: price_commitment(CODE, REFUND, 42_000_000, &salt(1)),
             price_zat: Some(42_000_000),
+            escrow_ua: None,
         };
         let check = verify_receipt(&p, &receipt);
         assert!(check.receipt_valid && check.found && check.included && check.amount_matches);

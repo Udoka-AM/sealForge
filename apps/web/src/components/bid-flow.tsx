@@ -18,7 +18,7 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button, buttonClass } from "@/components/button";
-import { EscrowWarning, useEscrowBlocked } from "@/components/escrow-check";
+import { EscrowGateNotice, useEscrowGate } from "@/components/escrow-check";
 import { HashChip } from "@/components/hash-chip";
 import { Guilloche } from "@/components/motion/guilloche";
 import { SealMark } from "@/components/seal-mark";
@@ -195,8 +195,8 @@ function AmountStep({
   const [refundTo, setRefundTo] = useState<"wallet" | "other">("wallet");
   const useWalletRefund = walletReady && refundTo === "wallet";
   const [busy, setBusy] = useState(false);
-  // Don't prepare a payment to an address the trustees' signatures contradict.
-  const escrow = useEscrowBlocked(auction);
+  // A bid is prepared only against an escrow address every trustee signed.
+  const escrow = useEscrowGate(auction);
   const amountId = useId();
   const refundId = useId();
   const depositId = useId();
@@ -244,15 +244,8 @@ function AmountStep({
             : "uregtest1"
       }).`;
     setErrors(next);
-    if (
-      next.amount ||
-      next.refund ||
-      parsed === null ||
-      !auction.escrow_ua ||
-      escrow.blocked ||
-      escrow.state.status === "checking"
-    )
-      return;
+    if (next.amount || next.refund || parsed === null || !escrow.ok) return;
+    const escrowUa = escrow.ua;
     // A fresh wallet address, used for this bid only, so its refunds can be recognised
     // (and can't be linked to other bids or to the funding address).
     let walletIndex: number | undefined;
@@ -274,7 +267,7 @@ function AmountStep({
       onSealed(
         prepareSealedBid({
           auctionCode: auction.code,
-          escrowUa: auction.escrow_ua,
+          escrowUa,
           priceZat: parsed,
           depositZat: chosenDeposit,
           refundUa,
@@ -286,7 +279,7 @@ function AmountStep({
     onSealed(
       prepareBid({
         auctionCode: auction.code,
-        escrowUa: auction.escrow_ua,
+        escrowUa,
         amountZat: parsed,
         refundUa,
       }),
@@ -298,7 +291,7 @@ function AmountStep({
     <form onSubmit={submit} noValidate className="space-y-6">
       <StepHeading heading={heading}>Your sealed bid</StepHeading>
 
-      <EscrowWarning state={escrow.state} />
+      <EscrowGateNotice gate={escrow} />
 
       <div className="space-y-2">
         <label htmlFor={amountId} className="block text-sm font-medium">
@@ -470,12 +463,7 @@ function AmountStep({
         ) : null}
       </fieldset>
 
-      <Button
-        type="submit"
-        size="lg"
-        className="w-full"
-        disabled={busy || escrow.blocked || escrow.state.status === "checking"}
-      >
+      <Button type="submit" size="lg" className="w-full" disabled={busy || !escrow.ok}>
         Continue
       </Button>
       <p className="text-[13px] text-muted">
@@ -509,6 +497,8 @@ function PayStep({
   const walletReady = wallet.status === "unlocked" && wallet.network === auction.network;
   const [qr, setQr] = useState<string | null>(null);
   const [qrFailed, setQrFailed] = useState(false);
+  // Checked again here: the receipt's address must still be the signed one.
+  const escrow = useEscrowGate(auction, bid.receipt);
 
   useEffect(() => {
     QRCode.toString(bid.uri, { type: "svg", margin: 2, errorCorrectionLevel: "M" })
@@ -531,11 +521,13 @@ function PayStep({
         </p>
       ) : null}
 
-      {walletReady && auction.escrow_ua ? (
+      <EscrowGateNotice gate={escrow} />
+
+      {walletReady && escrow.ok ? (
         <WalletPay
           network={auction.network}
           request={{
-            to: auction.escrow_ua,
+            to: escrow.ua,
             amount_zat: bid.receipt.amount_zat,
             memo: bid.memo,
             label: `bid:${auction.code}`,
@@ -545,26 +537,28 @@ function PayStep({
         />
       ) : null}
 
-      <QrPayment walletReady={walletReady}>
-        <div className="rounded-[var(--radius-card)] bg-white p-4">
-          {qr ? (
-            // biome-ignore lint/performance/noImgElement: a local data-URI SVG; next/image adds nothing here
-            <img
-              src={qr}
-              alt={`Payment QR code for ${formatZec(BigInt(bid.receipt.amount_zat))} ${unit(auction.network)} with the bid memo`}
-              className="mx-auto aspect-square w-full max-w-[280px]"
-            />
-          ) : (
-            <div className="mx-auto flex aspect-square w-full max-w-[280px] items-center justify-center text-sm text-neutral-600">
-              {qrFailed ? "QR code unavailable. Use the button below." : "Preparing QR code…"}
-            </div>
-          )}
-        </div>
+      {escrow.ok ? (
+        <QrPayment walletReady={walletReady}>
+          <div className="rounded-[var(--radius-card)] bg-white p-4">
+            {qr ? (
+              // biome-ignore lint/performance/noImgElement: a local data-URI SVG; next/image adds nothing here
+              <img
+                src={qr}
+                alt={`Payment QR code for ${formatZec(BigInt(bid.receipt.amount_zat))} ${unit(auction.network)} with the bid memo`}
+                className="mx-auto aspect-square w-full max-w-[280px]"
+              />
+            ) : (
+              <div className="mx-auto flex aspect-square w-full max-w-[280px] items-center justify-center text-sm text-neutral-600">
+                {qrFailed ? "QR code unavailable. Use the button below." : "Preparing QR code…"}
+              </div>
+            )}
+          </div>
 
-        <a href={bid.uri} className={`${buttonClass({ size: "lg" })} w-full`}>
-          <ExternalLink size={18} aria-hidden="true" /> Open in wallet
-        </a>
-      </QrPayment>
+          <a href={bid.uri} className={`${buttonClass({ size: "lg" })} w-full`}>
+            <ExternalLink size={18} aria-hidden="true" /> Open in wallet
+          </a>
+        </QrPayment>
+      ) : null}
 
       <dl className="space-y-3 text-sm">
         <div className="flex items-baseline justify-between gap-4">
@@ -575,12 +569,14 @@ function PayStep({
             {formatZec(BigInt(bid.receipt.amount_zat))} {unit(auction.network)}
           </dd>
         </div>
-        <div className="space-y-1.5">
-          <dt className="text-muted">Payment request</dt>
-          <dd>
-            <HashChip value={bid.uri} label="payment request" head={18} tail={8} />
-          </dd>
-        </div>
+        {escrow.ok ? (
+          <div className="space-y-1.5">
+            <dt className="text-muted">Payment request</dt>
+            <dd>
+              <HashChip value={bid.uri} label="payment request" head={18} tail={8} />
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       <details className="text-sm">

@@ -122,6 +122,7 @@ async fn main() -> anyhow::Result<()> {
                 salt,
                 commitment,
                 price_zat: price,
+                escrow_ua: Some(escrow.clone()),
             };
             let memo = BidMemo {
                 auction_code: code.clone(),
