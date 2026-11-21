@@ -152,6 +152,53 @@ enum EscrowCommand {
         #[arg(required = true, num_args = 2..)]
         backups: Vec<PathBuf>,
     },
+    /// Without the coordinator, step 1 of 3 (trustee A): from your backup,
+    /// scan the escrow and build a sweep of every note to an address both
+    /// trustees agreed on. Writes request.json for the other trustee.
+    RecoverStart {
+        #[arg(long)]
+        backup: PathBuf,
+        /// A lightwallet server you trust (gRPC).
+        #[arg(long, env = "SF_LIGHTWALLETD_URL")]
+        lightwalletd: String,
+        /// The agreed destination (a unified address with an Orchard receiver).
+        #[arg(long)]
+        to: String,
+        /// The escrow's birthday height, if the backup doesn't record it.
+        #[arg(long)]
+        birthday: Option<u32>,
+        /// Working directory (default: ~/.sealforge/recovery/<escrow>).
+        #[arg(long)]
+        work: Option<PathBuf>,
+    },
+    /// Without the coordinator, step 2 of 3 (trustee B): check the request
+    /// from your own backup. With --approve, sign it and write the reply.
+    RecoverCosign {
+        #[arg(long)]
+        backup: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+        /// The destination you agreed to (typed by you, not taken from the request).
+        #[arg(long)]
+        to: String,
+        /// Sign after checking. Without it, only shows the check.
+        #[arg(long)]
+        approve: bool,
+        #[arg(long, default_value = "reply.json")]
+        out: PathBuf,
+    },
+    /// Without the coordinator, step 3 of 3 (trustee A): sign with the other
+    /// trustee's reply, check the signatures and broadcast.
+    RecoverFinish {
+        #[arg(long)]
+        backup: PathBuf,
+        #[arg(long)]
+        reply: PathBuf,
+        #[arg(long, env = "SF_LIGHTWALLETD_URL")]
+        lightwalletd: String,
+        #[arg(long)]
+        work: Option<PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -324,6 +371,90 @@ async fn main() -> anyhow::Result<()> {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         },
         Command::Escrow(EscrowCommand::LocalDkg { out, network }) => local_dkg(&out, &network)?,
+        Command::Escrow(EscrowCommand::RecoverStart {
+            backup,
+            lightwalletd,
+            to,
+            birthday,
+            work,
+        }) => {
+            let work = match work {
+                Some(w) => w,
+                None => sealforge_cli::recover::default_work_dir(store.root(), &backup)?,
+            };
+            let started =
+                sealforge_cli::recover::start(&backup, &lightwalletd, &to, &work, birthday).await?;
+            let r = &started.request;
+            println!(
+                "Built a sweep of {} note(s), {} zat after the fee, from {} to {}.\n\
+                 Send {} to the other trustee (it holds no secrets), and agree the destination \
+                 with them by voice. They run:\n  sealforge escrow recover-cosign --backup \
+                 <their backup> --request request.json --to {}\nThen, with their reply.json:\n  \
+                 sealforge escrow recover-finish --backup {} --reply reply.json --lightwalletd {}",
+                started.notes,
+                r.amount_zat,
+                r.escrow_ua,
+                r.to,
+                work.join("request.json").display(),
+                r.to,
+                backup.display(),
+                lightwalletd
+            );
+            if started.more_left {
+                println!(
+                    "More notes are left than one transaction may spend: run this again once \
+                     this sweep is mined."
+                );
+            }
+        }
+        Command::Escrow(EscrowCommand::RecoverCosign {
+            backup,
+            request,
+            to,
+            approve,
+            out,
+        }) => {
+            let request: sealforge_cli::recover::Request =
+                serde_json::from_slice(&std::fs::read(&request)?)?;
+            let reviewed = sealforge_cli::recover::cosign(&backup, &request, &to, approve)?;
+            println!("Checked the transaction from your own backup:");
+            for line in &reviewed.verified.lines {
+                println!("  {line}");
+            }
+            for w in &reviewed.verified.warnings {
+                println!("  warning: {w}");
+            }
+            println!(
+                "  sighash {}, expires at height {}",
+                hex::encode(reviewed.verified.sighash),
+                reviewed.verified.expiry_height
+            );
+            match reviewed.reply {
+                Some(reply) => {
+                    std::fs::write(&out, serde_json::to_vec_pretty(&reply)?)?;
+                    println!("Signed. Send {} back to the other trustee.", out.display());
+                }
+                None => {
+                    println!("Not signed. If this is what you agreed, run again with --approve.")
+                }
+            }
+        }
+        Command::Escrow(EscrowCommand::RecoverFinish {
+            backup,
+            reply,
+            lightwalletd,
+            work,
+        }) => {
+            let work = match work {
+                Some(w) => w,
+                None => sealforge_cli::recover::default_work_dir(store.root(), &backup)?,
+            };
+            let reply: sealforge_cli::recover::Reply =
+                serde_json::from_slice(&std::fs::read(&reply)?)?;
+            let txid =
+                sealforge_cli::recover::finish(&backup, &work, &reply, &lightwalletd).await?;
+            println!("Broadcast {txid}. Check it's mined before treating the escrow as swept.");
+        }
         Command::Escrow(EscrowCommand::RecoverCheck { backups }) => {
             use sealforge_escrow::{
                 address::{escrow_address, EncodingParams},

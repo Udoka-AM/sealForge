@@ -3,4 +3,5 @@
 pub mod client;
 pub mod keystore;
 pub mod organiser;
+pub mod recover;
 pub mod trustee;
