@@ -103,7 +103,8 @@ export type BatchStatus =
   | "signed"
   | "broadcast"
   | "confirmed"
-  | "failed";
+  | "failed"
+  | "expired";
 
 /** GET /v1/console/auctions/{code}/batches */
 /** `consolidate` merges escrow notes inside the escrow so a refund fits in one transaction. */

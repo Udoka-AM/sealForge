@@ -183,3 +183,16 @@ The refusal paths (a swapped commitment, and a forged statement) are covered by 
 | Payout | 1 output, **0.1996 ZEC** (the proceeds net of fees) | Confirmed; auction `settled` |
 
 Escrow arithmetic: 0.29 ZEC in, 0.09 ZEC refunded (including the late payment), 0.1996 ZEC paid out, the rest in fees.
+
+## Expired batches are rebuilt (D3)
+
+**Date:** 2026-11-21. Auction `2G3R0JTC7P` on the local regtest chain (2 bids, 1 lot).
+
+| Step | What happened | Result |
+|---|---|---|
+| Refund batch | 2 outputs, 0.03 ZEC. One trustee committed, the second never did | Left in `awaiting_signatures` |
+| Expiry | Blocks mined past the PCZT's expiry height (1838) | Batch marked `expired`, audit event `batch.expired` with `replaced_by`; a new refund batch for the same notes was built |
+| Replacement | Signed by two trustees | Confirmed |
+| Payout | 0.19975 ZEC | Confirmed; auction `settled`. `/readyz` stayed 200 with the expired batch on record |
+
+Before this fix, the run for the late-payment check (auction `E23XDR8JEB`) showed the failure: a signed batch that expired before broadcast was retried forever, the node rejected it each time, and every escrow scan for the auction failed.

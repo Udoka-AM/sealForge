@@ -64,7 +64,11 @@ stateDiagram-v2
     awaiting_signatures --> signed: both chosen signers posted shares
     signed --> broadcast: signatures aggregated, applied, tx extracted and sent
     broadcast --> confirmed: tx mined (seen by the escrow wallet)
+    awaiting_signatures --> expired: chain scanned past the PCZT's expiry height
+    signed --> expired: chain scanned past the PCZT's expiry height
+    broadcast --> expired: scanned past expiry, tx not mined
     confirmed --> [*]
+    expired --> [*]: notes move to a new building batch
 ```
 
 | Step | Rule | Code |
@@ -73,4 +77,6 @@ stateDiagram-v2
 | Signer choice | The first two trustees to post round-1 commitments become the signer set, ordered by `submitted_at`, then slot | `routes/batches.rs` `advance` |
 | Signer reset (SECURITY-REVIEW F4) | If the chosen signers haven't both posted shares within `SIGNING_TIMEOUT = 30 min` of selection, `signer_slots` and `signers_selected_at` are cleared and any two trustees can commit again. The CLI discards nonces from a reset round | `crates/sealforge-coordinator/src/refunds.rs` `SIGNING_TIMEOUT`; `routes/batches.rs` `reset_stalled`; `migrations/20261016000000_signer_timeout.sql` |
 | Confirmation | `confirmed` when the escrow wallet reports the txid mined (one confirmation) | `scanner.rs`, `EscrowWallet::mined_height` |
-| `failed` | Present in the enum and counted by `/readyz`, **but no code path sets it today**. A batch whose transaction expires unmined is not detected automatically | `migrations/20261007000000_init.sql`; [11 Open questions](/open-questions) |
+| Expiry (D3) | Once the escrow wallet has scanned to the PCZT's expiry height without the transaction mined, it can never be mined (ZIP 203: mineable at the expiry height, not after). The batch becomes `expired`, kept for the audit trail with a `batch.expired` audit event, and its notes move to a new `building` batch of the same kind, built and signed again. The new batch has a new id, so trustees' per-batch nonce files don't collide; trustees' refund ledgers stop counting the expired transaction once the chain passes its expiry height | `scanner.rs` `expire_batches`, `past_expiry`; `migrations/20261121120000_expired_batches.sql` |
+| Broadcast failure | A rejected broadcast is logged and the batch stays `signed`, retried on the next scan or replaced once it expires; it doesn't stop the rest of the scan | `scanner.rs` `process_batches` |
+| `failed` | Present in the enum and counted by `/readyz` (503 while any exist), for batches that need an operator. No code path sets it today; expiry uses `expired`, which doesn't fail the health check | `migrations/20261007000000_init.sql` |

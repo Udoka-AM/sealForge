@@ -319,6 +319,85 @@ struct SignedBatch {
     signer_slots: Vec<i16>,
 }
 
+/// Whether a transaction with this expiry height can no longer be mined, given
+/// a chain scanned to `scanned` with the transaction not in it. A transaction
+/// may be mined at its expiry height but not after (ZIP 203); 0 means no expiry.
+fn past_expiry(expiry_height: u32, scanned: u32) -> bool {
+    expiry_height != 0 && scanned >= expiry_height
+}
+
+/// Expire batches whose transaction can no longer be mined: still waiting for
+/// signatures, signed but not broadcast, or broadcast but not mined by its
+/// expiry height (the escrow wallet has scanned past it without seeing it).
+/// Each is marked `expired` and its notes move to a fresh batch of the same
+/// kind, built and signed again. The fresh batch has a new id, so trustees'
+/// per-batch nonce files never collide, and trustees' refund ledgers stop
+/// counting the expired transaction once the chain is past its expiry height.
+async fn expire_batches(
+    state: &AppState,
+    auction: &AuctionRow,
+    wallet: &mut EscrowWallet,
+    scanned: u32,
+) -> anyhow::Result<()> {
+    let live: Vec<(Uuid, Vec<u8>, Option<Vec<u8>>)> = sqlx::query_as(
+        "SELECT id, pczt, txid FROM tx_batches WHERE auction_id = $1 \
+         AND status IN ('awaiting_signatures', 'signed', 'broadcast') AND pczt IS NOT NULL",
+    )
+    .bind(auction.id)
+    .fetch_all(&state.db)
+    .await?;
+    for (id, pczt, txid) in live {
+        let expiry_height = *pczt_from_bytes(&pczt)?.global().expiry_height();
+        if !past_expiry(expiry_height, scanned) {
+            continue;
+        }
+        if let Some(txid) = txid {
+            let txid: [u8; 32] = txid.try_into().map_err(|_| anyhow::anyhow!("bad txid"))?;
+            if wallet.mined_height(&txid)?.is_some() {
+                continue; // mined: the confirm step records it
+            }
+        }
+        let mut tx = state.db.begin().await?;
+        let moved = sqlx::query(
+            "UPDATE tx_batches SET status = 'expired' WHERE id = $1 \
+             AND status IN ('awaiting_signatures', 'signed', 'broadcast')",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        if moved == 0 {
+            continue; // moved on concurrently (e.g. a signer just finished)
+        }
+        let replacement: Uuid = sqlx::query_scalar(
+            "INSERT INTO tx_batches (auction_id, kind, status) \
+             SELECT auction_id, kind, 'building' FROM tx_batches WHERE id = $1 RETURNING id",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+        sqlx::query(
+            "UPDATE refund_notes SET batch_id = $2, status = 'batched' WHERE batch_id = $1",
+        )
+        .bind(id)
+        .bind(replacement)
+        .execute(&mut *tx)
+        .await?;
+        db::audit(
+            &mut *tx,
+            Some(auction.id),
+            "system",
+            None,
+            "batch.expired",
+            json!({ "batch": id, "expiry_height": expiry_height, "replaced_by": replacement }),
+        )
+        .await?;
+        tx.commit().await?;
+        tracing::warn!(code = %auction.code, batch = %id, expiry_height, "escrow batch expired unmined; rebuilding");
+    }
+    Ok(())
+}
+
 /// Move refund/payout batches along: build → (trustees sign) → broadcast → confirm.
 /// One batch is in flight per auction, so two transactions never pick the same notes.
 async fn process_batches(
@@ -356,6 +435,11 @@ async fn process_batches(
                 .await?;
             tracing::info!(code = %auction.code, height, "escrow batch confirmed");
         }
+    }
+
+    // Replace batches that expired before they were mined (D3).
+    if let Some(scanned) = wallet.scanned_height()? {
+        expire_batches(state, auction, wallet, scanned).await?;
     }
 
     // Catch up any batch whose signer set or signatures are complete.
@@ -426,7 +510,12 @@ async fn process_batches(
         let pczt = apply_signatures(pczt_from_bytes(&pczt)?, sighash, &signatures)?;
         let txid = tokio::task::block_in_place(|| wallet.finalize(pczt))?;
         let raw = wallet.raw_transaction(txid)?;
-        send_raw(client, raw).await?;
+        // A rejected broadcast stays `signed` and is retried next scan (or
+        // replaced once it expires); it mustn't stop the rest of the scan.
+        if let Err(err) = send_raw(client, raw).await {
+            tracing::warn!(code = %auction.code, batch = %id, error = %err, "escrow batch broadcast failed");
+            continue;
+        }
         let txid_bytes: [u8; 32] = *txid.as_ref();
         sqlx::query("UPDATE tx_batches SET status = 'broadcast', txid = $2, broadcast_at = now() WHERE id = $1")
             .bind(id)
@@ -712,6 +801,21 @@ pub async fn run(state: AppState, zaino_url: String, network: Network, wallet_di
                 tracing::warn!(code = %auction.code, error = %err, "escrow scan failed");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod expiry_tests {
+    use super::past_expiry;
+
+    #[test]
+    fn a_transaction_expires_once_the_chain_reaches_its_expiry_height_without_it() {
+        // Mineable at its expiry height, so not expired one block before.
+        assert!(!past_expiry(100, 99));
+        assert!(past_expiry(100, 100));
+        assert!(past_expiry(100, 140));
+        // 0: no expiry.
+        assert!(!past_expiry(0, 1_000_000));
     }
 }
 
