@@ -128,11 +128,11 @@ To run the whole thing locally, on a private chain: [docs/QUICKSTART.md](docs/QU
 |---|---|---|
 | Public chain observer, during the auction | ✅ | Bids are shielded transfers. Amounts, senders and memos are encrypted |
 | Public chain observer, after close | ✅ bidders hidden | The published viewing key reveals incoming amounts and memos, never senders. Refund addresses are fresh |
-| Coordinator during bidding | ⚠️ in deposit mode · ✅ in sealed-reveal mode | Deposit mode: the coordinator holds the escrow viewing key and sees bid amounts live (stated on the auction page). Trustees hold no viewing key. Sealed-reveal: it sees only budget deposits until bidders reveal |
+| Coordinator during bidding | ⚠️ in deposit mode · ✅ in sealed-reveal mode | Deposit mode: the coordinator holds the escrow viewing key and sees bid amounts live (stated on the auction page). Trustees can see them too: they hold the viewing key to check the escrow address and every transaction they sign. Sealed-reveal: they see only budget deposits until bidders reveal |
 | A rogue trustee | ✅ | FROST 2-of-3: one share can't sign |
 | A dishonest coordinator, the result | ✅ detectable | Any result that doesn't follow from the chain fails the public audit |
-| A dishonest coordinator, refunds and payout | ⚠️ not protected yet | It holds no key share, but trustees sign the transactions it builds without seeing their outputs. With two trustees signing as asked, it could redirect funds. Trustee-side verification is a mainnet gate |
-| Refund correlation (amount + timing) | ✅ mitigated | Standard denominations, random delays, cross-bidder batches ([evidence](docs/evidence/linkability.md)) |
+| A dishonest coordinator, refunds and payout | ✅ checked by trustees, not yet audited | It holds no key share, and trustees decode every transaction before signing (CLI and browser): each output must be owed, each refund goes to its bid's own refund address read from the chain, no note is paid twice, and the two signers confirm they saw the same commitments. These checks are part of the external audit still to come |
+| Refund correlation (amount + timing) | ✅ mitigated | Standard denominations, random delays, cross-bidder batches. In simulation an observer links 0.1% of refunded bids by value; timing isn't modelled ([evidence](docs/evidence/linkability.md)) |
 
 Full version, including what is **not** protected: [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md).
 
