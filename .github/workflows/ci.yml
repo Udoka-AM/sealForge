@@ -39,44 +39,44 @@ jobs:
         run: cargo check -p sealforge-auditor --target wasm32-unknown-unknown --no-default-features --features wasm
 
   wasm:
-    # Builds every browser WebAssembly module from source. The scanner's
-    # dependency tree includes secp256k1 (C), which needs a clang with the wasm32
-    # target; Ubuntu's LLVM has it. The built modules are uploaded so the
-    # committed copies in apps/web/public can be compared with a clean build.
+    # Rebuilds every browser WebAssembly module in the pinned container
+    # (infra/wasm-build) and fails unless the committed modules are, byte for
+    # byte, what their source builds to (review item D2, issue #61).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@1.99.0
+      - name: Committed modules record clean builds
+        run: scripts/check-wasm-builds.sh
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the pinned image
+        uses: docker/build-push-action@v6
         with:
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
+          context: infra/wasm-build
+          tags: sealforge-wasm-build:ci
+          platforms: linux/amd64
+          load: true
+          cache-from: type=gha,scope=wasm-build
+          cache-to: type=gha,mode=max,scope=wasm-build
+      - uses: actions/cache@v4
         with:
-          tool: wasm-bindgen-cli@0.2.129
-      - name: Find an LLVM clang
-        # The runner image decides which LLVM version is installed, so look for
-        # the newest one instead of naming a version that a new image may drop.
+          path: ~/.cache/sealforge-wasm
+          key: wasm-${{ hashFiles('Cargo.lock', 'infra/wasm-build/Dockerfile') }}
+          restore-keys: wasm-
+      - name: Rebuild auditor, signer, scanner and wallet
+        env:
+          WASM_BUILD_IMAGE: sealforge-wasm-build:ci
         run: |
-          find_llvm() {
-            for dir in $(ls -d /usr/lib/llvm-*/bin 2>/dev/null | sort -t- -k2 -V -r); do
-              if [ -x "$dir/clang" ] && [ -x "$dir/llvm-ar" ]; then echo "$dir"; return; fi
-            done
-            return 1
-          }
-          if ! llvm=$(find_llvm); then
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends clang llvm
-            llvm=$(find_llvm)
+          mkdir -p ~/.cache/sealforge-wasm
+          WASM_CACHE_DIR=$HOME/.cache/sealforge-wasm scripts/build-wasm.sh
+          sudo chown -R "$(id -u):$(id -g)" ~/.cache/sealforge-wasm apps/web/public
+      - name: Committed modules match the fresh build
+        run: |
+          if ! git diff --exit-code --stat -- 'apps/web/public/*/*.wasm' 'apps/web/public/*/*.js'; then
+            echo "::error::A committed WebAssembly module isn't what its source builds to. Commit the source, run scripts/build-wasm.sh, and commit the result."
+            exit 1
           fi
-          "$llvm/clang" --version
-          echo "LLVM_BIN=$llvm" >> "$GITHUB_ENV"
-      - name: Build auditor, signer, scanner and wallet
-        run: |
-          scripts/build-auditor-wasm.sh
-          scripts/build-signer-wasm.sh
-          scripts/build-scanner-wasm.sh
-          scripts/build-wallet-wasm.sh
       - uses: actions/upload-artifact@v5
+        if: always()
         with:
           name: wasm-modules
           path: |

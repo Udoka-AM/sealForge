@@ -17,7 +17,7 @@ How the bidder's wallet fits into sealForge without changing what already works.
 
 ## What's new
 
-**`crates/sealforge-wallet`** (Rust → WebAssembly, `scripts/build-wallet-wasm.sh`). Built only from librustzcash crates at the versions the escrow already uses (`docs/VERSIONS.md`). No primitive is implemented here.
+**`crates/sealforge-wallet`** (Rust → WebAssembly, `scripts/build-wasm.sh wallet`). Built only from librustzcash crates at the versions the escrow already uses (`docs/VERSIONS.md`). No primitive is implemented here.
 
 | Need | Provided by |
 |---|---|
