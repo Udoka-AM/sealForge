@@ -671,8 +671,13 @@ pub fn describe_batch(b: &BatchView) -> String {
 /// What `trustee sign` accepts before co-signing. The default refuses anything
 /// short of a public page showing the address this trustee attested, and any
 /// batch whose transaction it hasn't decoded and checked.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SignPolicy {
+    /// A lightwallet server this trustee chose (gRPC, e.g. `https://zec.rocks:443`).
+    /// Refund batches are checked against the chain through it: each note's
+    /// bid, its refund address, and whether an earlier batch was mined. Without
+    /// it, refund batches are refused.
+    pub lightwalletd: Option<String>,
     /// Sign for an auction this trustee never attested (one from before escrow
     /// attestations existed). Only the trustee can choose this, on its own
     /// command line; nothing the coordinator sends turns it on. Such an auction
@@ -737,12 +742,171 @@ pub async fn escrow_view(
 /// Decode and check a batch's transaction before taking part in signing it
 /// (security review D1): the shared co-signer checks (frost-zec spec § 6)
 /// and sealForge's rule that every payment is owed. Returns what it checked.
+/// A batch this trustee checked: what the transaction does, and for refund
+/// batches the ledger entry to record before its shares leave this machine.
+pub struct CheckedBatch {
+    pub verified: sealforge_verify::VerifiedBatch,
+    pub ledger_entry: Option<sealforge_verify::refunds::LedgerEntry>,
+}
+
+/// Refund batches this trustee signed, kept so it never signs a note twice.
+const REFUND_LEDGER: &str = "refund-ledger.json";
+
+fn read_ledger(
+    store: &Keystore,
+    code: &str,
+) -> anyhow::Result<Vec<sealforge_verify::refunds::LedgerEntry>> {
+    Ok(match store.read(code, REFUND_LEDGER)? {
+        Some(bytes) => serde_json::from_slice(&bytes)
+            .with_context(|| format!("reading {REFUND_LEDGER} for {code}"))?,
+        None => Vec::new(),
+    })
+}
+
+/// Record a signed refund batch (synced to disk) before its shares are sent.
+fn record_signed(
+    store: &Keystore,
+    code: &str,
+    entry: sealforge_verify::refunds::LedgerEntry,
+) -> anyhow::Result<()> {
+    let mut ledger = read_ledger(store, code)?;
+    if !ledger.iter().any(|e| e.batch_txid == entry.batch_txid) {
+        ledger.push(entry);
+        store.write(code, REFUND_LEDGER, &serde_json::to_vec_pretty(&ledger)?)?;
+    }
+    Ok(())
+}
+
+fn chain_params(network: zcash_protocol::consensus::NetworkType) -> sealforge_chain::ChainParams {
+    use zcash_protocol::consensus::NetworkType;
+    match network {
+        NetworkType::Main => sealforge_chain::ChainParams::Mainnet,
+        NetworkType::Test => sealforge_chain::ChainParams::Testnet,
+        NetworkType::Regtest => sealforge_chain::ChainParams::regtest(),
+    }
+}
+
+/// Tie every note of a refund batch to its bid, read from the chain through
+/// the trustee's own lightwallet server, and to what this trustee signed
+/// before (security review D1, second part).
+#[allow(clippy::too_many_arguments)]
+async fn check_refund_recipients(
+    store: &Keystore,
+    code: &str,
+    view: &EscrowView,
+    batch: &BatchView,
+    pczt: &[u8],
+    verified: &sealforge_verify::VerifiedBatch,
+    result: &sealforge_api::types::PublishedResult,
+    chain: &mut sealforge_chain::Client,
+) -> anyhow::Result<sealforge_verify::refunds::LedgerEntry> {
+    use sealforge_verify::refunds::{self, BidOnChain, RefundClaim, ResultBid};
+
+    let claims = batch
+        .refunds
+        .iter()
+        .map(|n| {
+            Ok(RefundClaim {
+                bid_txid: hex32(&n.bid_txid)?,
+                bid_output_index: n.bid_output_index,
+                value_zat: n.value_zat,
+            })
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+    // Each claimed bid, as this trustee reads it from the chain.
+    let scanner = sealforge_scan::EscrowScanner::from_fvk(chain_params(view.network), &view.fvk);
+    let mut bids = BTreeMap::new();
+    for claim in &claims {
+        if bids.contains_key(&claim.bid()) {
+            continue;
+        }
+        let Some((raw, Some(height))) =
+            sealforge_chain::fetch_transaction(chain, claim.bid_txid).await?
+        else {
+            continue; // Not mined (or unknown): the check refuses this note.
+        };
+        let payments = scanner
+            .decrypt_transaction(&raw, height)
+            .map_err(|e| anyhow!("decrypting bid {}: {e}", hex::encode(claim.bid_txid)))?;
+        if let Some(p) = payments
+            .into_iter()
+            .find(|p| p.txid == claim.bid_txid && p.output_index == claim.bid_output_index)
+        {
+            let memo = p
+                .memo
+                .as_deref()
+                .and_then(|m| sealforge_core::memo::BidMemo::decode(m).ok());
+            bids.insert(
+                claim.bid(),
+                BidOnChain {
+                    amount_zat: p.amount_zat,
+                    refund_ua: memo.as_ref().map(|m| m.refund_ua.clone()),
+                    commitment: memo.map(|m| m.commitment).unwrap_or_default(),
+                },
+            );
+        }
+    }
+
+    let listed = result
+        .bids
+        .iter()
+        .map(|b| {
+            Ok((
+                (hex32(&b.txid)?, b.output_index),
+                ResultBid {
+                    commitment: hex32(&b.commitment)?,
+                    refund_due_zat: b.refund_due_zat,
+                },
+            ))
+        })
+        .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
+
+    // What this trustee signed before, from batches that are or may still be
+    // on chain.
+    let tip = sealforge_chain::chain_tip(chain).await?;
+    let mut entries = Vec::new();
+    for entry in read_ledger(store, code)? {
+        let on_chain = sealforge_chain::fetch_transaction(chain, entry.batch_txid)
+            .await?
+            .is_some();
+        entries.push((entry, on_chain));
+    }
+    let batch_txid = sealforge_verify::batch_txid(pczt).map_err(|r| anyhow!("{r}"))?;
+    let before = refunds::signed_before(&entries, tip, &batch_txid);
+
+    refunds::check_refund_recipients(
+        &verified.payments,
+        &claims,
+        &bids,
+        &listed,
+        &before,
+        sealforge_verify::orchard_receiver,
+    )
+    .map_err(|refusal| {
+        anyhow!(
+            "REFUSED batch {} ({}): {}. Don't sign; tell the organiser and the other trustees.",
+            batch.id,
+            refusal.class,
+            refusal.message
+        )
+    })?;
+    Ok(refunds::LedgerEntry {
+        batch_txid,
+        expiry_height: verified.expiry_height,
+        notes: claims,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
 pub async fn check_batch(
+    store: &Keystore,
     coordinator: &str,
     code: &str,
     view: &EscrowView,
     batch: &BatchView,
-) -> anyhow::Result<sealforge_verify::VerifiedBatch> {
+    chain: Option<&mut sealforge_chain::Client>,
+) -> anyhow::Result<CheckedBatch> {
     use sealforge_verify::{BatchKind, BatchRules};
 
     let pczt = hex::decode(batch.pczt.as_deref().ok_or_else(|| {
@@ -758,20 +922,24 @@ pub async fn check_batch(
             batch.kind
         )
     })?;
-    let refund_total_due_zat = if kind == BatchKind::Refund {
-        let result: sealforge_api::types::PublishedResult = Client::new(coordinator, None)
-            .get(&format!("/v1/auctions/{code}/result"))
-            .await
-            .with_context(|| {
-                format!(
-                    "REFUSED batch {}: no published result to check refunds against",
-                    batch.id
-                )
-            })?;
-        Some(result.bids.iter().map(|b| b.refund_due_zat).sum())
+    let result: Option<sealforge_api::types::PublishedResult> = if kind == BatchKind::Refund {
+        Some(
+            Client::new(coordinator, None)
+                .get(&format!("/v1/auctions/{code}/result"))
+                .await
+                .with_context(|| {
+                    format!(
+                        "REFUSED batch {}: no published result to check refunds against",
+                        batch.id
+                    )
+                })?,
+        )
     } else {
         None
     };
+    let refund_total_due_zat = result
+        .as_ref()
+        .map(|r| r.bids.iter().map(|b| b.refund_due_zat).sum());
     let rules = BatchRules {
         kind,
         refund_total_due_zat,
@@ -785,7 +953,7 @@ pub async fn check_batch(
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
-    sealforge_verify::verify_batch(
+    let verified = sealforge_verify::verify_batch(
         &pczt,
         &view.fvk,
         view.network,
@@ -801,6 +969,26 @@ pub async fn check_batch(
             refusal.class,
             refusal.message
         )
+    })?;
+    let ledger_entry = match result {
+        Some(result) => {
+            let chain = chain.ok_or_else(|| {
+                anyhow!(
+                    "REFUSED batch {}: refund batches are checked against the chain; pass \
+                     --lightwalletd with a lightwallet server you trust",
+                    batch.id
+                )
+            })?;
+            Some(
+                check_refund_recipients(store, code, view, batch, &pczt, &verified, &result, chain)
+                    .await?,
+            )
+        }
+        None => None,
+    };
+    Ok(CheckedBatch {
+        verified,
+        ledger_entry,
     })
 }
 
@@ -811,7 +999,7 @@ pub async fn require_public(
     store: &Keystore,
     coordinator: &str,
     code: &str,
-    policy: SignPolicy,
+    policy: &SignPolicy,
 ) -> anyhow::Result<()> {
     match check_public(store, coordinator, code).await? {
         PublicCheck::Matches { .. } => Ok(()),
@@ -846,7 +1034,7 @@ pub async fn sign_step_with(
     let (key_package, _) = key_share(store, code)?;
     // Never co-sign money out of an escrow whose public page showed bidders
     // something other than what this trustee verified, or that is missing.
-    require_public(store, coordinator, code, policy).await?;
+    require_public(store, coordinator, code, &policy).await?;
     let client = Client::new(coordinator, Some(identity.signing_key()?));
     let batches: Vec<BatchView> = client.get(&format!("/v1/auctions/{code}/batches")).await?;
     let me = identity.slot;
@@ -855,12 +1043,15 @@ pub async fn sign_step_with(
     // to check. Auctions from before attestations have none.
     let mut view: Option<EscrowView> = None;
     let checks = !policy.skip_transaction_checks_for_tests;
+    // The trustee's own lightwallet server, connected on first use.
+    let mut chain: Option<sealforge_chain::Client> = None;
 
     for batch in batches {
         if batch.status != "awaiting_signatures" {
             out.push(SignProgress::Done { batch: batch.id });
             continue;
         }
+        let mut checked: Option<CheckedBatch> = None;
         // Check the transaction before committing nonces and before signing.
         let will_act = !batch.i_committed
             || (batch.signer_slots.contains(&me)
@@ -885,7 +1076,16 @@ pub async fn sign_step_with(
                 };
             }
             if let Some(view) = &view {
-                check_batch(coordinator, code, view, &batch).await?;
+                if chain.is_none() && batch.kind == "refund" {
+                    if let Some(url) = &policy.lightwalletd {
+                        chain = Some(sealforge_chain::connect(url).await.with_context(|| {
+                            format!("connecting to the lightwallet server {url}")
+                        })?);
+                    }
+                }
+                checked = Some(
+                    check_batch(store, coordinator, code, view, &batch, chain.as_mut()).await?,
+                );
             }
         }
         if !batch.i_committed {
@@ -981,6 +1181,11 @@ pub async fn sign_step_with(
                 .iter()
                 .map(hex::encode)
                 .collect();
+        // A refund batch goes in this trustee's ledger before its shares can
+        // leave, so it never signs the same notes in another batch (D1).
+        if let Some(entry) = checked.and_then(|c| c.ledger_entry) {
+            record_signed(store, code, entry)?;
+        }
         // Consume the nonces before the shares leave this machine: record what
         // was signed (synced to disk), then delete the nonces. If either step
         // fails, nothing is sent.

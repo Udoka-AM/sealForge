@@ -79,6 +79,15 @@ impl EscrowScanner {
         })
     }
 
+    /// A scanner for the escrow behind an Orchard full viewing key (its
+    /// external incoming viewing key, as the published UIVK would give).
+    pub fn from_fvk(params: ChainParams, fvk: &orchard::keys::FullViewingKey) -> Self {
+        Self {
+            params,
+            ivk: PreparedIncomingViewingKey::new(&fvk.to_ivk(orchard::keys::Scope::External)),
+        }
+    }
+
     pub fn params(&self) -> ChainParams {
         self.params
     }

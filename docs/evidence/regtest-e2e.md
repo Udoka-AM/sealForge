@@ -123,3 +123,15 @@ Escrow arithmetic: 0.48 ZEC in, 0.08 ZEC refunded, 0.39935 ZEC paid out in two s
 | Payout 2 | 2 spends, one output to the payout address, 0.0995 ZEC | Both checked and signed; confirmed at **1148**, auction `settled` |
 
 No batch was refused and none was signed without its checks (no `REFUSED` or `WARNING` lines in the signing log). The refusals themselves are tested on real PCZTs in `crates/sealforge-verify` (17 shared tamper cases, plus sealForge's rules).
+
+## Refunds tied to bidders on chain (D1, second part)
+
+**Date:** 2026-11-21. Auction `72HSQZ1429` on the local regtest chain (3 bids, 1 lot). Trustees ran `sealforge trustee sign --lightwalletd http://127.0.0.1:8137`.
+
+| Step | What happened | Result |
+|---|---|---|
+| Honest refund | 3 notes for the two losing bids. Each trustee read both bids from Zaino, decrypted their memos with the escrow viewing key, matched every note to its bid's refund address and split, and recorded the batch in its `refund-ledger.json` | Signed by trustees A and B; confirmed. The ledger's txid (`bf71e189…09d1`, computed from the unsigned PCZT) is the mined txid |
+| Duplicate refund | The coordinator, compromised (its database guard against over-refunding switched off), planned the losing bid's 0.01 ZEC note a second time | **Refused by A and B**: "is owed 3000000 zat as notes [2000000, 1000000]; with what you already signed, this batch would pay [1000000, 2000000, 1000000]". C, who signed nothing before, committed, but can't sign alone, and any pair includes A or B |
+| Payout | One output to the payout address | Checked and signed |
+
+A redirected refund (a note sent to an address other than its bid's memo) is refused by `sealforge-verify::refunds::tests`; repeating it on chain was blocked by the late-payment bug this run found (SECURITY-REVIEW F17).

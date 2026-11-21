@@ -377,6 +377,19 @@ pub struct BatchView {
     /// must go to.
     #[serde(default)]
     pub payout_ua: Option<String>,
+    /// Refund batches: which bid each refund note pays back. Trustees read
+    /// each bid from the chain and check the note goes to its refund address.
+    #[serde(default)]
+    pub refunds: Vec<RefundNoteView>,
+}
+
+/// One refund note in a batch, and the bid (payment to the escrow) it refunds.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RefundNoteView {
+    /// The bid's transaction id (hex, as in the published result).
+    pub bid_txid: String,
+    pub bid_output_index: u32,
+    pub value_zat: u64,
 }
 
 /// `GET /v1/console/auctions/{code}/batches`: the organiser's view of escrow

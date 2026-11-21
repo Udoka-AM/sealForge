@@ -13,8 +13,11 @@
 
 pub mod frost_zec;
 pub mod plan;
+pub mod refunds;
 
-pub use plan::{verify_batch, BatchKind, BatchRules, Refusal, VerifiedBatch};
+pub use plan::{
+    batch_txid, orchard_receiver, verify_batch, BatchKind, BatchRules, Refusal, VerifiedBatch,
+};
 
 /// The shared refusal class (frost-zec `vectors/tamper/classes.md`) of an error
 /// from [`frost_zec::check`]. An error that maps to none is `"unclassified"`,

@@ -33,6 +33,36 @@ pub async fn connect(url: &str) -> anyhow::Result<Client> {
     Ok(CompactTxStreamerClient::new(channel))
 }
 
+/// A transaction as the server has it: its raw bytes, and the height it was
+/// mined at (`None` while it is only in the mempool). `Ok(None)` if the server
+/// doesn't know it.
+pub async fn fetch_transaction(
+    client: &mut Client,
+    txid: [u8; 32],
+) -> anyhow::Result<Option<(Vec<u8>, Option<u32>)>> {
+    match client
+        .get_transaction(zcash_client_backend::proto::service::TxFilter {
+            block: None,
+            index: 0,
+            hash: txid.to_vec(),
+        })
+        .await
+    {
+        Ok(raw) => {
+            let raw = raw.into_inner();
+            let height = u32::try_from(raw.height)
+                .ok()
+                .filter(|h| *h > 0 && *h != u32::MAX);
+            Ok(Some((raw.data, height)))
+        }
+        Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
+        // Servers word a missing transaction differently; treat their
+        // "not found" errors as such, and anything else as a failure.
+        Err(status) if status.message().to_lowercase().contains("not found") => Ok(None),
+        Err(status) => Err(status.into()),
+    }
+}
+
 /// Height of the server's chain tip.
 pub async fn chain_tip(client: &mut Client) -> anyhow::Result<u32> {
     let tip = client

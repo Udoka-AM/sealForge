@@ -11,7 +11,9 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use sealforge_api::types::{BatchView, ConsoleBatch, PostCommitments, PostShares, SpendAuthView};
+use sealforge_api::types::{
+    BatchView, ConsoleBatch, PostCommitments, PostShares, RefundNoteView, SpendAuthView,
+};
 use sealforge_escrow::frost::{round1::SigningCommitments, round2::SignatureShare};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -86,6 +88,17 @@ async fn view(state: &AppState, row: &BatchRow, trustee_id: Uuid) -> Result<Batc
         }
     }
     let mine = rows.iter().find(|(slot, _, _)| *slot == my_slot);
+    let refunds: Vec<(Vec<u8>, i32, i64)> = if row.kind == "refund" {
+        sqlx::query_as(
+            "SELECT b.txid, b.output_index, n.denomination_zat FROM refund_notes n \
+             JOIN bids b ON b.id = n.bid_id WHERE n.batch_id = $1 ORDER BY n.id",
+        )
+        .bind(row.id)
+        .fetch_all(&state.db)
+        .await?
+    } else {
+        Vec::new()
+    };
     Ok(BatchView {
         id: row.id.to_string(),
         auction_code: row.code.clone(),
@@ -101,6 +114,14 @@ async fn view(state: &AppState, row: &BatchRow, trustee_id: Uuid) -> Result<Batc
         i_shared: mine.is_some_and(|(_, _, s)| s.is_some()),
         pczt: row.pczt.as_ref().map(hex::encode),
         payout_ua: (row.kind == "payout").then(|| row.payout_ua.clone()),
+        refunds: refunds
+            .into_iter()
+            .map(|(txid, index, value)| RefundNoteView {
+                bid_txid: hex::encode(txid),
+                bid_output_index: index as u32,
+                value_zat: value as u64,
+            })
+            .collect(),
     })
 }
 

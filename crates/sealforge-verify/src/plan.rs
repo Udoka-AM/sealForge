@@ -97,12 +97,29 @@ pub struct VerifiedBatch {
 
 /// The Orchard receiver of a unified address, to compare payments by what is
 /// actually paid rather than by how the address is written.
-fn orchard_receiver(ua: &str) -> Option<[u8; 43]> {
+pub fn orchard_receiver(ua: &str) -> Option<[u8; 43]> {
     let (_, _, address) = unified::Address::decode(ua.trim()).ok()?;
     address.items().into_iter().find_map(|item| match item {
         unified::Receiver::Orchard(bytes) => Some(bytes),
         _ => None,
     })
+}
+
+/// The id the transaction will have on chain, computed from the unsigned PCZT
+/// (ZIP 244: the txid doesn't cover signatures). What a trustee's ledger keys
+/// its signed batches by.
+pub fn batch_txid(pczt_bytes: &[u8]) -> Result<[u8; 32], Refusal> {
+    use zcash_primitives::transaction::txid::{to_txid, TxIdDigester};
+    let pczt = pczt_io::parse(pczt_bytes).map_err(|e| refuse("structure", e.to_string()))?;
+    let effects = pczt
+        .into_effects()
+        .map_err(|e| refuse("structure", format!("incomplete transaction: {e:?}")))?;
+    let txid = to_txid(
+        effects.version(),
+        effects.consensus_branch_id(),
+        &effects.digest(TxIdDigester),
+    );
+    Ok(*txid.as_ref())
 }
 
 /// The escrow spends still waiting for a signature: (action index, `alpha`).
@@ -406,6 +423,19 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err.class, "structure");
+    }
+
+    #[test]
+    fn the_batch_txid_is_stable_and_bound_to_the_transaction() {
+        let (pczt, ..) = fixture();
+        let a = batch_txid(&pczt).unwrap();
+        assert_eq!(a, batch_txid(&pczt).unwrap());
+        let other = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/vectors/tamper/fee-above-zip-317/accepted.pczt"
+        ))
+        .unwrap();
+        assert_ne!(a, batch_txid(&other).unwrap());
     }
 
     #[test]

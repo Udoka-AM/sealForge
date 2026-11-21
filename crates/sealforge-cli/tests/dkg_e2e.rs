@@ -301,10 +301,13 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     let allowed = trustee::SignPolicy {
         allow_unattested_escrow: true,
         skip_transaction_checks_for_tests: true,
+        ..Default::default()
     };
-    assert!(trustee::sign_step_with(&trustees[0], &url, &code, allowed)
-        .await
-        .is_ok());
+    assert!(
+        trustee::sign_step_with(&trustees[0], &url, &code, allowed.clone())
+            .await
+            .is_ok()
+    );
     std::fs::write(&attested, record).unwrap();
 
     // A two-spend escrow batch goes through `trustee sign` over HTTP.
