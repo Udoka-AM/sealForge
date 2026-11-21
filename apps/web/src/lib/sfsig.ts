@@ -37,7 +37,7 @@ const PKCS8_PREFIX = Uint8Array.from([
 
 const storeKey = (role: Role) => `sf-signer:${role}`;
 
-function hexToBytes(hex: string): Uint8Array | null {
+function hexToBytes(hex: string): Uint8Array<ArrayBuffer> | null {
   const clean = hex.trim();
   if (!/^[0-9a-fA-F]*$/.test(clean) || clean.length % 2 !== 0) return null;
   const out = new Uint8Array(clean.length / 2);
