@@ -92,6 +92,61 @@ export function sign_batch(key_package_hex, sighash_hex, alphas_json, signer_com
         wasm.__wbindgen_free(deferred7_0, deferred7_1, 1);
     }
 }
+
+/**
+ * Decode and check a batch's transaction before taking part in signing it
+ * (security review D1): the shared co-signer checks (frost-zec spec § 6) and
+ * sealForge's rule that every payment is owed.
+ *
+ * The escrow's viewing key is rebuilt here from this trustee's own key share
+ * (`ak`) and the coordinator's sealed `nk ‖ rivk`, and must give exactly
+ * `escrow_ua`: the address on the public page, which the caller has already
+ * checked carries this trustee's own valid attestation.
+ *
+ * - `network`: "mainnet", "testnet" or "regtest"
+ * - `batch_json`: the trustee's `BatchView`
+ * - `refund_total_due_zat`: refunds owed in total by the published result
+ *   (refund batches), or a negative number when there is none
+ * @param {string} key_package_hex
+ * @param {string} enc_secret_hex
+ * @param {string} sealed_view_secret_hex
+ * @param {string} escrow_ua
+ * @param {string} network
+ * @param {number} now_secs
+ * @param {string} batch_json
+ * @param {number} refund_total_due_zat
+ * @returns {string}
+ */
+export function verify_batch(key_package_hex, enc_secret_hex, sealed_view_secret_hex, escrow_ua, network, now_secs, batch_json, refund_total_due_zat) {
+    let deferred8_0;
+    let deferred8_1;
+    try {
+        const ptr0 = passStringToWasm0(key_package_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(enc_secret_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(sealed_view_secret_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(escrow_ua, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ptr4 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len4 = WASM_VECTOR_LEN;
+        const ptr5 = passStringToWasm0(batch_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len5 = WASM_VECTOR_LEN;
+        const ret = wasm.verify_batch(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, now_secs, ptr5, len5, refund_total_due_zat);
+        var ptr7 = ret[0];
+        var len7 = ret[1];
+        if (ret[3]) {
+            ptr7 = 0; len7 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred8_0 = ptr7;
+        deferred8_1 = len7;
+        return getStringFromWasm0(ptr7, len7);
+    } finally {
+        wasm.__wbindgen_free(deferred8_0, deferred8_1, 1);
+    }
+}
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
