@@ -5,15 +5,22 @@
 //! lets a bidder check those signatures without trusting the coordinator:
 //! every trustee listed must have signed exactly the address being shown.
 //!
+//! The check fails closed: it is only `Verified` when exactly the protocol's
+//! trustee slots ([`TRUSTEE_SLOTS`]) are listed, each with its own key, and
+//! every one signed this auction, slot and address. A list a coordinator padded,
+//! trimmed or filled with one key is `Failed`, not "fewer trustees".
+//!
 //! What this does not prove on its own: that the listed keys belong to the
 //! real trustees. The coordinator publishes the list, so a coordinator that
 //! invented all three trustees could sign for them. Pin the keys you got from
 //! the trustees themselves (`pinned`), or rely on each trustee's CLI checking
 //! that the public page lists its own key and the address it signed.
 
+use std::collections::BTreeSet;
+
 use sealforge_api::{
     auth::verify_escrow_attestation,
-    types::{AuctionView, PublishedResult},
+    types::{AuctionView, PublishedResult, TRUSTEE_SLOTS},
 };
 use serde::{Deserialize, Serialize};
 
@@ -66,6 +73,10 @@ pub struct EscrowCheck {
     pub signed: u32,
     pub total: u32,
     pub trustees: Vec<TrusteeCheck>,
+    /// Why the trustee list itself is unacceptable (wrong slots, a key used
+    /// twice, a pinned slot missing). Empty when the list is well formed.
+    #[serde(default)]
+    pub problems: Vec<String>,
 }
 
 impl EscrowCheck {
@@ -92,7 +103,11 @@ pub fn check_escrow(
         .map(|t| {
             let pin = pinned.iter().find(|(slot, _)| *slot == t.slot);
             let verdict = match (escrow_ua, t.pubkey.as_deref(), t.signature.as_deref()) {
-                (_, Some(key), _) if pin.is_some_and(|(_, p)| !p.eq_ignore_ascii_case(key)) => {
+                // A pinned slot must carry exactly the pinned key. Publishing no
+                // key at all is a substitution too, not "unattested".
+                (_, key, _)
+                    if pin.is_some_and(|(_, p)| key.is_none_or(|k| !p.eq_ignore_ascii_case(k))) =>
+                {
                     TrusteeVerdict::WrongKey
                 }
                 (Some(ua), Some(key), Some(sig)) => {
@@ -119,17 +134,12 @@ pub fn check_escrow(
         .iter()
         .filter(|c| c.verdict == TrusteeVerdict::Signed)
         .count() as u32;
-    // A pinned slot that isn't listed at all is a substitution too.
-    let pins_listed = pinned
-        .iter()
-        .all(|(slot, _)| trustees.iter().any(|t| t.slot == *slot));
-    let verdict = if escrow_ua.is_some()
-        && !checks.is_empty()
-        && pins_listed
-        && checks.iter().all(|c| c.verdict == TrusteeVerdict::Signed)
-    {
+    let problems = list_problems(trustees, pinned);
+    let verdict = if !problems.is_empty() {
+        EscrowVerdict::Failed
+    } else if escrow_ua.is_some() && checks.iter().all(|c| c.verdict == TrusteeVerdict::Signed) {
         EscrowVerdict::Verified
-    } else if pins_listed && checks.iter().all(|c| c.verdict == TrusteeVerdict::Missing) {
+    } else if checks.iter().all(|c| c.verdict == TrusteeVerdict::Missing) {
         EscrowVerdict::Unattested
     } else {
         EscrowVerdict::Failed
@@ -140,7 +150,38 @@ pub fn check_escrow(
         signed,
         total: checks.len() as u32,
         trustees: checks,
+        problems,
     }
+}
+
+/// What is wrong with the trustee list itself, before any signature counts.
+fn list_problems(trustees: &[TrusteeClaim], pinned: &[(u16, String)]) -> Vec<String> {
+    let mut problems = Vec::new();
+    let slots: Vec<u16> = trustees.iter().map(|t| t.slot).collect();
+    let distinct: BTreeSet<u16> = slots.iter().copied().collect();
+    let expected = BTreeSet::from(TRUSTEE_SLOTS);
+    if slots.len() != expected.len() || distinct != expected {
+        problems.push(format!(
+            "expected trustee slots {:?}, the page lists {slots:?}",
+            TRUSTEE_SLOTS
+        ));
+    }
+    let keys: Vec<String> = trustees
+        .iter()
+        .filter_map(|t| t.pubkey.as_deref())
+        .map(str::to_ascii_lowercase)
+        .collect();
+    let distinct_keys: BTreeSet<&String> = keys.iter().collect();
+    if distinct_keys.len() != keys.len() {
+        problems.push("the same key is listed for more than one trustee".to_owned());
+    }
+    // A pinned slot that isn't listed at all is a substitution too.
+    for (slot, _) in pinned {
+        if !trustees.iter().any(|t| t.slot == *slot) {
+            problems.push(format!("pinned slot {slot} is not listed"));
+        }
+    }
+    problems
 }
 
 /// [`check_escrow`] over the auction page's data, before you bid.
@@ -176,6 +217,21 @@ pub fn check_escrow_result(published: &PublishedResult, pinned: &[(u16, String)]
         &trustees,
         pinned,
     )
+}
+
+/// [`check_escrow_view`] from the auction page's JSON. Extra fields are
+/// ignored, so a coordinator can't make an open auction pass as a result.
+pub fn check_view_json(json: &str, pinned: &[(u16, String)]) -> Result<EscrowCheck, String> {
+    let view: AuctionView =
+        serde_json::from_str(json).map_err(|e| format!("invalid auction view: {e}"))?;
+    Ok(check_escrow_view(&view, pinned))
+}
+
+/// [`check_escrow_result`] from a published result's JSON.
+pub fn check_result_json(json: &str, pinned: &[(u16, String)]) -> Result<EscrowCheck, String> {
+    let published: PublishedResult =
+        serde_json::from_str(json).map_err(|e| format!("invalid published result: {e}"))?;
+    Ok(check_escrow_result(&published, pinned))
 }
 
 #[cfg(test)]
@@ -262,13 +318,122 @@ mod tests {
             EscrowVerdict::Unattested
         );
         assert_eq!(
-            check_escrow(CODE, Some(UA), &[], &[]).verdict,
-            EscrowVerdict::Unattested
-        );
-        assert_eq!(
             check_escrow(CODE, None, &all_signed(), &[]).verdict,
             EscrowVerdict::Unattested
         );
+        // An empty list is not "nothing signed yet": the protocol always has
+        // three trustees, so a page with none has been tampered with.
+        assert_eq!(
+            check_escrow(CODE, Some(UA), &[], &[]).verdict,
+            EscrowVerdict::Failed
+        );
+    }
+
+    #[test]
+    fn one_invented_trustee_is_not_enough() {
+        // Daniel's review: "All 1 trustees signed this address".
+        let check = check_escrow(CODE, Some(UA), &[claim(1, UA)], &[]);
+        assert_eq!(check.verdict, EscrowVerdict::Failed);
+        assert!(!check.problems.is_empty());
+    }
+
+    #[test]
+    fn one_key_in_every_slot_fails() {
+        let k = key(1);
+        let t: Vec<_> = (1..=3)
+            .map(|slot| TrusteeClaim {
+                slot,
+                label: format!("T{slot}"),
+                pubkey: Some(hex::encode(k.verifying_key().to_bytes()).to_uppercase()),
+                signature: Some(hex::encode(sign_escrow_attestation(&k, CODE, slot, UA))),
+            })
+            .collect();
+        // Every signature is individually valid, yet one party holds all seats.
+        let check = check_escrow(CODE, Some(UA), &t, &[]);
+        assert_eq!(check.signed, 3);
+        assert_eq!(check.verdict, EscrowVerdict::Failed);
+    }
+
+    #[test]
+    fn slots_must_be_exactly_one_to_three() {
+        for slots in [[1, 2, 2], [1, 2, 4], [0, 1, 2]] {
+            let t: Vec<_> = slots.iter().map(|s| claim(*s, UA)).collect();
+            assert_eq!(
+                check_escrow(CODE, Some(UA), &t, &[]).verdict,
+                EscrowVerdict::Failed,
+                "{slots:?}"
+            );
+        }
+        let mut four = all_signed();
+        four.push(claim(4, UA));
+        assert_eq!(
+            check_escrow(CODE, Some(UA), &four, &[]).verdict,
+            EscrowVerdict::Failed
+        );
+    }
+
+    fn open_view(trustees: &[TrusteeClaim]) -> serde_json::Value {
+        serde_json::json!({
+            "code": CODE, "title": "Lot", "description": "", "lot_image_url": null,
+            "network": "testnet", "mode": "uniform_price", "bid_mode": "deposit",
+            "quantity": 1, "reserve_zat": 1_000_000, "open_height": 100,
+            "close_height": 300, "status": "open", "escrow_ua": UA,
+            "trustees": trustees.iter().map(|t| serde_json::json!({
+                "slot": t.slot, "label": t.label, "dkg_status": "complete",
+                "pubkey": t.pubkey, "escrow_attestation": t.signature,
+            })).collect::<Vec<_>>(),
+        })
+    }
+
+    #[test]
+    fn an_open_auction_dressed_as_a_result_is_still_checked_as_a_view() {
+        // Daniel's review: adding `auction_code` and result fields to an open
+        // auction once made the page treat it as an old, unsigned result.
+        let unsigned: Vec<_> = all_signed()
+            .into_iter()
+            .map(|mut c| {
+                c.signature = None;
+                c
+            })
+            .collect();
+        let mut view = open_view(&unsigned);
+        let extra = serde_json::json!({
+            "auction_code": CODE, "uivk": "uivktest1", "merkle_root": "00",
+            "scan_from_height": 100, "scan_to_height": 300, "bids": [],
+        });
+        for (k, v) in extra.as_object().unwrap() {
+            view[k] = v.clone();
+        }
+        let check = check_view_json(&view.to_string(), &[]).unwrap();
+        assert!(!check.verified());
+        // The view path never yields the result-only "older auction" reading:
+        // with nothing signed it is unattested, which the page blocks on.
+        assert_eq!(check.verdict, EscrowVerdict::Unattested);
+        // And a real view parses and verifies through the same entry point.
+        let check = check_view_json(&open_view(&all_signed()).to_string(), &[]).unwrap();
+        assert!(check.verified(), "{check:?}");
+        // A view isn't a result: the result entry point refuses it.
+        assert!(check_result_json(&open_view(&all_signed()).to_string(), &[]).is_err());
+    }
+
+    #[test]
+    fn a_pinned_slot_without_a_key_fails() {
+        // Dropping the key (and signature) of a pinned slot must not turn into
+        // the softer "unattested" verdict.
+        let t: Vec<_> = all_signed()
+            .into_iter()
+            .map(|mut c| {
+                c.signature = None;
+                if c.slot == 2 {
+                    c.pubkey = None;
+                }
+                c
+            })
+            .collect();
+        let real = hex::encode(key(2).verifying_key().to_bytes());
+        let check = check_escrow(CODE, Some(UA), &t, &[(2, real)]);
+        assert_eq!(check.trustees[1].verdict, TrusteeVerdict::WrongKey);
+        assert_eq!(check.verdict, EscrowVerdict::Failed);
     }
 
     #[test]

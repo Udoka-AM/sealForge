@@ -473,10 +473,16 @@ pub async fn check_public(
     let check = sealforge_auditor::check_escrow_view(&view, &[(identity.slot, mine.clone())]);
     if !check.verified() {
         let problems: Vec<String> = check
-            .trustees
+            .problems
             .iter()
-            .filter(|t| t.verdict != sealforge_auditor::TrusteeVerdict::Signed)
-            .map(|t| format!("slot {} ({}): {:?}", t.slot, t.label, t.verdict))
+            .cloned()
+            .chain(
+                check
+                    .trustees
+                    .iter()
+                    .filter(|t| t.verdict != sealforge_auditor::TrusteeVerdict::Signed)
+                    .map(|t| format!("slot {} ({}): {:?}", t.slot, t.label, t.verdict)),
+            )
             .collect();
         bail!(
             "PUBLIC PAGE MISMATCH for auction {code}: the trustee attestations bidders see \

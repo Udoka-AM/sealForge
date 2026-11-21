@@ -195,6 +195,8 @@ export interface EscrowCheck {
     pubkey: string | null;
     verdict: "signed" | "missing" | "invalid" | "wrong_key";
   }[];
+  /** Why the trustee list itself is unacceptable; empty when well formed. */
+  problems?: string[];
 }
 
 /** sealforge-auditor AuditReport. */
