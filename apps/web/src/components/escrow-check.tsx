@@ -3,7 +3,7 @@
 import { CircleCheck, CircleX, Info, LoaderCircle, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { HashChip } from "@/components/hash-chip";
-import { checkEscrow } from "@/lib/auditor";
+import { checkEscrow, type EscrowSource } from "@/lib/auditor";
 import { escrowAddressOf } from "@/lib/scanner";
 import type { AuctionView, EscrowCheck, PublishedResult } from "@/lib/types";
 
@@ -38,7 +38,7 @@ type State =
  * the trustees' keys, though it could list keys of its own: hence the keys are
  * shown so bidders can compare them with what the trustees post themselves.
  */
-export function useEscrowCheck(source: AuctionView | PublishedResult): State {
+export function useEscrowCheck(source: EscrowSource): State {
   const [state, setState] = useState<State>({ status: "checking" });
   const key = JSON.stringify(source);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `key` stands in for `source`
@@ -138,7 +138,7 @@ function TrusteeKeys({ check }: { check: EscrowCheck }) {
 
 /** The auction page's escrow card: did the trustees sign the address shown? */
 export function EscrowAttestations({ auction }: { auction: AuctionView }) {
-  const state = useEscrowCheck(auction);
+  const state = useEscrowCheck({ kind: "view", view: auction });
   return (
     <div className="space-y-3 border-t border-border pt-4">
       <Summary state={state} older={predatesAttestations(auction)} />
@@ -166,7 +166,7 @@ export function useEscrowBlocked(auction: AuctionView): {
   blocked: boolean;
   state: State;
 } {
-  const state = useEscrowCheck(auction);
+  const state = useEscrowCheck({ kind: "view", view: auction });
   return { blocked: state.status === "done" && state.check.verdict === "failed", state };
 }
 
@@ -196,7 +196,7 @@ export function EscrowAudit({
   result: PublishedResult;
   shownUa: string | null;
 }) {
-  const state = useEscrowCheck(result);
+  const state = useEscrowCheck({ kind: "result", result });
   const [keyMatch, setKeyMatch] = useState<KeyMatch>({ status: "checking" });
   useEffect(() => {
     let live = true;

@@ -165,6 +165,9 @@ async fn main() -> anyhow::Result<()> {
             };
             println!("{what:<26} slot {} {:<16} key {key}", t.slot, t.label);
         }
+        for problem in &escrow.problems {
+            println!("✗  {problem}");
+        }
         if args.trustee_keys.is_empty() && escrow.verdict == EscrowVerdict::Verified {
             println!(
                 "   These keys come from the coordinator. To rule out invented trustees, get\n   each trustee's key from them and pass --trustee-key SLOT=HEX."

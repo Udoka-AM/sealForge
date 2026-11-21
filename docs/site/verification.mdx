@@ -45,7 +45,7 @@ On `/audit/<CODE>`, **Rescan the chain in my browser** runs the same `sealforge-
 
 ### The escrow address, before you bid
 
-Each trustee rebuilds the escrow address from its own share of the FROST group key and signs it. The auction page checks those signatures in your browser (`check_escrow_view`, WebAssembly) and shows "All 3 trustees signed this address" with each trustee's key. If the signatures don't match the address shown, the page says so and the bid form won't continue.
+Each trustee rebuilds the escrow address from its own share of the FROST group key and signs it. The auction page checks those signatures in your browser (`check_escrow_view`, WebAssembly) and shows "All 3 trustees signed this address" with each trustee's key. It only says so when exactly trustee slots 1, 2 and 3 are listed, each with a different key, and all three signed this auction, slot and address; a shorter list, a repeated key or a missing signature fails. If the signatures don't match the address shown, the page says so and the bid form won't continue.
 
 The coordinator publishes the trustee list, so a coordinator that invented all three trustees could sign for them. Two things cover that: each trustee runs `sealforge trustee check <CODE>` once the auction opens, which confirms the public page shows the address it signed and its own key (and `trustee sign` refuses to co-sign otherwise); and trustees post their keys somewhere the coordinator doesn't control, so bidders can compare them or pin them with `--trustee-key`. A coordinator that shows trustees one page and bidders another isn't caught by the trustee check. Comparing keys from the trustees' own channels is what catches it.
 

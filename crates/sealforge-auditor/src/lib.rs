@@ -16,8 +16,8 @@ use std::collections::BTreeMap;
 
 mod escrow;
 pub use escrow::{
-    check_escrow, check_escrow_result, check_escrow_view, EscrowCheck, EscrowVerdict, TrusteeCheck,
-    TrusteeClaim, TrusteeVerdict,
+    check_escrow, check_escrow_result, check_escrow_view, check_result_json, check_view_json,
+    EscrowCheck, EscrowVerdict, TrusteeCheck, TrusteeClaim, TrusteeVerdict,
 };
 
 use sealforge_api::types::{AuctionMode as ApiMode, BidMode, PublishedResult};
@@ -427,21 +427,24 @@ mod wasm {
         to_json(&audit_chain(&published, &payments))
     }
 
-    /// Check every trustee's attestation over the escrow address, from either
-    /// an auction view (`GET /v1/auctions/{code}`) or a published result.
-    /// `pinned_json` is `[[slot, "pubkey hex"], …]`, or `[]`.
+    /// Check every trustee's attestation over the escrow address shown on an
+    /// auction page (`GET /v1/auctions/{code}`). `pinned_json` is
+    /// `[[slot, "pubkey hex"], …]`, or `[]`. The caller says what it is
+    /// checking; the coordinator's JSON never decides (security review F13).
     #[wasm_bindgen]
-    pub fn check_escrow_json(source_json: &str, pinned_json: &str) -> Result<String, JsError> {
+    pub fn check_escrow_view_json(view_json: &str, pinned_json: &str) -> Result<String, JsError> {
         let pinned: Vec<(u16, String)> = parse(pinned_json, "pinned keys")?;
-        let value: serde_json::Value = parse(source_json, "auction")?;
-        let check = if value.get("auction_code").is_some() {
-            let published: PublishedResult = parse(source_json, "published result")?;
-            check_escrow_result(&published, &pinned)
-        } else {
-            let view: sealforge_api::types::AuctionView = parse(source_json, "auction view")?;
-            check_escrow_view(&view, &pinned)
-        };
-        to_json(&check)
+        to_json(&escrow::check_view_json(view_json, &pinned).map_err(|e| JsError::new(&e))?)
+    }
+
+    /// The same check over a published result (`GET /v1/auctions/{code}/result`).
+    #[wasm_bindgen]
+    pub fn check_escrow_result_json(
+        result_json: &str,
+        pinned_json: &str,
+    ) -> Result<String, JsError> {
+        let pinned: Vec<(u16, String)> = parse(pinned_json, "pinned keys")?;
+        to_json(&escrow::check_result_json(result_json, &pinned).map_err(|e| JsError::new(&e))?)
     }
 
     /// Check a bidder's receipt against a published result.

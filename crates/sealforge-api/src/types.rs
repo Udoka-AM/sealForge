@@ -132,6 +132,12 @@ pub struct AuctionView {
 /// The public bid count appears only from this many bids (docs/03-APP-FLOW.md §3.7).
 pub const MIN_PUBLIC_BID_COUNT: u32 = 5;
 
+/// Every auction's escrow is 2-of-3: exactly these trustee slots, any two of
+/// which can sign. The coordinator refuses anything else at creation, and the
+/// auditor refuses to call an escrow verified unless exactly these slots, each
+/// with its own key, signed it.
+pub const TRUSTEE_SLOTS: [u16; 3] = [1, 2, 3];
+
 /// One-time trustee invite, returned only in the create response.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrusteeInvite {
