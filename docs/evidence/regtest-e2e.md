@@ -134,4 +134,15 @@ No batch was refused and none was signed without its checks (no `REFUSED` or `WA
 | Duplicate refund | The coordinator, compromised (its database guard against over-refunding switched off), planned the losing bid's 0.01 ZEC note a second time | **Refused by A and B**: "is owed 3000000 zat as notes [2000000, 1000000]; with what you already signed, this batch would pay [1000000, 2000000, 1000000]". C, who signed nothing before, committed, but can't sign alone, and any pair includes A or B |
 | Payout | One output to the payout address | Checked and signed |
 
-A redirected refund (a note sent to an address other than its bid's memo) is refused by `sealforge-verify::refunds::tests`; repeating it on chain was blocked by the late-payment bug this run found (SECURITY-REVIEW F17).
+A redirected refund (a note sent to an address other than its bid's memo) is refused by `sealforge-verify::refunds::tests`, and on chain in the run below.
+
+**Redirected late refund.** Auction `E23XDR8JEB`, same chain and trustee command, run with the F17 fix (late payments) merged in. A 0.01 ZEC payment arrived after the refunds were confirmed, and the coordinator's database was edited to send its refund to a different regtest address before the refund was batched.
+
+| Step | What happened | Result |
+|---|---|---|
+| Redirected refund | 1 output, 0.01 ZEC, to an address that isn't the one in the payment's memo | **Refused by all three trustees**, class `payment`: "the transaction's refund outputs aren't the claimed notes, each to its bid's refund address" |
+| Honest refund | The real refund address restored; the bad batch discarded | Signed by A and B, confirmed. Each ledger now holds the auction's refund batches |
+| Expired batches | Two refund batches for the same note expired before broadcast during the run (see below) | Trustees signed the replacement: a ledger entry that never reached the chain stops counting after its expiry height |
+| Payout | 0.1996 ZEC, the proceeds net of fees, only after the late refund confirmed | Confirmed; auction `settled` |
+
+The run found two bugs in this change, both fixed and covered by tests: the ledger was written with the create-only key writer, so a trustee couldn't record a second refund batch for an auction (now replaced atomically: `Keystore::replace`); and Zaino answers a lookup of an expired, never-mined transaction with RPC error -5 rather than gRPC `NotFound`, which the earlier-refunds check treated as a failure, so one expired batch blocked every later refund (`sealforge-chain::is_missing_transaction`). It also showed that the coordinator retries broadcasting an expired signed batch forever and fails each scan meanwhile (D3, tracked separately).
