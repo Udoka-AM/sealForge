@@ -27,11 +27,18 @@ if [[ -z "$image" ]]; then
     || docker build -t "$image" infra/wasm-build
 fi
 
-# Caches live in Docker volumes, outside the repository and the host target/.
+# Caches live outside the repository and the host target/: Docker volumes, or
+# host directories under WASM_CACHE_DIR (CI caches those between runs).
+if [[ -n "${WASM_CACHE_DIR:-}" ]]; then
+  mkdir -p "$WASM_CACHE_DIR/registry" "$WASM_CACHE_DIR/target"
+  registry="$WASM_CACHE_DIR/registry" target="$WASM_CACHE_DIR/target"
+else
+  registry=sealforge-wasm-registry target=sealforge-wasm-target
+fi
 cmd=""
 for m in "${modules[@]}"; do cmd+="scripts/build-$m-wasm.sh && "; done
 docker run --rm \
   -v "$PWD":/sealforge \
-  -v sealforge-wasm-registry:/usr/local/cargo/registry \
-  -v sealforge-wasm-target:/target \
+  -v "$registry":/usr/local/cargo/registry \
+  -v "$target":/target \
   "$image" bash -c "${cmd}true"
