@@ -32,7 +32,7 @@ underneath](#the-primitives-underneath), and
 |---|---|
 | **You bid privately** | Scan one ZIP-321 QR with any Zcash wallet. The payment is a shielded Ironwood transfer, and its memo carries a salted commitment and a fresh refund address. Your receipt stays in your browser |
 | **Or bid from the built-in wallet** | Create a shielded wallet in the page, or link the one you already use by importing its 24-word phrase (Zashi, Zodl and other ZIP 32 wallets). It syncs, proves and signs in a Web Worker with librustzcash; the phrase never leaves the browser. Paying a bid or a reveal is one tap |
-| **No single key can move the money** | Bids go to an escrow whose spend authority is split across three trustees with **FROST 2-of-3**. One trustee alone can't move funds, and the coordinator holds no key share. Today trustees sign the transaction the coordinator builds without seeing its outputs, so a compromised coordinator plus two trustees signing as asked could redirect funds. Trustee-side checks are a mainnet gate ([security](https://sealforge.mintlify.app/security#trust-assumptions)) |
+| **No single key can move the money** | Bids go to an escrow whose spend authority is split across three trustees with **FROST 2-of-3**. One trustee alone can't move funds, and the coordinator holds no key share. Trustees decode and check every transaction before they sign it, and refuse one that pays anyone it doesn't owe ([security](https://sealforge.mintlify.app/security#trust-assumptions)) |
 | **Optional: nobody sees bids early** | In **sealed-reveal** mode you deposit a standard budget and reveal your bid after the close. Until then the coordinator, the trustees and the public see only budgets |
 | **Anyone can check the result** | After close, the escrow's incoming viewing key and a Merkle root of every bid are published. The Audit page (in the browser) or `sealforge-audit` (CLI) rescans the chain with that key, through any lightwallet server, and recomputes price, volume, winners, each bidder's outcome and the root |
 | **Refunds can't be traced back to bids** | Refunds are split into standard denominations, sent after random delays, and batched with other bidders' refunds. Measured: **0.1%** of refunds linkable at the exit, against 100% for naive refunds |
@@ -64,7 +64,7 @@ viewing key: the evidence does not depend on our servers.
 | **What it does, in product terms** | [docs/PRODUCT.md](docs/PRODUCT.md) |
 | **Zecathon write-up** | [docs/submission/WRITEUP.md](docs/submission/WRITEUP.md) |
 | **What is shipped, and what is sequenced** | [Status](#status) |
-| **Is it safe?** | [Threat model](docs/THREAT-MODEL.md) · [Security review](docs/SECURITY-REVIEW.md) |
+| **Is it safe?** | [Threat model](docs/THREAT-MODEL.md) · [Security review](docs/SECURITY-REVIEW.md) · [Report a vulnerability](SECURITY.md) |
 | **Run your own auction** | [docs/QUICKSTART.md](docs/QUICKSTART.md) |
 | **Host it** | [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md) |
 
