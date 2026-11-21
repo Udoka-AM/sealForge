@@ -117,6 +117,7 @@ pub async fn result(
         trustees: trustees
             .into_iter()
             .map(|t| TrusteeAttestation {
+                identity: t.identity(),
                 slot: t.slot as u16,
                 label: t.label,
                 pubkey: t.pubkey.map(hex::encode),

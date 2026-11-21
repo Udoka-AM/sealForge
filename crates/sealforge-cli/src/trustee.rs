@@ -40,6 +40,63 @@ const KEY_PACKAGE: &str = "key-package.hex";
 const PUBLIC_KEY_PACKAGE: &str = "public-key-package.hex";
 /// The escrow address this trustee checked and signed.
 const ESCROW_ATTESTED: &str = "escrow-attested.txt";
+/// The escrow's full viewing key, kept once this trustee has checked that it
+/// gives the address it attested: with its key share, what it needs to spend
+/// from the escrow with another trustee if the coordinator is gone.
+const ESCROW_VIEW: &str = "escrow-view.json";
+
+/// What [`ESCROW_VIEW`] holds. Viewing power over the escrow, not spending.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SavedEscrowView {
+    /// `ak ‖ nk ‖ rivk`, hex.
+    fvk: String,
+    /// `mainnet`, `testnet` or `regtest`.
+    network: String,
+    escrow_ua: String,
+    /// Height the escrow was created at, if the coordinator said.
+    #[serde(default)]
+    birthday_height: Option<u32>,
+}
+
+fn network_name(n: zcash_protocol::consensus::NetworkType) -> &'static str {
+    use zcash_protocol::consensus::NetworkType;
+    match n {
+        NetworkType::Main => "mainnet",
+        NetworkType::Test => "testnet",
+        NetworkType::Regtest => "regtest",
+    }
+}
+
+fn network_from_name(name: &str) -> anyhow::Result<zcash_protocol::consensus::NetworkType> {
+    use zcash_protocol::consensus::NetworkType;
+    Ok(match name {
+        "mainnet" => NetworkType::Main,
+        "testnet" => NetworkType::Test,
+        "regtest" => NetworkType::Regtest,
+        other => bail!("unknown network {other:?}"),
+    })
+}
+
+/// Keep the escrow's viewing key once it checked out against `escrow_ua`.
+fn save_escrow_view(
+    store: &Keystore,
+    code: &str,
+    fvk: &orchard::keys::FullViewingKey,
+    network: zcash_protocol::consensus::NetworkType,
+    escrow_ua: &str,
+    birthday_height: Option<u32>,
+) -> anyhow::Result<()> {
+    if store.read(code, ESCROW_VIEW)?.is_some() {
+        return Ok(());
+    }
+    let saved = SavedEscrowView {
+        fvk: hex::encode(fvk.to_bytes()),
+        network: network_name(network).to_owned(),
+        escrow_ua: escrow_ua.to_owned(),
+        birthday_height,
+    };
+    store.write(code, ESCROW_VIEW, &serde_json::to_vec_pretty(&saved)?)
+}
 
 /// Where this trustee's DKG stands after a step.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -104,6 +161,70 @@ pub async fn join(
             "joined, but could not save the trustee identity; ask the organiser for a new invite",
         )?;
     Ok(joined)
+}
+
+/// Create this trustee's long-term identity if it has none, and set where it
+/// publishes the public key. Returns the identity.
+pub fn long_term_identity(
+    store: &Keystore,
+    published_at: Option<&str>,
+) -> anyhow::Result<crate::keystore::LongTermIdentity> {
+    if let Some(place) = published_at {
+        ensure!(
+            sealforge_api::auth::valid_published_at(place),
+            "--published-at must be a URL or handle: 1 to 200 printable characters, no spaces"
+        );
+    }
+    let mut identity = match store.long_term_identity()? {
+        Some(identity) => identity,
+        None => crate::keystore::LongTermIdentity {
+            signing_key: hex::encode(ed25519_dalek::SigningKey::generate(&mut OsRng).to_bytes()),
+            published_at: None,
+        },
+    };
+    if let Some(place) = published_at {
+        identity.published_at = Some(place.to_owned());
+    }
+    store.save_long_term_identity(&identity)?;
+    Ok(identity)
+}
+
+/// Vouch for this trustee's key in `code` with its long-term key (stream 4).
+/// Returns the long-term key (hex) that certified.
+pub async fn certify(store: &Keystore, coordinator: &str, code: &str) -> anyhow::Result<String> {
+    let long_term = store.long_term_identity()?.ok_or_else(|| {
+        anyhow!(
+            "no long-term identity on this machine. Run `sealforge trustee identity \
+             --published-at <your URL or handle>` and publish the key it prints there first."
+        )
+    })?;
+    let published_at = long_term.published_at.clone().ok_or_else(|| {
+        anyhow!(
+            "your long-term identity doesn't say where you publish it. Run `sealforge trustee \
+             identity --published-at <your URL or handle>`."
+        )
+    })?;
+    let identity = store.trustee_identity(code)?;
+    let auction_key = identity.signing_key()?;
+    let signature = sealforge_api::auth::sign_trustee_cert(
+        &long_term.signing_key()?,
+        code,
+        identity.slot,
+        &auction_key.verifying_key().to_bytes(),
+        &published_at,
+    );
+    let pubkey = long_term.public_key_hex()?;
+    let _: DkgState = Client::new(coordinator, Some(auction_key))
+        .post(
+            &format!("/v1/auctions/{code}/trustee-identity"),
+            &sealforge_api::types::TrusteeIdentityCert {
+                pubkey: pubkey.clone(),
+                published_at,
+                signature: hex::encode(signature),
+            },
+        )
+        .await?;
+    Ok(pubkey)
 }
 
 /// Short fingerprint of the group's public key package, for out-of-band comparison.
@@ -356,8 +477,9 @@ pub async fn dkg_step(
 /// Rebuild the escrow address from this trustee's own group key and the
 /// `nk ‖ rivk` the coordinator sealed to it, and attest to it only if it
 /// matches the address the coordinator shows. A coordinator showing the
-/// address of a wallet it controls alone fails here. The view secret is used
-/// in memory only and never written to disk.
+/// address of a wallet it controls alone fails here. Once it matches, the
+/// escrow's viewing key is kept (`escrow-view.json`, 0600) for backups and so
+/// two trustees can spend without the coordinator.
 async fn verify_escrow(
     store: &Keystore,
     client: &Client,
@@ -387,19 +509,28 @@ async fn verify_escrow(
     let (_, pubkeys) = key_share(store, code)?;
     let ak = dkg::group_key_bytes(&pubkeys)?;
     let fvk = address::escrow_fvk_from_parts(&ak, &view_secret)?;
-    let matches = [NetworkType::Main, NetworkType::Test, NetworkType::Regtest]
+    let network = [NetworkType::Main, NetworkType::Test, NetworkType::Regtest]
         .into_iter()
-        .any(|n| address::escrow_address(&fvk, &EncodingParams(n)).is_ok_and(|ua| ua == shown));
-    ensure!(
-        matches,
+        .find(|n| address::escrow_address(&fvk, &EncodingParams(*n)).is_ok_and(|ua| ua == shown));
+    let Some(network) = network else {
+        bail!(
         "ESCROW ADDRESS MISMATCH for auction {code}: the address the coordinator shows ({shown}) \
          does not come from the trustees' group key. Do not send funds to it, don't let the \
          auction open, and tell the organiser and the other trustees now."
-    );
+        );
+    };
     let signature = sign_escrow_attestation(&identity.signing_key()?, code, state.my_slot, shown);
     // Remember what we signed, so later commands can check the public page
     // shows bidders this same address (`check_public`).
     store.write(code, ESCROW_ATTESTED, shown.as_bytes())?;
+    save_escrow_view(
+        store,
+        code,
+        &fvk,
+        network,
+        shown,
+        state.escrow_birthday_height,
+    )?;
     let _: DkgState = client
         .post(
             &format!("/v1/auctions/{code}/dkg/verify-escrow"),
@@ -421,6 +552,9 @@ pub enum PublicCheck {
         escrow_ua: String,
         signed: u32,
         total: u32,
+        /// Every trustee's key, as listed on the public page and checked
+        /// against its escrow attestation.
+        keys: BTreeMap<u16, [u8; 32]>,
     },
     /// Bidders can't see the auction yet (it opens later).
     NotPublicYet,
@@ -444,6 +578,17 @@ pub fn my_key(store: &Keystore, code: &str) -> anyhow::Result<String> {
 /// This catches a coordinator that shows bidders a different address, or that
 /// lists a key it controls in this trustee's place. It can't catch one that
 /// serves this trustee a different page from everyone else.
+/// Trustee keys (by slot) listed on a public auction page.
+fn public_keys(view: &sealforge_api::types::AuctionView) -> BTreeMap<u16, [u8; 32]> {
+    view.trustees
+        .iter()
+        .filter_map(|t| {
+            let key = hex::decode(t.pubkey.as_deref()?).ok()?.try_into().ok()?;
+            Some((t.slot, key))
+        })
+        .collect()
+}
+
 pub async fn check_public(
     store: &Keystore,
     coordinator: &str,
@@ -473,10 +618,16 @@ pub async fn check_public(
     let check = sealforge_auditor::check_escrow_view(&view, &[(identity.slot, mine.clone())]);
     if !check.verified() {
         let problems: Vec<String> = check
-            .trustees
+            .problems
             .iter()
-            .filter(|t| t.verdict != sealforge_auditor::TrusteeVerdict::Signed)
-            .map(|t| format!("slot {} ({}): {:?}", t.slot, t.label, t.verdict))
+            .cloned()
+            .chain(
+                check
+                    .trustees
+                    .iter()
+                    .filter(|t| t.verdict != sealforge_auditor::TrusteeVerdict::Signed)
+                    .map(|t| format!("slot {} ({}): {:?}", t.slot, t.label, t.verdict)),
+            )
             .collect();
         bail!(
             "PUBLIC PAGE MISMATCH for auction {code}: the trustee attestations bidders see \
@@ -493,6 +644,7 @@ pub async fn check_public(
         escrow_ua: shown,
         signed: check.signed,
         total: check.total,
+        keys: public_keys(&view),
     })
 }
 
@@ -515,7 +667,7 @@ pub fn key_share(store: &Keystore, code: &str) -> anyhow::Result<(KeyPackage, Pu
 // ---------------------------------------------------------------------------
 // Signing escrow batches (task 3.9).
 
-use sealforge_api::types::{BatchView, PostCommitments, PostShares};
+use sealforge_api::types::{BatchView, PostCommitments, PostInputs, PostShares};
 use sealforge_escrow::signing;
 
 /// What one `sign_step` did for a batch.
@@ -537,6 +689,11 @@ pub enum SignProgress {
     /// trustee already signed. Signing again would reuse nonces, so it waits
     /// for the round to reset and start over with fresh ones.
     InputsChanged {
+        batch: String,
+    },
+    /// This trustee stated its round 2 inputs; its co-signer hasn't yet. No
+    /// share leaves until both statements match.
+    WaitingForCoSignerCheck {
         batch: String,
     },
     Done {
@@ -569,6 +726,12 @@ impl std::fmt::Display for SignProgress {
                  if this repeats, treat the coordinator as compromised.",
                 short(batch)
             ),
+            Self::WaitingForCoSignerCheck { batch } => write!(
+                f,
+                "Batch {}: you stated what you'll sign; waiting for your co-signer to do the same \
+                 before sending your share. Run again shortly.",
+                short(batch)
+            ),
             Self::Done { batch } => {
                 write!(f, "Batch {}: nothing left for you to do.", short(batch))
             }
@@ -593,33 +756,52 @@ struct SignedRecord {
     shares: Vec<String>,
 }
 
-/// Digest of everything a round 2 share depends on besides the key and the
-/// nonces: the sighash, each spend's alpha, and every signer's commitments.
-fn signing_inputs_digest(
-    sighash: &[u8; 32],
-    alphas: &[[u8; 32]],
-    commitments: &BTreeMap<u16, Vec<Vec<u8>>>,
-) -> String {
-    fn len(h: &mut Sha256, n: usize) {
-        h.update((n as u64).to_le_bytes());
+/// Check the co-signer's signed statement of its round 2 inputs against this
+/// trustee's own digest, with the co-signer's key from the public page. A
+/// mismatch means the coordinator showed the two signers different
+/// commitment sets (or altered one), so no share may leave.
+fn check_co_signer_inputs(
+    code: &str,
+    batch: &BatchView,
+    co_signer: u16,
+    statement: &sealforge_api::types::SignedInputs,
+    key: Option<&[u8; 32]>,
+    mine: &str,
+) -> anyhow::Result<()> {
+    let refuse = |why: String| {
+        anyhow!(
+            "REFUSED batch {} (equivocation): {why} Don't sign; tell the organiser and the other \
+             trustees, and treat the coordinator as compromised.",
+            batch.id
+        )
+    };
+    let key = key.ok_or_else(|| {
+        refuse(format!(
+            "slot {co_signer} has no key on the public auction page."
+        ))
+    })?;
+    let digest: [u8; 32] = hex::decode(&statement.digest)
+        .ok()
+        .and_then(|b| b.try_into().ok())
+        .ok_or_else(|| refuse(format!("slot {co_signer}'s statement is malformed.")))?;
+    let signature: [u8; 64] = hex::decode(&statement.signature)
+        .ok()
+        .and_then(|b| b.try_into().ok())
+        .ok_or_else(|| refuse(format!("slot {co_signer}'s statement is malformed.")))?;
+    if !sealforge_api::auth::verify_round2_inputs(
+        key, &signature, code, &batch.id, co_signer, &digest,
+    ) {
+        return Err(refuse(format!(
+            "slot {co_signer}'s statement doesn't verify under its public key."
+        )));
     }
-    let mut h = Sha256::new();
-    h.update(b"sealforge/round2-inputs/v1");
-    h.update(sighash);
-    len(&mut h, alphas.len());
-    for alpha in alphas {
-        h.update(alpha);
+    if statement.digest != mine {
+        return Err(refuse(format!(
+            "slot {co_signer} was shown different round 2 inputs (commitments, sighash or \
+             randomizers) than you were."
+        )));
     }
-    len(&mut h, commitments.len());
-    for (slot, values) in commitments {
-        h.update(slot.to_le_bytes());
-        len(&mut h, values.len());
-        for v in values {
-            len(&mut h, v.len());
-            h.update(v);
-        }
-    }
-    hex::encode(h.finalize())
+    Ok(())
 }
 
 async fn post_shares(client: &Client, batch: &str, shares: Vec<String>) -> anyhow::Result<()> {
@@ -662,25 +844,542 @@ pub fn describe_batch(b: &BatchView) -> String {
 }
 
 /// Move this trustee's part of every pending batch forward by one round.
+/// What `trustee sign` accepts before co-signing. The default refuses anything
+/// short of a public page showing the address this trustee attested, and any
+/// batch whose transaction it hasn't decoded and checked.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SignPolicy {
+    /// A lightwallet server this trustee chose (gRPC, e.g. `https://zec.rocks:443`).
+    /// Refund batches are checked against the chain through it: each note's
+    /// bid, its refund address, and whether an earlier batch was mined. Without
+    /// it, refund batches are refused.
+    pub lightwalletd: Option<String>,
+    /// Sign for an auction this trustee never attested (one from before escrow
+    /// attestations existed). Only the trustee can choose this, on its own
+    /// command line; nothing the coordinator sends turns it on. Such an auction
+    /// has no sealed viewing key, so its batches are signed without the
+    /// transaction checks, and the CLI says so.
+    pub allow_unattested_escrow: bool,
+    /// Tests only: sign batches that carry no transaction, as the protocol
+    /// tests' fake batches do. The CLI never sets it.
+    #[doc(hidden)]
+    pub skip_transaction_checks_for_tests: bool,
+}
+
+/// The escrow's full viewing key and network, rebuilt by this trustee from its
+/// own key share and the sealed `nk ‖ rivk`, and tied to the address it
+/// attested. What batch checks decrypt outputs with.
+pub struct EscrowView {
+    pub fvk: orchard::keys::FullViewingKey,
+    pub network: zcash_protocol::consensus::NetworkType,
+}
+
+/// Rebuild [`EscrowView`]. Refuses unless the key gives exactly the address
+/// this trustee attested: a coordinator can't swap in another viewing key now.
+pub async fn escrow_view(
+    store: &Keystore,
+    client: &Client,
+    code: &str,
+) -> anyhow::Result<EscrowView> {
+    use sealforge_escrow::address::{self, EncodingParams};
+    use zcash_protocol::consensus::NetworkType;
+
+    let attested = store
+        .read(code, ESCROW_ATTESTED)?
+        .ok_or_else(|| anyhow!("no record of the escrow address you attested for {code}"))?;
+    let attested = String::from_utf8(attested)?;
+    let (_, pubkeys) = key_share(store, code)?;
+    let ak = dkg::group_key_bytes(&pubkeys)?;
+    // The copy this trustee kept when it attested, checked again.
+    if let Some(bytes) = store.read(code, ESCROW_VIEW)? {
+        let saved: SavedEscrowView = serde_json::from_slice(&bytes)?;
+        let fvk_bytes: [u8; 96] = hex::decode(&saved.fvk)?
+            .try_into()
+            .map_err(|_| anyhow!("{ESCROW_VIEW} for {code} is malformed"))?;
+        let fvk = orchard::keys::FullViewingKey::from_bytes(&fvk_bytes)
+            .ok_or_else(|| anyhow!("{ESCROW_VIEW} for {code} holds no valid viewing key"))?;
+        let network = network_from_name(&saved.network)?;
+        ensure!(
+            fvk_bytes[..32] == ak
+                && address::escrow_address(&fvk, &EncodingParams(network))
+                    .is_ok_and(|ua| ua == attested),
+            "{ESCROW_VIEW} for {code} doesn't give the address you attested. Don't sign; check \
+             this machine."
+        );
+        return Ok(EscrowView { fvk, network });
+    }
+    let state: DkgState = client.get(&format!("/v1/auctions/{code}/dkg")).await?;
+    let sealed = hex::decode(
+        state
+            .escrow_view_secret_for_me
+            .ok_or_else(|| anyhow!("the coordinator sent no escrow view secret for {code}"))?,
+    )?;
+    let identity = store.trustee_identity(code)?;
+    let view_secret: [u8; 64] = identity
+        .enc_secret()?
+        .unseal(&sealed)
+        .map_err(|_| anyhow!("could not open the escrow view secret"))?
+        .try_into()
+        .map_err(|_| anyhow!("the escrow view secret has the wrong length"))?;
+    let fvk = address::escrow_fvk_from_parts(&ak, &view_secret)?;
+    let network = [NetworkType::Main, NetworkType::Test, NetworkType::Regtest]
+        .into_iter()
+        .find(|n| address::escrow_address(&fvk, &EncodingParams(*n)).is_ok_and(|ua| ua == attested))
+        .ok_or_else(|| {
+            anyhow!(
+                "ESCROW KEY MISMATCH for {code}: the viewing key the coordinator sent doesn't give \
+                 the address you attested. Don't sign; tell the organiser and the other trustees."
+            )
+        })?;
+    // Keystores from before escrow views were kept get one now.
+    save_escrow_view(
+        store,
+        code,
+        &fvk,
+        network,
+        &attested,
+        state.escrow_birthday_height,
+    )?;
+    Ok(EscrowView { fvk, network })
+}
+
+/// This trustee's backup string for `code`: its signing share and the
+/// escrow's viewing key ([`sealforge_escrow::backup`]). Secret. A keystore
+/// from before viewing keys were kept fetches it from the coordinator once,
+/// checked against the address this trustee attested.
+pub async fn backup(store: &Keystore, coordinator: &str, code: &str) -> anyhow::Result<String> {
+    let (key_package, pubkeys) = key_share(store, code)?;
+    if store.read(code, ESCROW_VIEW)?.is_none() {
+        let identity = store.trustee_identity(code)?;
+        escrow_view(
+            store,
+            &Client::new(coordinator, Some(identity.signing_key()?)),
+            code,
+        )
+        .await?;
+    }
+    let saved: SavedEscrowView = serde_json::from_slice(
+        &store
+            .read(code, ESCROW_VIEW)?
+            .ok_or_else(|| anyhow!("no escrow viewing key kept for {code}"))?,
+    )?;
+    let fvk_bytes: [u8; 96] = hex::decode(&saved.fvk)?
+        .try_into()
+        .map_err(|_| anyhow!("{ESCROW_VIEW} for {code} is malformed"))?;
+    let fvk = orchard::keys::FullViewingKey::from_bytes(&fvk_bytes)
+        .ok_or_else(|| anyhow!("{ESCROW_VIEW} for {code} holds no valid viewing key"))?;
+    let n = u16::try_from(pubkeys.verifying_shares().len())?;
+    let backup = sealforge_escrow::backup::Backup::new(
+        &key_package,
+        n,
+        &fvk,
+        network_from_name(&saved.network)?,
+        saved.birthday_height.unwrap_or(0),
+    )?;
+    Ok(backup.encode()?)
+}
+
+/// What a backup string restores, checked against this machine's keystore.
+#[derive(Debug, PartialEq, Eq)]
+pub struct BackupCheck {
+    pub slot: u16,
+    pub threshold: (u8, u8),
+    pub escrow_ua: String,
+    pub birthday_height: u32,
+}
+
+/// Check a backup string for `code` against this keystore: the same trustee,
+/// the same signing share, the same group key, and a viewing key that gives
+/// the address this trustee attested. Proves the string restores what this
+/// machine holds, without writing anything.
+pub fn check_backup(store: &Keystore, code: &str, text: &str) -> anyhow::Result<BackupCheck> {
+    use sealforge_escrow::address::{self, EncodingParams};
+
+    ensure!(
+        !text.trim().is_empty(),
+        "no backup string given (the input is empty)"
+    );
+    let backup = sealforge_escrow::backup::Backup::decode(text)?;
+    let restored = backup.key_package()?;
+    let (key_package, _) = key_share(store, code)?;
+    ensure!(
+        restored == key_package,
+        "this backup's key share isn't the one this machine holds for {code} (another trustee's, \
+         or another auction's)"
+    );
+    let attested = String::from_utf8(
+        store
+            .read(code, ESCROW_ATTESTED)?
+            .ok_or_else(|| anyhow!("no record of the escrow address you attested for {code}"))?,
+    )?;
+    let escrow_ua =
+        address::escrow_address(&backup.full_viewing_key(), &EncodingParams(backup.network))?;
+    ensure!(
+        escrow_ua == attested,
+        "this backup's viewing key gives {escrow_ua}, not the address you attested ({attested})"
+    );
+    Ok(BackupCheck {
+        slot: backup.id as u16,
+        threshold: (backup.t, backup.n),
+        escrow_ua,
+        birthday_height: backup.birthday_height,
+    })
+}
+
+/// Decode and check a batch's transaction before taking part in signing it
+/// (security review D1): the shared co-signer checks (frost-zec spec § 6)
+/// and sealForge's rule that every payment is owed. Returns what it checked.
+/// A batch this trustee checked: what the transaction does, and for refund
+/// batches the ledger entry to record before its shares leave this machine.
+pub struct CheckedBatch {
+    pub verified: sealforge_verify::VerifiedBatch,
+    pub ledger_entry: Option<sealforge_verify::refunds::LedgerEntry>,
+}
+
+/// Refund batches this trustee signed, kept so it never signs a note twice.
+const REFUND_LEDGER: &str = "refund-ledger.json";
+
+fn read_ledger(
+    store: &Keystore,
+    code: &str,
+) -> anyhow::Result<Vec<sealforge_verify::refunds::LedgerEntry>> {
+    Ok(match store.read(code, REFUND_LEDGER)? {
+        Some(bytes) => serde_json::from_slice(&bytes)
+            .with_context(|| format!("reading {REFUND_LEDGER} for {code}"))?,
+        None => Vec::new(),
+    })
+}
+
+/// Record a signed refund batch (synced to disk) before its shares are sent.
+fn record_signed(
+    store: &Keystore,
+    code: &str,
+    entry: sealforge_verify::refunds::LedgerEntry,
+) -> anyhow::Result<()> {
+    let mut ledger = read_ledger(store, code)?;
+    if !ledger.iter().any(|e| e.batch_txid == entry.batch_txid) {
+        ledger.push(entry);
+        store.replace(code, REFUND_LEDGER, &serde_json::to_vec_pretty(&ledger)?)?;
+    }
+    Ok(())
+}
+
+fn chain_params(network: zcash_protocol::consensus::NetworkType) -> sealforge_chain::ChainParams {
+    use zcash_protocol::consensus::NetworkType;
+    match network {
+        NetworkType::Main => sealforge_chain::ChainParams::Mainnet,
+        NetworkType::Test => sealforge_chain::ChainParams::Testnet,
+        NetworkType::Regtest => sealforge_chain::ChainParams::regtest(),
+    }
+}
+
+/// Tie every note of a refund batch to its bid, read from the chain through
+/// the trustee's own lightwallet server, and to what this trustee signed
+/// before (security review D1, second part).
+#[allow(clippy::too_many_arguments)]
+async fn check_refund_recipients(
+    store: &Keystore,
+    code: &str,
+    view: &EscrowView,
+    batch: &BatchView,
+    pczt: &[u8],
+    verified: &sealforge_verify::VerifiedBatch,
+    result: &sealforge_api::types::PublishedResult,
+    chain: &mut sealforge_chain::Client,
+) -> anyhow::Result<sealforge_verify::refunds::LedgerEntry> {
+    use sealforge_verify::refunds::{self, BidOnChain, RefundClaim, ResultBid};
+
+    let claims = batch
+        .refunds
+        .iter()
+        .map(|n| {
+            Ok(RefundClaim {
+                bid_txid: hex32(&n.bid_txid)?,
+                bid_output_index: n.bid_output_index,
+                value_zat: n.value_zat,
+            })
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+    // Each claimed bid, as this trustee reads it from the chain.
+    let scanner = sealforge_scan::EscrowScanner::from_fvk(chain_params(view.network), &view.fvk);
+    let mut bids = BTreeMap::new();
+    for claim in &claims {
+        if bids.contains_key(&claim.bid()) {
+            continue;
+        }
+        let Some((raw, Some(height))) =
+            sealforge_chain::fetch_transaction(chain, claim.bid_txid).await?
+        else {
+            continue; // Not mined (or unknown): the check refuses this note.
+        };
+        let payments = scanner
+            .decrypt_transaction(&raw, height)
+            .map_err(|e| anyhow!("decrypting bid {}: {e}", hex::encode(claim.bid_txid)))?;
+        if let Some(p) = payments
+            .into_iter()
+            .find(|p| p.txid == claim.bid_txid && p.output_index == claim.bid_output_index)
+        {
+            let memo = p
+                .memo
+                .as_deref()
+                .and_then(|m| sealforge_core::memo::BidMemo::decode(m).ok());
+            bids.insert(
+                claim.bid(),
+                BidOnChain {
+                    amount_zat: p.amount_zat,
+                    refund_ua: memo.as_ref().map(|m| m.refund_ua.clone()),
+                    commitment: memo.map(|m| m.commitment).unwrap_or_default(),
+                },
+            );
+        }
+    }
+
+    let listed = result
+        .bids
+        .iter()
+        .map(|b| {
+            Ok((
+                (hex32(&b.txid)?, b.output_index),
+                ResultBid {
+                    commitment: hex32(&b.commitment)?,
+                    refund_due_zat: b.refund_due_zat,
+                },
+            ))
+        })
+        .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
+
+    // What this trustee signed before, from batches that are or may still be
+    // on chain.
+    let tip = sealforge_chain::chain_tip(chain).await?;
+    let mut entries = Vec::new();
+    for entry in read_ledger(store, code)? {
+        let on_chain = sealforge_chain::fetch_transaction(chain, entry.batch_txid)
+            .await?
+            .is_some();
+        entries.push((entry, on_chain));
+    }
+    let batch_txid = sealforge_verify::batch_txid(pczt).map_err(|r| anyhow!("{r}"))?;
+    let before = refunds::signed_before(&entries, tip, &batch_txid);
+
+    refunds::check_refund_recipients(
+        &verified.payments,
+        &claims,
+        &bids,
+        &listed,
+        &before,
+        sealforge_verify::orchard_receiver,
+    )
+    .map_err(|refusal| {
+        anyhow!(
+            "REFUSED batch {} ({}): {}. Don't sign; tell the organiser and the other trustees.",
+            batch.id,
+            refusal.class,
+            refusal.message
+        )
+    })?;
+    Ok(refunds::LedgerEntry {
+        batch_txid,
+        expiry_height: verified.expiry_height,
+        notes: claims,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn check_batch(
+    store: &Keystore,
+    coordinator: &str,
+    code: &str,
+    view: &EscrowView,
+    batch: &BatchView,
+    chain: Option<&mut sealforge_chain::Client>,
+) -> anyhow::Result<CheckedBatch> {
+    use sealforge_verify::{BatchKind, BatchRules};
+
+    let pczt = hex::decode(batch.pczt.as_deref().ok_or_else(|| {
+        anyhow!(
+            "REFUSED batch {}: the coordinator sent no transaction to check",
+            batch.id
+        )
+    })?)?;
+    let kind = BatchKind::parse(&batch.kind).ok_or_else(|| {
+        anyhow!(
+            "REFUSED batch {}: unknown batch kind {}",
+            batch.id,
+            batch.kind
+        )
+    })?;
+    let result: Option<sealforge_api::types::PublishedResult> = if kind == BatchKind::Refund {
+        Some(
+            Client::new(coordinator, None)
+                .get(&format!("/v1/auctions/{code}/result"))
+                .await
+                .with_context(|| {
+                    format!(
+                        "REFUSED batch {}: no published result to check refunds against",
+                        batch.id
+                    )
+                })?,
+        )
+    } else {
+        None
+    };
+    let refund_total_due_zat = result
+        .as_ref()
+        .map(|r| r.bids.iter().map(|b| b.refund_due_zat).sum());
+    let rules = BatchRules {
+        kind,
+        refund_total_due_zat,
+        payout_ua: batch.payout_ua.clone(),
+    };
+    let spends = batch
+        .spends
+        .iter()
+        .map(|s| Ok((s.action_index as usize, hex32(&s.alpha)?)))
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    let verified = sealforge_verify::verify_batch(
+        &pczt,
+        &view.fvk,
+        view.network,
+        now,
+        &hex32(&batch.sighash)?,
+        &spends,
+        &rules,
+    )
+    .map_err(|refusal| {
+        anyhow!(
+            "REFUSED batch {} ({}): {}. Don't sign; tell the organiser and the other trustees.",
+            batch.id,
+            refusal.class,
+            refusal.message
+        )
+    })?;
+    let ledger_entry = match result {
+        Some(result) => {
+            let chain = chain.ok_or_else(|| {
+                anyhow!(
+                    "REFUSED batch {}: refund batches are checked against the chain; pass \
+                     --lightwalletd with a lightwallet server you trust",
+                    batch.id
+                )
+            })?;
+            Some(
+                check_refund_recipients(store, code, view, batch, &pczt, &verified, &result, chain)
+                    .await?,
+            )
+        }
+        None => None,
+    };
+    Ok(CheckedBatch {
+        verified,
+        ledger_entry,
+    })
+}
+
+/// Before co-signing money out of an escrow: the public page bidders paid from
+/// must be up and show the address this trustee attested, its own key, and
+/// valid attestations (security review F15). Anything else refuses.
+pub async fn require_public(
+    store: &Keystore,
+    coordinator: &str,
+    code: &str,
+    policy: &SignPolicy,
+) -> anyhow::Result<BTreeMap<u16, [u8; 32]>> {
+    match check_public(store, coordinator, code).await? {
+        PublicCheck::Matches { keys, .. } => Ok(keys),
+        PublicCheck::NotPublicYet => bail!(
+            "Refusing to co-sign for {code}: the public auction page isn't available, so you \
+             can't confirm it shows bidders the escrow address you attested."
+        ),
+        // No attestations to check the keys against: take the listed ones.
+        PublicCheck::NotAttested if policy.allow_unattested_escrow => {
+            let view: sealforge_api::types::AuctionView = Client::new(coordinator, None)
+                .get(&format!("/v1/auctions/{code}"))
+                .await?;
+            Ok(public_keys(&view))
+        }
+        PublicCheck::NotAttested => bail!(
+            "Refusing to co-sign for {code}: this keystore has no record of the escrow address \
+             you attested. Run `sealforge trustee dkg {code}` to check it. For an auction from \
+             before escrow attestations, pass --allow-unattested-escrow."
+        ),
+    }
+}
+
 pub async fn sign_step(
     store: &Keystore,
     coordinator: &str,
     code: &str,
 ) -> anyhow::Result<Vec<SignProgress>> {
+    sign_step_with(store, coordinator, code, SignPolicy::default()).await
+}
+
+pub async fn sign_step_with(
+    store: &Keystore,
+    coordinator: &str,
+    code: &str,
+    policy: SignPolicy,
+) -> anyhow::Result<Vec<SignProgress>> {
     let identity = store.trustee_identity(code)?;
     let (key_package, _) = key_share(store, code)?;
     // Never co-sign money out of an escrow whose public page showed bidders
-    // something other than what this trustee verified.
-    check_public(store, coordinator, code).await?;
+    // something other than what this trustee verified, or that is missing.
+    let public_keys = require_public(store, coordinator, code, &policy).await?;
     let client = Client::new(coordinator, Some(identity.signing_key()?));
     let batches: Vec<BatchView> = client.get(&format!("/v1/auctions/{code}/batches")).await?;
     let me = identity.slot;
     let mut out = Vec::new();
+    // The escrow's viewing key, rebuilt once and only when there is something
+    // to check. Auctions from before attestations have none.
+    let mut view: Option<EscrowView> = None;
+    let checks = !policy.skip_transaction_checks_for_tests;
+    // The trustee's own lightwallet server, connected on first use.
+    let mut chain: Option<sealforge_chain::Client> = None;
 
     for batch in batches {
         if batch.status != "awaiting_signatures" {
             out.push(SignProgress::Done { batch: batch.id });
             continue;
+        }
+        let mut checked: Option<CheckedBatch> = None;
+        // Check the transaction before committing nonces and before signing.
+        let will_act = !batch.i_committed
+            || (batch.signer_slots.contains(&me)
+                && !batch.i_shared
+                && batch.signer_commitments.len() >= 2);
+        if checks && will_act && store.read(code, &signed_file(&batch.id))?.is_none() {
+            if view.is_none() {
+                view = match escrow_view(store, &client, code).await {
+                    Ok(v) => Some(v),
+                    Err(e)
+                        if policy.allow_unattested_escrow
+                            && store.read(code, ESCROW_ATTESTED)?.is_none() =>
+                    {
+                        eprintln!(
+                            "WARNING: {code} has no attested escrow, so batch {} is signed without \
+                             checking its transaction ({e}).",
+                            batch.id
+                        );
+                        None
+                    }
+                    Err(e) => return Err(e),
+                };
+            }
+            if let Some(view) = &view {
+                if chain.is_none() && batch.kind == "refund" {
+                    if let Some(url) = &policy.lightwalletd {
+                        chain = Some(sealforge_chain::connect(url).await.with_context(|| {
+                            format!("connecting to the lightwallet server {url}")
+                        })?);
+                    }
+                }
+                checked = Some(
+                    check_batch(store, coordinator, code, view, &batch, chain.as_mut()).await?,
+                );
+            }
         }
         if !batch.i_committed {
             // Round 1: fresh nonces per spend, saved (owner-only) before anything is sent.
@@ -744,7 +1443,8 @@ pub async fn sign_step(
             })
             .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
         let sighash = hex32(&batch.sighash)?;
-        let inputs = signing_inputs_digest(&sighash, &alphas, &commitments);
+        let digest = sealforge_api::auth::round2_inputs_digest(&sighash, &alphas, &commitments);
+        let inputs = hex::encode(digest);
 
         // A share made with these nonces may already have left this machine
         // (the POST below can fail after the coordinator received it). Never
@@ -762,6 +1462,54 @@ pub async fn sign_step(
             continue;
         }
 
+        // Between rounds: state what this trustee will sign over, and sign only
+        // once the co-signer has stated the same (stream 2c).
+        match batch.signer_inputs.get(&me) {
+            None => {
+                let signature = sealforge_api::auth::sign_round2_inputs(
+                    &identity.signing_key()?,
+                    code,
+                    &batch.id,
+                    me,
+                    &digest,
+                );
+                let _: BatchView = client
+                    .post(
+                        &format!("/v1/batches/{}/inputs", batch.id),
+                        &PostInputs {
+                            digest: inputs.clone(),
+                            signature: hex::encode(signature),
+                        },
+                    )
+                    .await?;
+            }
+            Some(stated) if stated.digest != inputs => bail!(
+                "REFUSED batch {} (equivocation): the coordinator now shows different round 2 \
+                 inputs than the ones you stated. Don't sign; tell the organiser and the other \
+                 trustees, and treat the coordinator as compromised.",
+                batch.id
+            ),
+            Some(_) => {}
+        }
+        let co_signer = batch
+            .signer_slots
+            .iter()
+            .copied()
+            .find(|s| *s != me)
+            .ok_or_else(|| anyhow!("batch {} has no co-signer", batch.id))?;
+        let Some(theirs) = batch.signer_inputs.get(&co_signer) else {
+            out.push(SignProgress::WaitingForCoSignerCheck { batch: batch.id });
+            continue;
+        };
+        check_co_signer_inputs(
+            code,
+            &batch,
+            co_signer,
+            theirs,
+            public_keys.get(&co_signer),
+            &inputs,
+        )?;
+
         let nonce_hex: Vec<String> =
             serde_json::from_slice(&store.read(code, &nonces_file(&batch.id))?.ok_or_else(
                 || anyhow!("nonces for batch {} are missing on this machine", batch.id),
@@ -775,6 +1523,11 @@ pub async fn sign_step(
                 .iter()
                 .map(hex::encode)
                 .collect();
+        // A refund batch goes in this trustee's ledger before its shares can
+        // leave, so it never signs the same notes in another batch (D1).
+        if let Some(entry) = checked.and_then(|c| c.ledger_entry) {
+            record_signed(store, code, entry)?;
+        }
         // Consume the nonces before the shares leave this machine: record what
         // was signed (synced to disk), then delete the nonces. If either step
         // fails, nothing is sent.

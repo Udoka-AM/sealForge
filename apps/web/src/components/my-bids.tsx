@@ -32,6 +32,7 @@ import type {
   RefundProgress,
 } from "@/lib/types";
 import type { WalletSummary } from "@/lib/wallet/session";
+import { EscrowGateNotice, useEscrowGate } from "./escrow-check";
 import { RevealPanel } from "./reveal-panel";
 import { InlineUnlock } from "./wallet/inline-unlock";
 import { PaymentStatus, WalletPay } from "./wallet/wallet-pay";
@@ -351,14 +352,17 @@ function BidCard({
   const sealed = a?.bid_mode === "commit_reveal" || receipt.price_zat !== undefined;
   const received = refundsReceived(receipt, wallet.summary);
   const due = check ? check.refund_due_zat - check.dust_zat : null;
-  const canPayFromWallet =
+  // Paying later from here goes only to the address checked when the bid was
+  // prepared, and only while every trustee signature still confirms it.
+  const escrow = useEscrowGate(a?.status === "open" ? a : null, receipt);
+  const payable =
     !receipt.paid_txid &&
     a?.status === "open" &&
-    a.escrow_ua &&
     tip !== null &&
     tip < a.close_height &&
     wallet.status === "unlocked" &&
     wallet.network === a.network;
+  const canPayFromWallet = payable && escrow.ok;
   const [paying, setPaying] = useState(false);
 
   return (
@@ -425,11 +429,13 @@ function BidCard({
         </p>
       ) : null}
 
-      {canPayFromWallet && a?.escrow_ua && paying ? (
+      {payable && !escrow.ok ? <EscrowGateNotice gate={escrow} /> : null}
+
+      {canPayFromWallet && escrow.ok && a && paying ? (
         <WalletPay
           network={a.network}
           request={{
-            to: a.escrow_ua,
+            to: escrow.ua,
             amount_zat: receipt.amount_zat,
             memo: receiptMemo(receipt),
             label: `bid:${a.code}`,

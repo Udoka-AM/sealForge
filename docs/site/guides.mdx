@@ -24,11 +24,13 @@ Choosing a mode: deposit mode is simpler for bidders (one payment) but the coord
 
 Status: `Testnet`. Code: `crates/sealforge-cli/src/trustee.rs`, browser `/trustee/<CODE>` (`crates/sealforge-signer-wasm`).
 
-1. `sealforge trustee join <invite>`, then `sealforge trustee dkg <CODE> --wait`. Your key share is written to your disk (owner-only).
+0. **Once, before your first auction:** `sealforge trustee identity --published-at <URL or handle>` makes your long-term trustee key. Post the line it prints at that place (your website, GitHub profile, X bio) and leave it there. In every auction you join, this key vouches for your key, so bidders can tell you from a stand-in.
+1. `sealforge trustee join <invite>` (your long-term key vouches for you automatically; if you joined without one, run `sealforge trustee certify <CODE>` later), then `sealforge trustee dkg <CODE> --wait`. Your key share is written to your disk (owner-only).
 2. **Compare the fingerprint** with the other two trustees on a call or in person. If they differ, stop.
-3. When batches are due: `sealforge trustee sign <CODE> --wait`. You commit; if you're one of the first two, you sign.
+3. **Back up:** `sealforge trustee backup <CODE> > backup.txt` prints one string with your key share and the escrow's viewing key. Keep it offline (paper or an encrypted drive), never in chat or email, then `sealforge trustee check-backup <CODE> backup.txt` and delete the file from the machine. With a second trustee's string it can spend the escrow even if the coordinator is gone; `sealforge escrow recover-check <backup> <backup>` drills that.
+4. When batches are due: `sealforge trustee sign <CODE> --wait --lightwalletd <a lightwallet server you trust>`. The server is how you check refunds yourself: each refund note's bid is read from the chain and must match. Without it, refund batches are refused. You commit; if you're one of the first two, you sign. Before committing or signing, the CLI and the browser page both check that the public auction page is up, lists your key in your slot, and shows the escrow address you attested with every trustee's signature, and refuse otherwise. For an auction from before escrow attestations, the CLI needs `--allow-unattested-escrow`.
 
-What you are, and aren't, checking when you sign: you sign a sighash and α per escrow spend. The CLI shows the coordinator's stated output count and total, but **you can't see the transaction's outputs** ([5 Security, trust assumption 3](/security#trust-assumptions)). Treat the coordinator as trusted for what it asks you to sign until trustee-side PCZT verification ships.
+What you check when you sign: the CLI and the browser decode the transaction (PCZT) themselves, compute the sighash, and run the shared frost-zec checks plus sealForge's batch rules: every output is owed, refunds go to each bid's own refund address (CLI, with `--lightwalletd`), and payouts only to the payout address ([5 Security, trust assumption 3](/security#trust-assumptions)). Before releasing your share, you and your co-signer also confirm you were shown the same commitments.
 
 **CLI or browser.** The browser trustee page holds your key share in JavaScript memory while it's open, the same trust as the CLI on that machine plus the browser's attack surface. Use the CLI for large auctions. Never run more than one trustee on one machine outside test networks: that defeats the threshold.
 
@@ -40,6 +42,7 @@ Status: `Testnet`.
 - **In-browser wallet:** `/wallet` creates a 24-word phrase and a passphrase-encrypted vault in your browser, and gives each bid a fresh refund address ([WALLET-INTEGRATION.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/WALLET-INTEGRATION.md)).
 - **Keep the receipt.** It holds your salt, the only copy. In sealed-reveal mode you need it to reveal. Without a reveal, your deposit is refunded as `not_revealed`.
 - **Sealed-reveal:** after the bidding close, send the reveal (10,000 zat, `SF1R` memo) before `reveal_close_height`.
+- **Check the trustees before you pay.** The escrow card checks every trustee's signature in your browser. Open "Trustee keys": each trustee shows the long-term key that vouches for it and where it's published. Open those places and check the keys match. Treat a trustee with no long-term key, or a place you don't recognise, as unknown: the signatures prove who signed, not that the three trustees are different people.
 - **Verify** at `/verify` once the result is published: inclusion, outcome and refund plan, checked in your browser.
 - **Refunds** arrive as several canonical notes at different times. Don't move them all out at once ([2.7](/protocol/refunds#known-residuals)).
 

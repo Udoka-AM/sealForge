@@ -58,7 +58,7 @@ docker compose -f infra/docker-compose.yml --profile node --profile app up -d
 
 ## Backups (task 5.6)
 
-**What matters most:** each escrow's UFVK. It is stored only in Postgres, encrypted with `SF_DATA_KEY`, and the trustees' FROST shares can't spend without it. Losing both the database and every backup, or losing `SF_DATA_KEY`, leaves escrowed bids unrefundable. Everything else can be rebuilt: payments and memos by rescanning with the UFVK, and published results from the chain plus the published bid set.
+**What matters most:** each escrow's UFVK. It is stored in Postgres, encrypted with `SF_DATA_KEY`, and each trustee also keeps it with its key share and in its backup string (`sealforge trustee backup`). Losing the database and every backup, or `SF_DATA_KEY`, stops the coordinator, but not the funds: two trustees' backups hold the shares and the UFVK a spend needs (`sealforge escrow recover-check` drills this). Building that spend without the coordinator is manual for now. Everything else can be rebuilt: payments and memos by rescanning with the UFVK, and published results from the chain plus the published bid set.
 
 | What | How | Where | Kept |
 |---|---|---|---|

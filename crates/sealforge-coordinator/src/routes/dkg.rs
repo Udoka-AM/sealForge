@@ -16,10 +16,12 @@ use axum::{
 };
 use rand::rngs::OsRng;
 use sealforge_api::{
-    auth::{verify_dkg_package, verify_escrow_attestation},
+    auth::{
+        valid_published_at, verify_dkg_package, verify_escrow_attestation, verify_trustee_cert,
+    },
     types::{
         AuctionStatus, CompleteDkg, DkgPackage, DkgState, DkgStatus, DkgTrustee, JoinAsTrustee,
-        PostRound1, PostRound2, TrusteeJoined, VerifyEscrow,
+        PostRound1, PostRound2, TrusteeIdentityCert, TrusteeJoined, VerifyEscrow,
     },
 };
 use sealforge_escrow::{address, dkg as frost_dkg, frost::keys::PublicKeyPackage, Threshold};
@@ -283,6 +285,11 @@ pub async fn state(
     .bind(me.slot)
     .fetch_all(&state.db)
     .await?;
+    let birthday: Option<i32> =
+        sqlx::query_scalar("SELECT escrow_birthday_height FROM auctions WHERE id = $1")
+            .bind(auction.id)
+            .fetch_one(&state.db)
+            .await?;
     Ok(Json(DkgState {
         auction_code: auction.code.clone(),
         auction_status: auction.status,
@@ -304,6 +311,7 @@ pub async fn state(
         round2_for_me: round2.into_iter().map(Into::into).collect(),
         escrow_ua: auction.escrow_ua,
         escrow_view_secret_for_me: me.escrow_view_sealed.map(hex::encode),
+        escrow_birthday_height: birthday.map(|h| h.max(0) as u32),
     }))
 }
 
@@ -650,5 +658,98 @@ pub async fn verify_escrow(
     .bind(me.id)
     .execute(&state.db)
     .await?;
+    self::state(State(state), Path(code), req).await
+}
+
+/// `POST /v1/auctions/{code}/trustee-identity`: the trustee's long-term key
+/// vouching for its key in this auction (stream 4). Checked here so a bad
+/// certificate is never published; bidders check it again. Fixed once set,
+/// and one long-term key may hold only one seat per auction.
+pub async fn certify(
+    State(state): State<AppState>,
+    Path(code): Path<String>,
+    req: Signed,
+) -> Result<Json<DkgState>, ApiError> {
+    let (auction, me, _) = as_trustee(&state, &req, &code).await?;
+    if matches!(
+        auction.status,
+        AuctionStatus::Settled | AuctionStatus::Cancelled
+    ) {
+        return Err(ApiError::conflict(
+            "auction_over",
+            "this auction is over; certify before it settles",
+        ));
+    }
+    let input: TrusteeIdentityCert = req.json()?;
+    let identity = decode_hex::<32>(&input.pubkey, "pubkey")?;
+    let signature = decode_hex::<64>(&input.signature, "signature")?;
+    if !valid_published_at(&input.published_at) {
+        return Err(ApiError::BadRequest(
+            "published_at must be a URL or handle: 1 to 200 printable characters, no spaces".into(),
+        ));
+    }
+    if !verify_trustee_cert(
+        &identity,
+        &signature,
+        &auction.code,
+        me.slot as u16,
+        &req.pubkey,
+        &input.published_at,
+    ) {
+        return Err(ApiError::BadRequest(
+            "the certificate doesn't verify under that long-term key".into(),
+        ));
+    }
+    let mut tx = state.db.begin().await?;
+    sqlx::query("SELECT 1 FROM auctions WHERE id = $1 FOR UPDATE")
+        .bind(auction.id)
+        .execute(&mut *tx)
+        .await?;
+    let (current, other_seat): (Option<Vec<u8>>, bool) = sqlx::query_as(
+        "SELECT (SELECT identity_pubkey FROM trustees WHERE id = $1), \
+                EXISTS (SELECT 1 FROM trustees WHERE auction_id = $2 AND identity_pubkey = $3 AND id <> $1)",
+    )
+    .bind(me.id)
+    .bind(auction.id)
+    .bind(&identity[..])
+    .fetch_one(&mut *tx)
+    .await?;
+    if other_seat {
+        return Err(ApiError::conflict(
+            "identity_in_use",
+            "this long-term key already vouches for another trustee seat in this auction",
+        ));
+    }
+    match current {
+        Some(existing) if existing != identity => {
+            return Err(ApiError::conflict(
+                "identity_fixed",
+                "this seat is already certified by another long-term key",
+            ))
+        }
+        Some(_) => {}
+        None => {
+            sqlx::query(
+                "UPDATE trustees SET identity_pubkey = $2, identity_published_at = $3, identity_cert = $4 \
+                 WHERE id = $1",
+            )
+            .bind(me.id)
+            .bind(&identity[..])
+            .bind(&input.published_at)
+            .bind(&signature[..])
+            .execute(&mut *tx)
+            .await?;
+            db::audit(
+                &mut *tx,
+                Some(auction.id),
+                "trustee",
+                Some(me.id),
+                "trustee.certified",
+                json!({ "slot": me.slot }),
+            )
+            .await?;
+        }
+    }
+    tx.commit().await?;
     self::state(State(state), Path(code), req).await
 }

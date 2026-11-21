@@ -79,8 +79,21 @@ enum AuctionCommand {
 
 #[derive(Debug, Subcommand)]
 enum TrusteeCommand {
-    /// Join an auction as a trustee using a one-time invite code.
+    /// Create your long-term trustee key (once) and say where you publish it.
+    /// Post the printed key there: bidders compare it with the one that
+    /// vouches for you on each auction page.
+    Identity {
+        /// Where you publish the key: a URL or handle you control
+        /// (your website, GitHub, X).
+        #[arg(long)]
+        published_at: Option<String>,
+    },
+    /// Join an auction as a trustee using a one-time invite code. If you have
+    /// a long-term key, it vouches for your key in this auction.
     Join { invite: String },
+    /// Vouch for your key in an auction with your long-term key (if you
+    /// joined before you had one).
+    Certify { code: String },
     /// Run your side of the key generation. Safe to re-run.
     Dkg {
         code: String,
@@ -91,12 +104,29 @@ enum TrusteeCommand {
     /// Check the auction's public page against the escrow address you signed,
     /// and print your key for bidders. Run it once the auction opens.
     Check { code: String },
+    /// Print your backup string for an auction: your key share and the
+    /// escrow's viewing key. With a second trustee's backup it spends the
+    /// escrow, even without the coordinator. Keep it offline; never share it.
+    Backup { code: String },
+    /// Check a backup string against this machine's keystore without writing
+    /// anything: same key share, and a viewing key that gives the address you
+    /// attested. `-` reads the string from stdin.
+    CheckBackup { code: String, file: PathBuf },
     /// Review and co-sign pending refund/payout batches. Safe to re-run.
     Sign {
         code: String,
         /// Keep going until nothing is waiting on you (polls every 10 s).
         #[arg(long)]
         wait: bool,
+        /// Sign for an auction you never attested, from before escrow
+        /// attestations existed. Without it, signing refuses.
+        #[arg(long)]
+        allow_unattested_escrow: bool,
+        /// A lightwallet server you trust (gRPC, e.g. https://zec.rocks:443).
+        /// Refund batches are checked against the chain through it; without
+        /// it they are refused.
+        #[arg(long, env = "SF_LIGHTWALLETD_URL")]
+        lightwalletd: Option<String>,
     },
 }
 
@@ -112,6 +142,15 @@ enum EscrowCommand {
         /// testnet | regtest
         #[arg(long, default_value = "testnet")]
         network: String,
+    },
+    /// Restore drill: check that backup strings from enough trustees rebuild
+    /// the escrow and sign together with no coordinator (a random spend
+    /// authorization, verified like an on-chain one; no transaction is made).
+    /// Prints the escrow address to compare with the auction page.
+    RecoverCheck {
+        /// Backup files, one per trustee (`sealforge trustee backup`).
+        #[arg(required = true, num_args = 2..)]
+        backups: Vec<PathBuf>,
     },
 }
 
@@ -131,12 +170,44 @@ async fn main() -> anyhow::Result<()> {
             );
         }
         Command::Auction(cmd) => auction(&store, url, cmd).await?,
+        Command::Trustee(TrusteeCommand::Identity { published_at }) => {
+            let identity = trustee::long_term_identity(&store, published_at.as_deref())?;
+            let key = identity.public_key_hex()?;
+            match identity.published_at.as_deref() {
+                Some(place) => println!(
+                    "Your long-term trustee key:\n\n  sealForge trustee key: {key}\n\nPost that line at {place}, \
+                     and keep it there. Each auction you join shows this key vouching for you, \
+                     with that place; bidders compare the two."
+                ),
+                None => println!(
+                    "Your long-term trustee key: {key}\nNow say where you publish it: \
+                     sealforge trustee identity --published-at <your URL or handle>"
+                ),
+            }
+        }
         Command::Trustee(TrusteeCommand::Join { invite }) => {
             let joined = trustee::join(&store, url, &invite).await?;
             println!(
-                "Joined auction {} as trustee {} ({}). Next: sealforge trustee dkg {} --wait",
-                joined.auction_code, joined.slot, joined.label, joined.auction_code
+                "Joined auction {} as trustee {} ({}).",
+                joined.auction_code, joined.slot, joined.label
             );
+            let code = &joined.auction_code;
+            match store.long_term_identity()? {
+                Some(lt) if lt.published_at.is_some() => {
+                    let key = trustee::certify(&store, url, code).await?;
+                    println!("Your long-term key {key} vouches for you in {code}.");
+                }
+                _ => println!(
+                    "No long-term key vouches for you, so bidders can't tell you from a stand-in. \
+                     Run `sealforge trustee identity --published-at <URL>`, publish the key, then \
+                     `sealforge trustee certify {code}`."
+                ),
+            }
+            println!("Next: sealforge trustee dkg {code} --wait");
+        }
+        Command::Trustee(TrusteeCommand::Certify { code }) => {
+            let key = trustee::certify(&store, url, &code).await?;
+            println!("Your long-term key {key} vouches for you in {code}.");
         }
         Command::Trustee(TrusteeCommand::Dkg { code, wait }) => loop {
             let progress = trustee::dkg_step(&store, url, &code).await?;
@@ -162,6 +233,36 @@ async fn main() -> anyhow::Result<()> {
                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             }
         },
+        Command::Trustee(TrusteeCommand::Backup { code }) => {
+            let text = trustee::backup(&store, url, &code).await?;
+            eprintln!(
+                "Your backup for {code}. It holds your key share and the escrow's viewing key: \
+                 keep it offline (paper or an encrypted drive), never in chat or email. Check it \
+                 with `sealforge trustee check-backup {code} <file>`."
+            );
+            println!("{text}");
+        }
+        Command::Trustee(TrusteeCommand::CheckBackup { code, file }) => {
+            let text = if file.as_os_str() == "-" {
+                std::io::read_to_string(std::io::stdin())?
+            } else {
+                std::fs::read_to_string(&file)?
+            };
+            let check = trustee::check_backup(&store, &code, &text)?;
+            println!(
+                "Backup OK: trustee {} of a {}-of-{} escrow for {code}. It restores your key share \
+                 and the escrow address {}{}.",
+                check.slot,
+                check.threshold.0,
+                check.threshold.1,
+                check.escrow_ua,
+                match check.birthday_height {
+                    0 => " (birthday height unknown: a restored wallet scans from activation)"
+                        .to_owned(),
+                    h => format!(" (scan from height {h})"),
+                }
+            );
+        }
         Command::Trustee(TrusteeCommand::Check { code }) => {
             let key = trustee::my_key(&store, &code)?;
             match trustee::check_public(&store, url, &code).await? {
@@ -169,6 +270,7 @@ async fn main() -> anyhow::Result<()> {
                     escrow_ua,
                     signed,
                     total,
+                    ..
                 } => println!(
                     "The public page for {code} shows the escrow address you signed ({escrow_ua}), \
                      lists your key, and {signed} of {total} trustee attestations verify."
@@ -185,13 +287,23 @@ async fn main() -> anyhow::Result<()> {
                  so they can pin it: the auction page shows each trustee's key."
             );
         }
-        Command::Trustee(TrusteeCommand::Sign { code, wait }) => loop {
+        Command::Trustee(TrusteeCommand::Sign {
+            code,
+            wait,
+            allow_unattested_escrow,
+            lightwalletd,
+        }) => loop {
             for batch in trustee::pending_batches(&store, url, &code).await? {
                 if batch.status == "awaiting_signatures" && !batch.i_shared {
                     println!("Reviewing {}", trustee::describe_batch(&batch));
                 }
             }
-            let progress = trustee::sign_step(&store, url, &code).await?;
+            let policy = trustee::SignPolicy {
+                allow_unattested_escrow,
+                lightwalletd: lightwalletd.clone(),
+                ..Default::default()
+            };
+            let progress = trustee::sign_step_with(&store, url, &code, policy).await?;
             if progress.is_empty() {
                 println!("Nothing to sign for {code}.");
             }
@@ -203,6 +315,7 @@ async fn main() -> anyhow::Result<()> {
                     p,
                     trustee::SignProgress::Committed { .. }
                         | trustee::SignProgress::WaitingForSecondSigner { .. }
+                        | trustee::SignProgress::WaitingForCoSignerCheck { .. }
                 )
             });
             if !wait || !waiting {
@@ -211,6 +324,37 @@ async fn main() -> anyhow::Result<()> {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         },
         Command::Escrow(EscrowCommand::LocalDkg { out, network }) => local_dkg(&out, &network)?,
+        Command::Escrow(EscrowCommand::RecoverCheck { backups }) => {
+            use sealforge_escrow::{
+                address::{escrow_address, EncodingParams},
+                backup::{drill_sign, Backup},
+            };
+            let parsed = backups
+                .iter()
+                .map(|p| {
+                    let text = std::fs::read_to_string(p)?;
+                    Backup::decode(&text).map_err(|e| anyhow::anyhow!("{}: {e}", p.display()))
+                })
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            drill_sign(&parsed, &mut rand::rngs::OsRng)?;
+            let first = &parsed[0];
+            println!(
+                "Recovered: trustees {} of a {}-of-{} escrow signed together with no coordinator, \
+                 and the signature verifies under the escrow's key. Escrow address: {}{}",
+                parsed
+                    .iter()
+                    .map(|b| b.id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" and "),
+                first.t,
+                first.n,
+                escrow_address(&first.full_viewing_key(), &EncodingParams(first.network))?,
+                match first.birthday_height {
+                    0 => String::new(),
+                    h => format!(" (scan from height {h})"),
+                }
+            );
+        }
     }
     Ok(())
 }
