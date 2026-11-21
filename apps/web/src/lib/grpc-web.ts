@@ -146,6 +146,41 @@ export async function getLatestHeight(endpoint: string): Promise<number> {
   return typeof height === "bigint" ? Number(height) : 0;
 }
 
+/**
+ * A transaction by txid (internal byte order, hex) with the height it was
+ * mined at (`null` while it's only in the mempool), or `null` when the server
+ * doesn't know it. Servers word "not found" differently (gRPC NotFound, or the
+ * node's "No such mempool or main chain transaction"); other errors throw.
+ */
+export async function findTransaction(
+  endpoint: string,
+  txidHex: string,
+): Promise<{ raw: Uint8Array; height: number | null } | null> {
+  const hash = txidHex.match(/../g)?.map((h) => Number.parseInt(h, 16)) ?? [];
+  let reply: Uint8Array | null = null;
+  try {
+    await readFrames(await call(endpoint, "GetTransaction", bytesField(3, hash)), (m) => {
+      reply = m;
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message.toLowerCase() : "";
+    if (
+      msg.includes("error 5:") ||
+      msg.includes("not found") ||
+      msg.includes("no such mempool or main chain transaction")
+    )
+      return null;
+    throw e;
+  }
+  if (!reply) return null;
+  const fields = decodeFields(reply);
+  const data = fields.get(1);
+  if (!(data instanceof Uint8Array) || data.length === 0) return null;
+  const h = fields.get(2);
+  const height = typeof h === "bigint" && h > 0n && h < 0xffffffffn ? Number(h) : null;
+  return { raw: data, height };
+}
+
 /** The raw `TreeState` protobuf for block `height` (the wallet's birthday minus one). */
 export function getTreeState(endpoint: string, height: number): Promise<Uint8Array> {
   return unary(endpoint, "GetTreeState", blockId(height));

@@ -1120,17 +1120,9 @@ async fn check_refund_recipients(
             .into_iter()
             .find(|p| p.txid == claim.bid_txid && p.output_index == claim.bid_output_index)
         {
-            let memo = p
-                .memo
-                .as_deref()
-                .and_then(|m| sealforge_core::memo::BidMemo::decode(m).ok());
             bids.insert(
                 claim.bid(),
-                BidOnChain {
-                    amount_zat: p.amount_zat,
-                    refund_ua: memo.as_ref().map(|m| m.refund_ua.clone()),
-                    commitment: memo.map(|m| m.commitment).unwrap_or_default(),
-                },
+                BidOnChain::from_payment(p.amount_zat, p.memo.as_deref()),
             );
         }
     }
@@ -1159,30 +1151,16 @@ async fn check_refund_recipients(
             .is_some();
         entries.push((entry, on_chain));
     }
-    let batch_txid = sealforge_verify::batch_txid(pczt).map_err(|r| anyhow!("{r}"))?;
-    let before = refunds::signed_before(&entries, tip, &batch_txid);
-
-    refunds::check_refund_recipients(
-        &verified.payments,
-        &claims,
-        &bids,
-        &listed,
-        &before,
-        sealforge_verify::orchard_receiver,
+    refunds::check_refund_batch(pczt, verified, &claims, &bids, &listed, &entries, tip).map_err(
+        |refusal| {
+            anyhow!(
+                "REFUSED batch {} ({}): {}. Don't sign; tell the organiser and the other trustees.",
+                batch.id,
+                refusal.class,
+                refusal.message
+            )
+        },
     )
-    .map_err(|refusal| {
-        anyhow!(
-            "REFUSED batch {} ({}): {}. Don't sign; tell the organiser and the other trustees.",
-            batch.id,
-            refusal.class,
-            refusal.message
-        )
-    })?;
-    Ok(refunds::LedgerEntry {
-        batch_txid,
-        expiry_height: verified.expiry_height,
-        notes: claims,
-    })
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -218,6 +218,56 @@ pub fn check_refund_recipients(
     Ok(())
 }
 
+impl BidOnChain {
+    /// A bid from a decrypted payment to the escrow: its value, and the
+    /// refund address and commitment in its memo if the memo is a bid memo.
+    pub fn from_payment(amount_zat: u64, memo: Option<&str>) -> Self {
+        let memo = memo.and_then(|m| sealforge_core::memo::BidMemo::decode(m).ok());
+        BidOnChain {
+            amount_zat,
+            refund_ua: memo.as_ref().map(|m| m.refund_ua.clone()),
+            commitment: memo.map(|m| m.commitment).unwrap_or_default(),
+        }
+    }
+}
+
+/// Everything a trustee checks about a refund batch once it has read the
+/// chain, the same in the CLI and the browser: every note goes to its bid's
+/// refund address, within what the bid is owed, counting what this trustee
+/// signed before. Returns the ledger entry to record before the shares leave.
+///
+/// - `pczt`, `verified`: the batch's transaction and what [`crate::verify_batch`] found.
+/// - `claims`: which bid each note refunds, as the coordinator says.
+/// - `bids`: those bids as this trustee read them from the chain.
+/// - `listed`: the published result's bids.
+/// - `ledger`: what this trustee signed before, each with whether its
+///   lightwallet server has that transaction; `tip`: that server's chain tip.
+pub fn check_refund_batch(
+    pczt: &[u8],
+    verified: &crate::VerifiedBatch,
+    claims: &[RefundClaim],
+    bids: &BTreeMap<BidRef, BidOnChain>,
+    listed: &BTreeMap<BidRef, ResultBid>,
+    ledger: &[(LedgerEntry, bool)],
+    tip: u32,
+) -> Result<LedgerEntry, Refusal> {
+    let batch_txid = crate::batch_txid(pczt)?;
+    let before = signed_before(ledger, tip, &batch_txid);
+    check_refund_recipients(
+        &verified.payments,
+        claims,
+        bids,
+        listed,
+        &before,
+        crate::orchard_receiver,
+    )?;
+    Ok(LedgerEntry {
+        batch_txid,
+        expiry_height: verified.expiry_height,
+        notes: claims.to_vec(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,6 +338,24 @@ mod tests {
         let payments: Vec<(String, u64)> =
             payments.iter().map(|(a, v)| (a.to_string(), *v)).collect();
         check_refund_recipients(&payments, claims, &w.bids, &w.result, before, receiver)
+    }
+
+    #[test]
+    fn a_bid_payment_reads_its_memo() {
+        let memo = sealforge_core::memo::BidMemo {
+            auction_code: "7K3QX9MZ2P".into(),
+            commitment: [7; 32],
+            refund_ua: "utest1refund".into(),
+        }
+        .encode()
+        .unwrap();
+        let bid = BidOnChain::from_payment(5_000_000, Some(&format!("{memo}\0\0")));
+        assert_eq!(bid.amount_zat, 5_000_000);
+        assert_eq!(bid.refund_ua.as_deref(), Some("utest1refund"));
+        assert_eq!(bid.commitment, [7; 32]);
+        // Not a bid memo, or none: nowhere to refund to.
+        assert_eq!(BidOnChain::from_payment(1, Some("hello")).refund_ua, None);
+        assert_eq!(BidOnChain::from_payment(1, None).refund_ua, None);
     }
 
     #[test]

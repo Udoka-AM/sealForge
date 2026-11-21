@@ -15,6 +15,7 @@ crate-type = ["cdylib", "rlib"]
 sealforge-escrow.workspace = true
 orchard.workspace = true
 sealforge-verify.workspace = true
+sealforge-scan.workspace = true
 sealforge-api.workspace = true
 crypto_box.workspace = true
 zcash_protocol.workspace = true

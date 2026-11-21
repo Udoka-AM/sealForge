@@ -144,6 +144,15 @@ export interface VerifiedBatch {
   payments: [string, number][];
   fee_zat: number;
   expiry_height: number;
+  /** Refund batches: what to add to this trustee's ledger before its share leaves. */
+  ledger_entry?: RefundLedgerEntry;
+}
+
+/** One refund batch this trustee signed (sealforge_verify::refunds::LedgerEntry). */
+export interface RefundLedgerEntry {
+  batch_txid: string;
+  expiry_height: number;
+  notes: { bid_txid: string; bid_output_index: number; value_zat: number }[];
 }
 
 export interface TrusteeBatch {
@@ -163,6 +172,8 @@ export interface TrusteeBatch {
   pczt?: string | null;
   /** Payout batches: the organiser's payout address. */
   payout_ua?: string | null;
+  /** Refund batches: which bid each refund note pays back. */
+  refunds?: { bid_txid: string; bid_output_index: number; value_zat: number }[];
   /**
    * Each chosen signer's signed statement of the round 2 inputs it signs over
    * (digest and Ed25519 signature, hex), by slot. A signer sends its share only

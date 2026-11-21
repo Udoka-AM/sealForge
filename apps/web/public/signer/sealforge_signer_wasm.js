@@ -141,6 +141,12 @@ export function sign_batch(key_package_hex, sighash_hex, alphas_json, signer_com
  * - `batch_json`: the trustee's `BatchView`
  * - `refund_total_due_zat`: refunds owed in total by the published result
  *   (refund batches), or a negative number when there is none
+ * - `refund_chain_json`: refund batches only (empty otherwise), what this
+ *   page read through the trustee's own lightwallet server ([`RefundChain`])
+ *
+ * Returns the [`sealforge_verify::VerifiedBatch`] as JSON, plus, for a refund
+ * batch, `ledger_entry`: what to add to this trustee's ledger before any
+ * share leaves the page.
  * @param {string} key_package_hex
  * @param {string} enc_secret_hex
  * @param {string} sealed_view_secret_hex
@@ -149,11 +155,12 @@ export function sign_batch(key_package_hex, sighash_hex, alphas_json, signer_com
  * @param {number} now_secs
  * @param {string} batch_json
  * @param {number} refund_total_due_zat
+ * @param {string} refund_chain_json
  * @returns {string}
  */
-export function verify_batch(key_package_hex, enc_secret_hex, sealed_view_secret_hex, escrow_ua, network, now_secs, batch_json, refund_total_due_zat) {
-    let deferred8_0;
-    let deferred8_1;
+export function verify_batch(key_package_hex, enc_secret_hex, sealed_view_secret_hex, escrow_ua, network, now_secs, batch_json, refund_total_due_zat, refund_chain_json) {
+    let deferred9_0;
+    let deferred9_1;
     try {
         const ptr0 = passStringToWasm0(key_package_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
@@ -167,18 +174,20 @@ export function verify_batch(key_package_hex, enc_secret_hex, sealed_view_secret
         const len4 = WASM_VECTOR_LEN;
         const ptr5 = passStringToWasm0(batch_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len5 = WASM_VECTOR_LEN;
-        const ret = wasm.verify_batch(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, now_secs, ptr5, len5, refund_total_due_zat);
-        var ptr7 = ret[0];
-        var len7 = ret[1];
+        const ptr6 = passStringToWasm0(refund_chain_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len6 = WASM_VECTOR_LEN;
+        const ret = wasm.verify_batch(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, now_secs, ptr5, len5, refund_total_due_zat, ptr6, len6);
+        var ptr8 = ret[0];
+        var len8 = ret[1];
         if (ret[3]) {
-            ptr7 = 0; len7 = 0;
+            ptr8 = 0; len8 = 0;
             throw takeFromExternrefTable0(ret[2]);
         }
-        deferred8_0 = ptr7;
-        deferred8_1 = len7;
-        return getStringFromWasm0(ptr7, len7);
+        deferred9_0 = ptr8;
+        deferred9_1 = len8;
+        return getStringFromWasm0(ptr8, len8);
     } finally {
-        wasm.__wbindgen_free(deferred8_0, deferred8_1, 1);
+        wasm.__wbindgen_free(deferred9_0, deferred9_1, 1);
     }
 }
 function __wbg_get_imports() {
