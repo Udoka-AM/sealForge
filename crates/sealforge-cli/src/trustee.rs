@@ -772,7 +772,7 @@ fn record_signed(
     let mut ledger = read_ledger(store, code)?;
     if !ledger.iter().any(|e| e.batch_txid == entry.batch_txid) {
         ledger.push(entry);
-        store.write(code, REFUND_LEDGER, &serde_json::to_vec_pretty(&ledger)?)?;
+        store.replace(code, REFUND_LEDGER, &serde_json::to_vec_pretty(&ledger)?)?;
     }
     Ok(())
 }

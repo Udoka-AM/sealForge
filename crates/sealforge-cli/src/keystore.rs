@@ -1,5 +1,6 @@
 //! Local key storage under `$SEALFORGE_HOME` (default `~/.sealforge`).
-//! Every file is created owner-only (0600) and never overwritten.
+//! Every file is created owner-only (0600). Key files are never overwritten;
+//! the one record that grows (the refund ledger) is replaced atomically.
 
 use std::path::{Path, PathBuf};
 
@@ -119,6 +120,28 @@ impl Keystore {
     pub fn write(&self, auction_code: &str, name: &str, bytes: &[u8]) -> anyhow::Result<()> {
         write_private(&self.trustee_dir(auction_code).join(name), bytes)
     }
+
+    /// Replace a trustee record atomically: the new contents are written and
+    /// synced to a temporary file, which is then renamed over the old one, so
+    /// a crash leaves either the old record or the new one, never a torn file.
+    /// For records that grow (the refund ledger), never for keys.
+    pub fn replace(&self, auction_code: &str, name: &str, bytes: &[u8]) -> anyhow::Result<()> {
+        let dir = self.trustee_dir(auction_code);
+        let path = dir.join(name);
+        let tmp = dir.join(format!("{name}.tmp"));
+        // A leftover from a crash mid-write was never renamed into place.
+        match std::fs::remove_file(&tmp) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e).with_context(|| format!("removing {}", tmp.display())),
+        }
+        write_private(&tmp, bytes)?;
+        std::fs::rename(&tmp, &path).with_context(|| format!("replacing {}", path.display()))?;
+        // Make the rename itself durable.
+        #[cfg(unix)]
+        std::fs::File::open(&dir)?.sync_all()?;
+        Ok(())
+    }
 }
 
 /// Create a file readable only by the owner. Never overwrites.
@@ -145,4 +168,36 @@ pub fn write_private(path: &Path, contents: &[u8]) -> anyhow::Result<()> {
     // a crash before the shares it covers are sent).
     file.sync_all()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Keystore;
+
+    #[test]
+    fn replace_overwrites_a_record_that_write_refuses_to() {
+        let root = std::env::temp_dir().join(format!(
+            "sf-keystore-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let store = Keystore::new(&root);
+        store.write("CODE", "ledger.json", b"[1]").unwrap();
+        assert!(store.write("CODE", "ledger.json", b"[1,2]").is_err());
+        store.replace("CODE", "ledger.json", b"[1,2]").unwrap();
+        store.replace("CODE", "ledger.json", b"[1,2,3]").unwrap();
+        assert_eq!(
+            store.read("CODE", "ledger.json").unwrap().unwrap(),
+            b"[1,2,3]"
+        );
+        // A crash leftover doesn't block the next replace.
+        std::fs::write(store.trustee_dir("CODE").join("ledger.json.tmp"), b"torn").unwrap();
+        store.replace("CODE", "ledger.json", b"[4]").unwrap();
+        assert_eq!(store.read("CODE", "ledger.json").unwrap().unwrap(), b"[4]");
+        assert!(!store.trustee_dir("CODE").join("ledger.json.tmp").exists());
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }
