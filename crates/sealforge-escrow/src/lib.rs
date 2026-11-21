@@ -9,11 +9,17 @@
 //!   authorization (sighash + α), producing a standard RedPallas `SpendAuth`
 //!   signature for `pczt::roles::signer::Signer::apply_ironwood_signature`.
 //!
+//! - [`backup`]: one trustee's offline backup string (signing share plus the
+//!   escrow's viewing key), enough for two trustees to spend without the
+//!   coordinator.
+//!
 //! Ironwood (NU6.3) reuses Orchard keys and receivers, so the escrow is an
 //! Orchard-key wallet whose notes live in the Ironwood pool.
 
 #[cfg(feature = "address")]
 pub mod address;
+#[cfg(feature = "address")]
+pub mod backup;
 pub mod dkg;
 pub mod signing;
 
@@ -53,4 +59,6 @@ pub enum EscrowError {
     BadSignature,
     #[error("batch values don't line up with its spends")]
     BatchShape,
+    #[error("backup: {0}")]
+    Backup(String),
 }

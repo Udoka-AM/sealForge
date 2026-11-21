@@ -117,7 +117,7 @@ No analytics or third-party trackers ship in the bid or ShieldRamp flows. Server
 
 | Asset | Sensitivity | Controls |
 |---|---|---|
-| FROST key shares | Critical | Generated and stored only on trustee machines (encrypted file, passphrase). Never transmitted. Backup is each trustee's responsibility, printed in a recovery sheet |
+| FROST key shares | Critical | Generated and stored only on trustee machines (owner-only files, 0600). Never transmitted. Backup is each trustee's responsibility: `sealforge trustee backup <CODE>` prints one string holding the key share and the escrow's full viewing key, to keep offline (paper or an encrypted drive). `check-backup` checks it against the keystore; `sealforge escrow recover-check` checks that two trustees' strings sign together with no coordinator. Format: `crates/sealforge-escrow/src/backup.rs` (modelled on the FROST member backup draft, zcash/zips#1432, whose version 1 can't hold a group with no `sk`) |
 | Escrow IVK/UFVK | High during auction, public after close | Stored encrypted at rest (`pgcrypto`, key in env `SF_DATA_KEY`). Published intentionally at close |
 | Bid memos (refund UA, commitment) | High during auction | Only in Postgres (encrypted columns for `refund_ua`). Never logged |
 | Receipt salt | Bidder-only | Generated and kept in the browser. Never sent to the server |
@@ -148,7 +148,7 @@ No analytics or third-party trackers ship in the bid or ShieldRamp flows. Server
 | Page load (auction page) | LCP < 2.0 s on 4G, JS < 200 KB gzipped excluding WebZjs/WASM (lazy-loaded) |
 | Uptime during a live auction | 99.5% for coordinator + scanner. Bids are never lost during downtime, because the scanner resumes from `scanner_state.last_height` |
 | Backups | Postgres `pg_dump` nightly to a Hetzner Storage Box, age-encrypted, 14-day retention (`scripts/backup.sh`). `SF_DATA_KEY` held offline. Restore drill before the mainnet auction (`scripts/restore-drill.sh`) |
-| Recovery | RTO 2 h, RPO 24 h for the database. Funds don't depend on newer rows: payments are rescanned from the chain, and unconfirmed batches are re-signed. Escrow UFVKs exist only in the database, so the backup plus `SF_DATA_KEY` are what keep escrows spendable |
+| Recovery | RTO 2 h, RPO 24 h for the database. Funds don't depend on newer rows: payments are rescanned from the chain, and unconfirmed batches are re-signed. Escrow UFVKs are in the database and also with each trustee (its keystore and backup string), so losing the database plus `SF_DATA_KEY` no longer strands escrowed funds: two trustees' backups still hold everything a spend needs. Building and broadcasting that spend without the coordinator is not automated yet |
 
 ## 2.9 Environments and delivery
 

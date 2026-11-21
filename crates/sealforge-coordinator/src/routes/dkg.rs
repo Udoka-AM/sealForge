@@ -283,6 +283,11 @@ pub async fn state(
     .bind(me.slot)
     .fetch_all(&state.db)
     .await?;
+    let birthday: Option<i32> =
+        sqlx::query_scalar("SELECT escrow_birthday_height FROM auctions WHERE id = $1")
+            .bind(auction.id)
+            .fetch_one(&state.db)
+            .await?;
     Ok(Json(DkgState {
         auction_code: auction.code.clone(),
         auction_status: auction.status,
@@ -304,6 +309,7 @@ pub async fn state(
         round2_for_me: round2.into_iter().map(Into::into).collect(),
         escrow_ua: auction.escrow_ua,
         escrow_view_secret_for_me: me.escrow_view_sealed.map(hex::encode),
+        escrow_birthday_height: birthday.map(|h| h.max(0) as u32),
     }))
 }
 
