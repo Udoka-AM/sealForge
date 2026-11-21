@@ -2,7 +2,8 @@
 # scanner, wallet), so a build on a laptop and a build in CI give the same
 # bytes (review item D2, issue #61). Everything that reaches the .wasm is fixed
 # here: the Rust toolchain (by image digest), the clang that compiles the
-# secp256k1 C code, and wasm-bindgen. Build with scripts/build-wasm.sh.
+# secp256k1 C code, and wasm-bindgen. Build with scripts/build-wasm.sh, which
+# always uses linux/amd64 (the host CPU reaches the crate hashes in the .wasm).
 FROM rust:1.99.0-slim-trixie@sha256:2752b332db73fdbb7dc576f06c82ed1f312005784ef913d7e04a28f5f55dc581
 
 # clang/llvm-ar for wasm32 (C dependencies), git for BUILD.json.
