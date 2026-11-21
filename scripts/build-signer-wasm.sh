@@ -7,6 +7,7 @@
 # wasm32 target for the C code the PCZT crates pull in (secp256k1)
 # (macOS: brew install llvm).
 set -euo pipefail
+sha256() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 cd "$(dirname "$0")/.."
 
 want=$(grep -A1 'name = "wasm-bindgen"$' Cargo.lock | grep version | head -1 | cut -d'"' -f2)
@@ -22,11 +23,11 @@ export CC_wasm32_unknown_unknown="$LLVM/clang" AR_wasm32_unknown_unknown="$LLVM/
 
 out=apps/web/public/signer
 # Strip local paths from the binary so builds don't depend on where the repo lives.
-RUSTFLAGS="--remap-path-prefix=$(pwd)=/sealforge --remap-path-prefix=$HOME/.cargo=/cargo" \
+RUSTFLAGS="--remap-path-prefix=$(pwd)=/sealforge --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo" \
   cargo build --release -p sealforge-signer-wasm --lib --target wasm32-unknown-unknown
 rm -rf "$out"
 wasm-bindgen --target web --no-typescript --out-dir "$out" \
-  target/wasm32-unknown-unknown/release/sealforge_signer_wasm.wasm
+  "${CARGO_TARGET_DIR:-target}"/wasm32-unknown-unknown/release/sealforge_signer_wasm.wasm
 
 cat > "$out/BUILD.json" <<JSON
 {
@@ -35,8 +36,9 @@ cat > "$out/BUILD.json" <<JSON
   "git_commit": "$(git rev-parse HEAD)",
   "source_dirty": $(git diff --quiet HEAD -- crates Cargo.toml Cargo.lock && echo false || echo true),
   "rustc": "$(rustc --version)",
+  "clang": "$("$LLVM/clang" --version | head -1)",
   "wasm_bindgen": "$want",
-  "wasm_sha256": "$(shasum -a 256 "$out/sealforge_signer_wasm_bg.wasm" | cut -d' ' -f1)"
+  "wasm_sha256": "$(sha256 "$out/sealforge_signer_wasm_bg.wasm" | cut -d' ' -f1)"
 }
 JSON
 echo "Built $out ($(du -h "$out/sealforge_signer_wasm_bg.wasm" | cut -f1))"
