@@ -2,7 +2,8 @@
 //! spending from an escrow without the coordinator, in one string to keep
 //! offline.
 //!
-//! The shared FROST member backup draft (zcash/zips#1432, `zkfrost` version 1)
+//! The shared FROST member backup draft (zcash/zips#1432, the draft ZIP that
+//! grew out of the discussion in zcash/zips#1413; `zkfrost` version 1)
 //! stores the group's shared Orchard spending key `sk` and recomputes `nk` and
 //! `rivk` from it. A sealForge escrow has no `sk`: the coordinator samples
 //! `nk` and `rivk` directly (see [`crate::address::escrow_fvk`]), so version 1
