@@ -219,6 +219,66 @@ pub fn sign_dkg_package(
     .to_bytes()
 }
 
+/// Bytes a trustee's long-term identity key signs to vouch for its key in one
+/// auction: the auction, the slot, the per-auction key, and where the trustee
+/// publishes its long-term key (a URL or handle). Bidders check the long-term
+/// key against that place; the coordinator can't change any of it.
+pub fn trustee_cert_message(
+    auction_code: &str,
+    slot: u16,
+    auction_pubkey: &[u8; 32],
+    published_at: &str,
+) -> Vec<u8> {
+    format!(
+        "sealforge-trustee-cert-v1\n{auction_code}\n{slot}\n{}\n{published_at}",
+        hex::encode(auction_pubkey)
+    )
+    .into_bytes()
+}
+
+/// Sign a trustee certificate with the trustee's long-term identity key.
+pub fn sign_trustee_cert(
+    identity_key: &SigningKey,
+    auction_code: &str,
+    slot: u16,
+    auction_pubkey: &[u8; 32],
+    published_at: &str,
+) -> [u8; 64] {
+    identity_key
+        .sign(&trustee_cert_message(
+            auction_code,
+            slot,
+            auction_pubkey,
+            published_at,
+        ))
+        .to_bytes()
+}
+
+/// Verify a trustee certificate under the trustee's long-term identity key.
+pub fn verify_trustee_cert(
+    identity_pubkey: &[u8; 32],
+    signature: &[u8; 64],
+    auction_code: &str,
+    slot: u16,
+    auction_pubkey: &[u8; 32],
+    published_at: &str,
+) -> bool {
+    VerifyingKey::from_bytes(identity_pubkey)
+        .and_then(|key| {
+            key.verify(
+                &trustee_cert_message(auction_code, slot, auction_pubkey, published_at),
+                &Signature::from_bytes(signature),
+            )
+        })
+        .is_ok()
+}
+
+/// Where a trustee says it publishes its long-term key: a URL or a handle,
+/// 1 to 200 printable characters with no spaces.
+pub fn valid_published_at(value: &str) -> bool {
+    (1..=200).contains(&value.len()) && value.chars().all(|c| c.is_ascii_graphic())
+}
+
 /// Digest of everything a round 2 FROST share depends on besides the key and
 /// the nonces: the sighash, each spend's randomizer α, and every chosen
 /// signer's round 1 commitments (slot order, one per spend). Both signers must
@@ -301,6 +361,53 @@ pub fn verify_round2_inputs(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trustee_certs_bind_auction_slot_key_and_place() {
+        let identity = SigningKey::from_bytes(&[9; 32]);
+        let id_pub = identity.verifying_key().to_bytes();
+        let auction_key = key().verifying_key().to_bytes();
+        let url = "https://example.org/trustee";
+        let sig = sign_trustee_cert(&identity, "CODE", 2, &auction_key, url);
+        assert!(verify_trustee_cert(
+            &id_pub,
+            &sig,
+            "CODE",
+            2,
+            &auction_key,
+            url
+        ));
+        assert!(!verify_trustee_cert(
+            &id_pub,
+            &sig,
+            "OTHER",
+            2,
+            &auction_key,
+            url
+        ));
+        assert!(!verify_trustee_cert(
+            &id_pub,
+            &sig,
+            "CODE",
+            1,
+            &auction_key,
+            url
+        ));
+        assert!(!verify_trustee_cert(
+            &id_pub, &sig, "CODE", 2, &[1; 32], url
+        ));
+        assert!(!verify_trustee_cert(
+            &id_pub,
+            &sig,
+            "CODE",
+            2,
+            &auction_key,
+            "@someone"
+        ));
+        assert!(valid_published_at(url) && valid_published_at("@alice"));
+        assert!(!valid_published_at("") && !valid_published_at("a b"));
+        assert!(!valid_published_at(&"a".repeat(201)) && !valid_published_at("line\nbreak"));
+    }
 
     #[test]
     fn round2_inputs_bind_every_commitment_and_the_signer() {

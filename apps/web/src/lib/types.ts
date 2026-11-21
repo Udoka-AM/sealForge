@@ -21,6 +21,15 @@ export interface TrusteeView {
   pubkey?: string | null;
   /** The trustee's signature over the escrow address (hex). */
   escrow_attestation?: string | null;
+  /** The trustee's long-term key vouching for `pubkey` in this auction. */
+  identity?: TrusteeIdentityCert | null;
+}
+
+/** A trustee's long-term key (hex), where it publishes it, and its certificate. */
+export interface TrusteeIdentityCert {
+  pubkey: string;
+  published_at: string;
+  signature: string;
 }
 
 export interface AuctionView {
@@ -221,6 +230,10 @@ export interface EscrowCheck {
     label: string;
     pubkey: string | null;
     verdict: "signed" | "missing" | "invalid" | "wrong_key";
+    /** Whether a long-term key vouches for this trustee's key. */
+    identity?: "certified" | "none" | "invalid";
+    identity_pubkey?: string | null;
+    identity_published_at?: string | null;
   }[];
   /** Why the trustee list itself is unacceptable; empty when well formed. */
   problems?: string[];

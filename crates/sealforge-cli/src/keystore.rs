@@ -13,6 +13,31 @@ pub struct Keystore {
     root: PathBuf,
 }
 
+/// A trustee's long-term identity, the same across auctions (stream 4). Its
+/// public key is published somewhere the trustee controls (`published_at`),
+/// and in each auction it signs a certificate for the per-auction key.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct LongTermIdentity {
+    /// Ed25519 seed (hex).
+    pub signing_key: String,
+    /// Where the trustee publishes the public key: a URL or handle.
+    #[serde(default)]
+    pub published_at: Option<String>,
+}
+
+impl LongTermIdentity {
+    pub fn signing_key(&self) -> anyhow::Result<SigningKey> {
+        let seed: [u8; 32] = hex::decode(&self.signing_key)?
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("bad long-term identity key"))?;
+        Ok(SigningKey::from_bytes(&seed))
+    }
+
+    pub fn public_key_hex(&self) -> anyhow::Result<String> {
+        Ok(hex::encode(self.signing_key()?.verifying_key().to_bytes()))
+    }
+}
+
 /// A trustee's identity for one auction.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TrusteeIdentity {
@@ -82,6 +107,38 @@ impl Keystore {
             .try_into()
             .map_err(|_| anyhow::anyhow!("organiser key is corrupt"))?;
         Ok(SigningKey::from_bytes(&seed))
+    }
+
+    fn long_term_identity_path(&self) -> PathBuf {
+        self.root.join("trustee-identity.json")
+    }
+
+    /// This trustee's long-term identity, if it made one.
+    pub fn long_term_identity(&self) -> anyhow::Result<Option<LongTermIdentity>> {
+        let path = self.long_term_identity_path();
+        match std::fs::read(&path) {
+            Ok(bytes) => Ok(Some(
+                serde_json::from_slice(&bytes)
+                    .with_context(|| format!("reading {}", path.display()))?,
+            )),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e).with_context(|| format!("reading {}", path.display())),
+        }
+    }
+
+    /// Save the long-term identity: created once, then only the place it is
+    /// published may change (replaced atomically). The key never changes.
+    pub fn save_long_term_identity(&self, identity: &LongTermIdentity) -> anyhow::Result<()> {
+        let path = self.long_term_identity_path();
+        let bytes = serde_json::to_vec_pretty(identity)?;
+        if !path.exists() {
+            return write_private(&path, &bytes);
+        }
+        let tmp = self.root.join("trustee-identity.json.tmp");
+        std::fs::remove_file(&tmp).ok();
+        write_private(&tmp, &bytes)?;
+        std::fs::rename(&tmp, &path).with_context(|| format!("replacing {}", path.display()))?;
+        Ok(())
     }
 
     pub fn trustee_dir(&self, auction_code: &str) -> PathBuf {

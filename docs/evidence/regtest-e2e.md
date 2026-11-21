@@ -158,3 +158,13 @@ The run found two bugs in this change, both fixed and covered by tests: the ledg
 | Settlement | | Payout of 0.19975 ZEC confirmed; auction `settled`. No browser console errors |
 
 The refusal paths (a swapped commitment, and a forged statement) are covered by `dkg_e2e`.
+
+## Trustees vouched for by long-term keys (stream 4)
+
+**Date:** 2026-11-21. Auction `9YFHDJZSDT` on the local regtest chain, opened.
+
+| Step | What happened | Result |
+|---|---|---|
+| Identities | Trustee A ran `sealforge trustee identity --published-at https://example.org/alice`, B used `@bob_trustee`, C made none | `trustee join` certified A and B automatically; C was told it has no long-term key |
+| Auction page | Escrow card, "Trustee keys" | All three signatures verify. A and B show "Vouched for by" their long-term keys (A's matches the key its CLI printed) and where they're published; C shows "No long-term key: nothing ties this key to a known person" |
+| Tampering | B's published place edited in the coordinator database to `https://attacker.example` | The page says "slot 2's long-term key certificate doesn't verify. Don't send funds to this address", and the bid button is gone. No console errors |

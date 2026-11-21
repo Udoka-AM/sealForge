@@ -79,8 +79,21 @@ enum AuctionCommand {
 
 #[derive(Debug, Subcommand)]
 enum TrusteeCommand {
-    /// Join an auction as a trustee using a one-time invite code.
+    /// Create your long-term trustee key (once) and say where you publish it.
+    /// Post the printed key there: bidders compare it with the one that
+    /// vouches for you on each auction page.
+    Identity {
+        /// Where you publish the key: a URL or handle you control
+        /// (your website, GitHub, X).
+        #[arg(long)]
+        published_at: Option<String>,
+    },
+    /// Join an auction as a trustee using a one-time invite code. If you have
+    /// a long-term key, it vouches for your key in this auction.
     Join { invite: String },
+    /// Vouch for your key in an auction with your long-term key (if you
+    /// joined before you had one).
+    Certify { code: String },
     /// Run your side of the key generation. Safe to re-run.
     Dkg {
         code: String,
@@ -157,12 +170,44 @@ async fn main() -> anyhow::Result<()> {
             );
         }
         Command::Auction(cmd) => auction(&store, url, cmd).await?,
+        Command::Trustee(TrusteeCommand::Identity { published_at }) => {
+            let identity = trustee::long_term_identity(&store, published_at.as_deref())?;
+            let key = identity.public_key_hex()?;
+            match identity.published_at.as_deref() {
+                Some(place) => println!(
+                    "Your long-term trustee key:\n\n  sealForge trustee key: {key}\n\nPost that line at {place}, \
+                     and keep it there. Each auction you join shows this key vouching for you, \
+                     with that place; bidders compare the two."
+                ),
+                None => println!(
+                    "Your long-term trustee key: {key}\nNow say where you publish it: \
+                     sealforge trustee identity --published-at <your URL or handle>"
+                ),
+            }
+        }
         Command::Trustee(TrusteeCommand::Join { invite }) => {
             let joined = trustee::join(&store, url, &invite).await?;
             println!(
-                "Joined auction {} as trustee {} ({}). Next: sealforge trustee dkg {} --wait",
-                joined.auction_code, joined.slot, joined.label, joined.auction_code
+                "Joined auction {} as trustee {} ({}).",
+                joined.auction_code, joined.slot, joined.label
             );
+            let code = &joined.auction_code;
+            match store.long_term_identity()? {
+                Some(lt) if lt.published_at.is_some() => {
+                    let key = trustee::certify(&store, url, code).await?;
+                    println!("Your long-term key {key} vouches for you in {code}.");
+                }
+                _ => println!(
+                    "No long-term key vouches for you, so bidders can't tell you from a stand-in. \
+                     Run `sealforge trustee identity --published-at <URL>`, publish the key, then \
+                     `sealforge trustee certify {code}`."
+                ),
+            }
+            println!("Next: sealforge trustee dkg {code} --wait");
+        }
+        Command::Trustee(TrusteeCommand::Certify { code }) => {
+            let key = trustee::certify(&store, url, &code).await?;
+            println!("Your long-term key {key} vouches for you in {code}.");
         }
         Command::Trustee(TrusteeCommand::Dkg { code, wait }) => loop {
             let progress = trustee::dkg_step(&store, url, &code).await?;

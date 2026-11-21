@@ -12,15 +12,20 @@
 //!
 //! What this does not prove on its own: that the listed keys belong to the
 //! real trustees. The coordinator publishes the list, so a coordinator that
-//! invented all three trustees could sign for them. Pin the keys you got from
-//! the trustees themselves (`pinned`), or rely on each trustee's CLI checking
-//! that the public page lists its own key and the address it signed.
+//! invented all three trustees could sign for them. Each trustee can certify
+//! its key with a long-term key it publishes somewhere it controls (stream 4):
+//! a certificate that doesn't verify, or one long-term key on two seats, fails
+//! the check, and [`require_identities`] fails it unless the long-term keys
+//! you know are among the certified ones. You can also pin per-auction keys
+//! (`pinned`), and each trustee's CLI checks that the public page lists its
+//! own key and the address it signed. None of this proves the trustees are
+//! independent people: one party can publish three long-term keys too.
 
 use std::collections::BTreeSet;
 
 use sealforge_api::{
-    auth::verify_escrow_attestation,
-    types::{AuctionView, PublishedResult, TRUSTEE_SLOTS},
+    auth::{verify_escrow_attestation, verify_trustee_cert},
+    types::{AuctionView, PublishedResult, TrusteeIdentityCert, TRUSTEE_SLOTS},
 };
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +36,20 @@ pub struct TrusteeClaim {
     pub label: String,
     pub pubkey: Option<String>,
     pub signature: Option<String>,
+    /// The trustee's long-term key certificate, if published.
+    #[serde(default)]
+    pub identity: Option<TrusteeIdentityCert>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IdentityVerdict {
+    /// A long-term key vouches for this trustee's key in this auction and slot.
+    Certified,
+    /// No certificate published: nothing ties this key to a known trustee.
+    None,
+    /// A certificate is published but doesn't verify.
+    Invalid,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,6 +71,48 @@ pub struct TrusteeCheck {
     pub label: String,
     pub pubkey: Option<String>,
     pub verdict: TrusteeVerdict,
+    #[serde(default = "no_identity")]
+    pub identity: IdentityVerdict,
+    /// The certifying long-term key (hex) and where the trustee publishes it,
+    /// when [`IdentityVerdict::Certified`]: compare them with that place.
+    #[serde(default)]
+    pub identity_pubkey: Option<String>,
+    #[serde(default)]
+    pub identity_published_at: Option<String>,
+}
+
+fn no_identity() -> IdentityVerdict {
+    IdentityVerdict::None
+}
+
+fn check_identity(
+    auction_code: &str,
+    slot: u16,
+    pubkey: Option<&str>,
+    cert: Option<&TrusteeIdentityCert>,
+) -> IdentityVerdict {
+    let Some(cert) = cert else {
+        return IdentityVerdict::None;
+    };
+    match (
+        pubkey.and_then(hex_array::<32>),
+        hex_array::<32>(&cert.pubkey),
+        hex_array::<64>(&cert.signature),
+    ) {
+        (Some(key), Some(identity), Some(sig))
+            if verify_trustee_cert(
+                &identity,
+                &sig,
+                auction_code,
+                slot,
+                &key,
+                &cert.published_at,
+            ) =>
+        {
+            IdentityVerdict::Certified
+        }
+        _ => IdentityVerdict::Invalid,
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,11 +183,25 @@ pub fn check_escrow(
                 }
                 _ => TrusteeVerdict::Missing,
             };
+            let identity = check_identity(
+                auction_code,
+                t.slot,
+                t.pubkey.as_deref(),
+                t.identity.as_ref(),
+            );
+            let certified = identity == IdentityVerdict::Certified;
             TrusteeCheck {
                 slot: t.slot,
                 label: t.label.clone(),
                 pubkey: t.pubkey.clone(),
                 verdict,
+                identity,
+                identity_pubkey: certified
+                    .then(|| t.identity.as_ref().map(|c| c.pubkey.to_ascii_lowercase()))
+                    .flatten(),
+                identity_published_at: certified
+                    .then(|| t.identity.as_ref().map(|c| c.published_at.clone()))
+                    .flatten(),
             }
         })
         .collect();
@@ -134,7 +209,23 @@ pub fn check_escrow(
         .iter()
         .filter(|c| c.verdict == TrusteeVerdict::Signed)
         .count() as u32;
-    let problems = list_problems(trustees, pinned);
+    let mut problems = list_problems(trustees, pinned);
+    for c in checks
+        .iter()
+        .filter(|c| c.identity == IdentityVerdict::Invalid)
+    {
+        problems.push(format!(
+            "slot {}'s long-term key certificate doesn't verify",
+            c.slot
+        ));
+    }
+    let identities: Vec<&String> = checks
+        .iter()
+        .filter_map(|c| c.identity_pubkey.as_ref())
+        .collect();
+    if identities.iter().collect::<BTreeSet<_>>().len() != identities.len() {
+        problems.push("one long-term key vouches for more than one trustee seat".to_owned());
+    }
     let verdict = if !problems.is_empty() {
         EscrowVerdict::Failed
     } else if escrow_ua.is_some() && checks.iter().all(|c| c.verdict == TrusteeVerdict::Signed) {
@@ -151,6 +242,25 @@ pub fn check_escrow(
         total: checks.len() as u32,
         trustees: checks,
         problems,
+    }
+}
+
+/// Fail `check` unless every long-term key in `expected` (hex, e.g. from the
+/// trustees' own websites) certifies one of its trustees.
+pub fn require_identities(check: &mut EscrowCheck, expected: &[String]) {
+    for key in expected {
+        let key = key.trim().to_ascii_lowercase();
+        if !check
+            .trustees
+            .iter()
+            .any(|t| t.identity_pubkey.as_deref() == Some(key.as_str()))
+        {
+            check.problems.push(format!(
+                "long-term key {} doesn't certify any trustee of this auction",
+                &key[..key.len().min(16)]
+            ));
+            check.verdict = EscrowVerdict::Failed;
+        }
     }
 }
 
@@ -194,6 +304,7 @@ pub fn check_escrow_view(view: &AuctionView, pinned: &[(u16, String)]) -> Escrow
             label: t.label.clone(),
             pubkey: t.pubkey.clone(),
             signature: t.escrow_attestation.clone(),
+            identity: t.identity.clone(),
         })
         .collect();
     check_escrow(&view.code, view.escrow_ua.as_deref(), &trustees, pinned)
@@ -209,6 +320,7 @@ pub fn check_escrow_result(published: &PublishedResult, pinned: &[(u16, String)]
             label: t.label.clone(),
             pubkey: t.pubkey.clone(),
             signature: t.signature.clone(),
+            identity: t.identity.clone(),
         })
         .collect();
     check_escrow(
@@ -255,7 +367,98 @@ mod tests {
             label: format!("T{slot}"),
             pubkey: Some(hex::encode(k.verifying_key().to_bytes())),
             signature: Some(hex::encode(sign_escrow_attestation(&k, CODE, slot, ua))),
+            identity: None,
         }
+    }
+
+    /// `claim` plus a certificate from long-term key `who`.
+    fn certified(slot: u16, who: u8) -> TrusteeClaim {
+        let mut c = claim(slot, UA);
+        let auction_key = key(slot as u8).verifying_key().to_bytes();
+        let identity = SigningKey::from_bytes(&[100 + who; 32]);
+        let place = format!("https://example.org/trustee-{who}");
+        c.identity = Some(TrusteeIdentityCert {
+            pubkey: hex::encode(identity.verifying_key().to_bytes()),
+            signature: hex::encode(sealforge_api::auth::sign_trustee_cert(
+                &identity,
+                CODE,
+                slot,
+                &auction_key,
+                &place,
+            )),
+            published_at: place,
+        });
+        c
+    }
+
+    fn identity_hex(who: u8) -> String {
+        hex::encode(
+            SigningKey::from_bytes(&[100 + who; 32])
+                .verifying_key()
+                .to_bytes(),
+        )
+    }
+
+    #[test]
+    fn certified_trustees_verify_and_show_their_long_term_keys() {
+        let t: Vec<_> = (1..=3).map(|s| certified(s, s as u8)).collect();
+        let mut check = check_escrow(CODE, Some(UA), &t, &[]);
+        assert_eq!(check.verdict, EscrowVerdict::Verified, "{check:?}");
+        assert!(check
+            .trustees
+            .iter()
+            .all(|c| c.identity == IdentityVerdict::Certified));
+        assert_eq!(check.trustees[1].identity_pubkey, Some(identity_hex(2)));
+        assert_eq!(
+            check.trustees[1].identity_published_at.as_deref(),
+            Some("https://example.org/trustee-2")
+        );
+        // Pinning long-term keys you know: present passes, absent fails.
+        require_identities(
+            &mut check,
+            &[identity_hex(1), identity_hex(3).to_uppercase()],
+        );
+        assert_eq!(check.verdict, EscrowVerdict::Verified);
+        require_identities(&mut check, &[identity_hex(9)]);
+        assert_eq!(check.verdict, EscrowVerdict::Failed);
+    }
+
+    #[test]
+    fn uncertified_trustees_still_verify_but_show_no_identity() {
+        let mut t = all_signed();
+        t[0] = certified(1, 1);
+        let mut check = check_escrow(CODE, Some(UA), &t, &[]);
+        assert_eq!(check.verdict, EscrowVerdict::Verified);
+        assert_eq!(check.trustees[1].identity, IdentityVerdict::None);
+        assert_eq!(check.trustees[1].identity_pubkey, None);
+        // ...but a known long-term key that isn't there fails.
+        require_identities(&mut check, &[identity_hex(2)]);
+        assert_eq!(check.verdict, EscrowVerdict::Failed);
+    }
+
+    #[test]
+    fn a_bad_or_reused_certificate_fails() {
+        // Moved to another slot: the certificate names slot 1.
+        let mut t: Vec<_> = (1..=3).map(|s| certified(s, s as u8)).collect();
+        t[1].identity = t[0].identity.clone();
+        let check = check_escrow(CODE, Some(UA), &t, &[]);
+        assert_eq!(check.verdict, EscrowVerdict::Failed);
+        assert_eq!(check.trustees[1].identity, IdentityVerdict::Invalid);
+        // The published place edited after signing.
+        let mut t: Vec<_> = (1..=3).map(|s| certified(s, s as u8)).collect();
+        t[2].identity.as_mut().unwrap().published_at = "https://attacker.example".into();
+        assert_eq!(
+            check_escrow(CODE, Some(UA), &t, &[]).verdict,
+            EscrowVerdict::Failed
+        );
+        // One long-term key vouching for two seats: one person, two votes.
+        let t = vec![certified(1, 1), certified(2, 1), certified(3, 3)];
+        let check = check_escrow(CODE, Some(UA), &t, &[]);
+        assert_eq!(check.verdict, EscrowVerdict::Failed);
+        assert!(check
+            .problems
+            .iter()
+            .any(|p| p.contains("more than one trustee seat")));
     }
 
     fn all_signed() -> Vec<TrusteeClaim> {
@@ -346,6 +549,7 @@ mod tests {
                 label: format!("T{slot}"),
                 pubkey: Some(hex::encode(k.verifying_key().to_bytes()).to_uppercase()),
                 signature: Some(hex::encode(sign_escrow_attestation(&k, CODE, slot, UA))),
+                identity: None,
             })
             .collect();
         // Every signature is individually valid, yet one party holds all seats.

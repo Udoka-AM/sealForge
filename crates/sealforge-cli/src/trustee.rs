@@ -163,6 +163,70 @@ pub async fn join(
     Ok(joined)
 }
 
+/// Create this trustee's long-term identity if it has none, and set where it
+/// publishes the public key. Returns the identity.
+pub fn long_term_identity(
+    store: &Keystore,
+    published_at: Option<&str>,
+) -> anyhow::Result<crate::keystore::LongTermIdentity> {
+    if let Some(place) = published_at {
+        ensure!(
+            sealforge_api::auth::valid_published_at(place),
+            "--published-at must be a URL or handle: 1 to 200 printable characters, no spaces"
+        );
+    }
+    let mut identity = match store.long_term_identity()? {
+        Some(identity) => identity,
+        None => crate::keystore::LongTermIdentity {
+            signing_key: hex::encode(ed25519_dalek::SigningKey::generate(&mut OsRng).to_bytes()),
+            published_at: None,
+        },
+    };
+    if let Some(place) = published_at {
+        identity.published_at = Some(place.to_owned());
+    }
+    store.save_long_term_identity(&identity)?;
+    Ok(identity)
+}
+
+/// Vouch for this trustee's key in `code` with its long-term key (stream 4).
+/// Returns the long-term key (hex) that certified.
+pub async fn certify(store: &Keystore, coordinator: &str, code: &str) -> anyhow::Result<String> {
+    let long_term = store.long_term_identity()?.ok_or_else(|| {
+        anyhow!(
+            "no long-term identity on this machine. Run `sealforge trustee identity \
+             --published-at <your URL or handle>` and publish the key it prints there first."
+        )
+    })?;
+    let published_at = long_term.published_at.clone().ok_or_else(|| {
+        anyhow!(
+            "your long-term identity doesn't say where you publish it. Run `sealforge trustee \
+             identity --published-at <your URL or handle>`."
+        )
+    })?;
+    let identity = store.trustee_identity(code)?;
+    let auction_key = identity.signing_key()?;
+    let signature = sealforge_api::auth::sign_trustee_cert(
+        &long_term.signing_key()?,
+        code,
+        identity.slot,
+        &auction_key.verifying_key().to_bytes(),
+        &published_at,
+    );
+    let pubkey = long_term.public_key_hex()?;
+    let _: DkgState = Client::new(coordinator, Some(auction_key))
+        .post(
+            &format!("/v1/auctions/{code}/trustee-identity"),
+            &sealforge_api::types::TrusteeIdentityCert {
+                pubkey: pubkey.clone(),
+                published_at,
+                signature: hex::encode(signature),
+            },
+        )
+        .await?;
+    Ok(pubkey)
+}
+
 /// Short fingerprint of the group's public key package, for out-of-band comparison.
 pub fn fingerprint(public_key_package: &[u8]) -> String {
     let digest = Sha256::digest(public_key_package);

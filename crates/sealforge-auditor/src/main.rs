@@ -1,7 +1,8 @@
 use clap::Parser;
 use sealforge_api::types::{Network, PublishedResult};
 use sealforge_auditor::{
-    audit_chain, check_escrow_result, ChainPayment, EscrowVerdict, TrusteeVerdict,
+    audit_chain, check_escrow_result, require_identities, ChainPayment, EscrowVerdict,
+    IdentityVerdict, TrusteeVerdict,
 };
 use sealforge_chain::{audit::scan_incoming, connect, ChainParams};
 
@@ -32,6 +33,11 @@ struct Args {
     /// the audit, which catches a coordinator that invented its own trustees.
     #[arg(long = "trustee-key", value_parser = parse_pin)]
     trustee_keys: Vec<(u16, String)>,
+    /// A trustee's long-term key (hex), as the trustee publishes it on its own
+    /// site or account. Repeat for each trustee you know. The audit fails
+    /// unless each one certifies a trustee of this auction.
+    #[arg(long = "trustee-identity")]
+    trustee_identities: Vec<String>,
     /// Don't fail when no trustee attestations are published (auctions from
     /// before attestations existed).
     #[arg(long)]
@@ -96,7 +102,8 @@ async fn main() -> anyhow::Result<()> {
 
     // The escrow: did every trustee sign the address bidders paid, and does
     // the viewing key we just scanned with belong to that address?
-    let escrow = check_escrow_result(&published, &args.trustee_keys);
+    let mut escrow = check_escrow_result(&published, &args.trustee_keys);
+    require_identities(&mut escrow, &args.trustee_identities);
     let key_address = sealforge_scan::escrow_address(&params, ivk);
     let key_matches = match (&key_address, &published.escrow_ua) {
         (Ok(derived), Some(ua)) => Some(derived == ua),
@@ -164,13 +171,27 @@ async fn main() -> anyhow::Result<()> {
                 TrusteeVerdict::WrongKey => "✗  NOT the key you pinned",
             };
             println!("{what:<26} slot {} {:<16} key {key}", t.slot, t.label);
+            match t.identity {
+                IdentityVerdict::Certified => println!(
+                    "   vouched for by long-term key {} (published at {})",
+                    t.identity_pubkey.as_deref().unwrap_or_default(),
+                    t.identity_published_at.as_deref().unwrap_or_default()
+                ),
+                IdentityVerdict::None => {
+                    println!("   no long-term key: nothing ties this key to a known trustee")
+                }
+                IdentityVerdict::Invalid => println!("✗  its long-term key certificate is INVALID"),
+            }
         }
         for problem in &escrow.problems {
             println!("✗  {problem}");
         }
-        if args.trustee_keys.is_empty() && escrow.verdict == EscrowVerdict::Verified {
+        if args.trustee_keys.is_empty()
+            && args.trustee_identities.is_empty()
+            && escrow.verdict == EscrowVerdict::Verified
+        {
             println!(
-                "   These keys come from the coordinator. To rule out invented trustees, get\n   each trustee's key from them and pass --trustee-key SLOT=HEX."
+                "   These keys come from the coordinator. To rule out a stand-in trustee, compare each\n   long-term key above with the place the trustee publishes it, or pass\n   --trustee-identity HEX for each long-term key you know."
             );
         }
         println!(
