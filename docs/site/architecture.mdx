@@ -161,6 +161,9 @@ sequenceDiagram
     Ta->>C: POST /v1/batches/{id}/commitments
     Tb->>C: commitments (first two become signers)
     Tc->>C: commitments (too late, not a signer)
+    Ta->>C: POST /v1/batches/{id}/inputs (signed digest of sighash, alphas, both commitment sets)
+    Tb->>C: inputs
+    Note over Ta,Tb: each checks the other's statement against<br/>its own digest and the key on the public page
     Ta->>C: POST /v1/batches/{id}/shares
     Tb->>C: shares, batch signed
     C->>C: aggregate, verify under rk = ak + [alpha]G, apply to PCZT

@@ -12,7 +12,8 @@ interface AuditorModule {
   auditor_version: () => string;
   audit_published: (published: string) => string;
   check_receipt: (published: string, receipt: string) => string;
-  check_escrow_json: (source: string, pinned: string) => string;
+  check_escrow_view_json: (view: string, pinned: string) => string;
+  check_escrow_result_json: (result: string, pinned: string) => string;
 }
 
 let loading: Promise<AuditorModule> | null = null;
@@ -59,16 +60,25 @@ export async function auditWithPayments(
   ) as AuditReport;
 }
 
+/** What is being checked. The caller decides; the coordinator's JSON never does. */
+export type EscrowSource =
+  | { kind: "view"; view: AuctionView }
+  | { kind: "result"; result: PublishedResult };
+
 /**
  * Check every trustee's signature over the escrow address, from the auction
  * page's data or a published result. `pinned` holds keys you got from the
  * trustees themselves; a listed key that differs fails the check.
  */
 export async function checkEscrow(
-  source: AuctionView | PublishedResult,
+  source: EscrowSource,
   pinned: [number, string][] = [],
 ): Promise<EscrowCheck> {
+  const mod = await load();
+  const pins = JSON.stringify(pinned);
   return JSON.parse(
-    (await load()).check_escrow_json(JSON.stringify(source), JSON.stringify(pinned)),
+    source.kind === "view"
+      ? mod.check_escrow_view_json(JSON.stringify(source.view), pins)
+      : mod.check_escrow_result_json(JSON.stringify(source.result), pins),
   ) as EscrowCheck;
 }

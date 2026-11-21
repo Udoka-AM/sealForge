@@ -94,6 +94,23 @@ pub struct TrusteeView {
     /// does (`sealforge_auditor::check_escrow`).
     #[serde(default)]
     pub escrow_attestation: Option<String>,
+    /// The trustee's long-term key vouching for `pubkey` in this auction.
+    /// `None` if the trustee hasn't certified (or the coordinator withholds it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<TrusteeIdentityCert>,
+}
+
+/// A trustee's long-term Ed25519 key vouching for its key in one auction
+/// ([`crate::auth::trustee_cert_message`]). The trustee publishes `pubkey` at
+/// `published_at` (a URL or handle it controls); bidders compare the two.
+/// Also the body of `POST /v1/auctions/{code}/trustee-identity`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrusteeIdentityCert {
+    /// Long-term public key (hex).
+    pub pubkey: String,
+    pub published_at: String,
+    /// Signature over the certificate message (hex).
+    pub signature: String,
 }
 
 /// Fields only the owning organiser sees.
@@ -131,6 +148,12 @@ pub struct AuctionView {
 
 /// The public bid count appears only from this many bids (docs/03-APP-FLOW.md §3.7).
 pub const MIN_PUBLIC_BID_COUNT: u32 = 5;
+
+/// Every auction's escrow is 2-of-3: exactly these trustee slots, any two of
+/// which can sign. The coordinator refuses anything else at creation, and the
+/// auditor refuses to call an escrow verified unless exactly these slots, each
+/// with its own key, signed it.
+pub const TRUSTEE_SLOTS: [u16; 3] = [1, 2, 3];
 
 /// One-time trustee invite, returned only in the create response.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -216,6 +239,10 @@ pub struct DkgState {
     /// checks it against `escrow_ua` before attesting.
     #[serde(default)]
     pub escrow_view_secret_for_me: Option<String>,
+    /// Chain height when the escrow was created: where a wallet restored from
+    /// a trustee backup starts scanning.
+    #[serde(default)]
+    pub escrow_birthday_height: Option<u32>,
 }
 
 /// A trustee's attestation that the escrow address derives from the FROST
@@ -330,6 +357,9 @@ pub struct TrusteeAttestation {
     pub pubkey: Option<String>,
     /// Ed25519 signature (hex), `None` if the trustee never attested.
     pub signature: Option<String>,
+    /// The trustee's long-term key vouching for `pubkey`, if it certified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<TrusteeIdentityCert>,
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +393,41 @@ pub struct BatchView {
     pub signer_commitments: std::collections::BTreeMap<u16, Vec<String>>,
     pub i_committed: bool,
     pub i_shared: bool,
+    /// The transaction itself (PCZT bytes, hex). Trustees decode it, check it
+    /// and compute the sighash themselves before signing (security review D1).
+    #[serde(default)]
+    pub pczt: Option<String>,
+    /// Payout batches: the organiser's payout address, which the one payment
+    /// must go to.
+    #[serde(default)]
+    pub payout_ua: Option<String>,
+    /// Refund batches: which bid each refund note pays back. Trustees read
+    /// each bid from the chain and check the note goes to its refund address.
+    #[serde(default)]
+    pub refunds: Vec<RefundNoteView>,
+    /// Each chosen signer's signed statement of the round 2 inputs it will sign
+    /// over. A signer releases its shares only once its co-signer's statement
+    /// matches its own (a mismatch means the coordinator equivocated).
+    #[serde(default)]
+    pub signer_inputs: std::collections::BTreeMap<u16, SignedInputs>,
+}
+
+/// A chosen signer's statement of its round 2 inputs: the
+/// [`crate::auth::round2_inputs_digest`] and the signer's Ed25519 signature
+/// over [`crate::auth::round2_inputs_message`], both hex.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignedInputs {
+    pub digest: String,
+    pub signature: String,
+}
+
+/// One refund note in a batch, and the bid (payment to the escrow) it refunds.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RefundNoteView {
+    /// The bid's transaction id (hex, as in the published result).
+    pub bid_txid: String,
+    pub bid_output_index: u32,
+    pub value_zat: u64,
 }
 
 /// `GET /v1/console/auctions/{code}/batches`: the organiser's view of escrow
@@ -402,4 +467,11 @@ pub struct PostCommitments {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PostShares {
     pub shares: Vec<String>,
+}
+
+/// Between rounds: a chosen signer's signed statement of its round 2 inputs.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PostInputs {
+    pub digest: String,
+    pub signature: String,
 }

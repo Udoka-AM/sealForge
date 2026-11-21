@@ -2,7 +2,11 @@
 //!
 //! Round 1: each trustee posts one FROST commitment per escrow spend. The
 //! first two trustees to commit become the signer set. Round 2: those two post
-//! one signature share per spend. The chain worker then aggregates, applies,
+//! one signature share per spend. In between, each of them posts a signed
+//! digest of the round 2 inputs (sighash, randomizers, both signers'
+//! commitments), and refuses to sign unless its co-signer's digest matches its
+//! own, so a coordinator that shows them different commitment sets is caught
+//! before any share is released. The chain worker then aggregates, applies,
 //! finalizes and broadcasts (see `scanner`). Nonces never leave trustees.
 
 use std::collections::BTreeMap;
@@ -11,7 +15,10 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use sealforge_api::types::{BatchView, ConsoleBatch, PostCommitments, PostShares, SpendAuthView};
+use sealforge_api::types::{
+    BatchView, ConsoleBatch, PostCommitments, PostInputs, PostShares, RefundNoteView, SignedInputs,
+    SpendAuthView,
+};
 use sealforge_escrow::frost::{round1::SigningCommitments, round2::SignatureShare};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -30,13 +37,15 @@ struct BatchRow {
     total_out_zat: Option<i64>,
     output_count: Option<i32>,
     signer_slots: Option<Vec<i16>>,
+    pczt: Option<Vec<u8>>,
+    payout_ua: String,
 }
 
 /// Shared SELECT for `BatchRow`, spliced in at compile time so queries stay static.
 macro_rules! batch_select {
     () => {
         "SELECT b.id, b.auction_id, a.code, b.kind::text AS kind, b.status::text AS status, b.sighash, \
-         b.spend_auth, b.total_out_zat, b.output_count, b.signer_slots \
+         b.spend_auth, b.total_out_zat, b.output_count, b.signer_slots, b.pczt, a.payout_ua \
          FROM tx_batches b JOIN auctions a ON a.id = b.auction_id"
     };
 }
@@ -60,9 +69,15 @@ fn spends(row: &BatchRow) -> Result<Vec<SpendAuthView>, ApiError> {
 }
 
 async fn view(state: &AppState, row: &BatchRow, trustee_id: Uuid) -> Result<BatchView, ApiError> {
-    let rows: Vec<(i16, Option<serde_json::Value>, Option<serde_json::Value>)> = sqlx::query_as(
-        "SELECT t.slot, s.commitments_json, s.shares_json FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id \
-         WHERE s.batch_id = $1",
+    type ShareRow = (
+        i16,
+        Option<serde_json::Value>,
+        Option<serde_json::Value>,
+        Option<serde_json::Value>,
+    );
+    let rows: Vec<ShareRow> = sqlx::query_as(
+        "SELECT t.slot, s.commitments_json, s.shares_json, s.inputs_json FROM signature_shares s \
+         JOIN trustees t ON t.id = s.trustee_id WHERE s.batch_id = $1",
     )
     .bind(row.id)
     .fetch_all(&state.db)
@@ -73,7 +88,8 @@ async fn view(state: &AppState, row: &BatchRow, trustee_id: Uuid) -> Result<Batc
         .await?;
     let signers: Vec<i16> = row.signer_slots.clone().unwrap_or_default();
     let mut signer_commitments = BTreeMap::new();
-    for (slot, commitments, _) in &rows {
+    let mut signer_inputs = BTreeMap::new();
+    for (slot, commitments, _, inputs) in &rows {
         if signers.contains(slot) {
             if let Some(c) = commitments {
                 signer_commitments.insert(
@@ -81,9 +97,25 @@ async fn view(state: &AppState, row: &BatchRow, trustee_id: Uuid) -> Result<Batc
                     serde_json::from_value(c.clone()).unwrap_or_default(),
                 );
             }
+            if let Some(i) = inputs {
+                if let Ok(i) = serde_json::from_value::<SignedInputs>(i.clone()) {
+                    signer_inputs.insert(*slot as u16, i);
+                }
+            }
         }
     }
-    let mine = rows.iter().find(|(slot, _, _)| *slot == my_slot);
+    let mine = rows.iter().find(|(slot, _, _, _)| *slot == my_slot);
+    let refunds: Vec<(Vec<u8>, i32, i64)> = if row.kind == "refund" {
+        sqlx::query_as(
+            "SELECT b.txid, b.output_index, n.denomination_zat FROM refund_notes n \
+             JOIN bids b ON b.id = n.bid_id WHERE n.batch_id = $1 ORDER BY n.id",
+        )
+        .bind(row.id)
+        .fetch_all(&state.db)
+        .await?
+    } else {
+        Vec::new()
+    };
     Ok(BatchView {
         id: row.id.to_string(),
         auction_code: row.code.clone(),
@@ -95,8 +127,19 @@ async fn view(state: &AppState, row: &BatchRow, trustee_id: Uuid) -> Result<Batc
         output_count: row.output_count.unwrap_or_default() as u32,
         signer_slots: signers.iter().map(|s| *s as u16).collect(),
         signer_commitments,
-        i_committed: mine.is_some_and(|(_, c, _)| c.is_some()),
-        i_shared: mine.is_some_and(|(_, _, s)| s.is_some()),
+        i_committed: mine.is_some_and(|(_, c, _, _)| c.is_some()),
+        i_shared: mine.is_some_and(|(_, _, s, _)| s.is_some()),
+        pczt: row.pczt.as_ref().map(hex::encode),
+        payout_ua: (row.kind == "payout").then(|| row.payout_ua.clone()),
+        refunds: refunds
+            .into_iter()
+            .map(|(txid, index, value)| RefundNoteView {
+                bid_txid: hex::encode(txid),
+                bid_output_index: index as u32,
+                value_zat: value as u64,
+            })
+            .collect(),
+        signer_inputs,
     })
 }
 
@@ -260,6 +303,93 @@ pub async fn share(
         .execute(&mut *tx)
         .await?;
     advance(&mut tx, row.id).await?;
+    tx.commit().await?;
+    let row = load(&state, &id).await?;
+    Ok(Json(view(&state, &row, trustee_id).await?))
+}
+
+/// `POST /v1/batches/{id}/inputs` (between rounds, signers only): the signer's
+/// signed statement of its round 2 inputs. Checked against the signer's own
+/// key so a malformed statement is caught early; co-signers check it again
+/// themselves. Fixed once posted.
+pub async fn inputs(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    req: Signed,
+) -> Result<Json<BatchView>, ApiError> {
+    let row = load(&state, &id).await?;
+    let (trustee_id, slot) = trustee_of(&state, &req.pubkey, row.auction_id).await?;
+    if row.status != "awaiting_signatures" {
+        return Err(ApiError::conflict(
+            "not_signing",
+            "this batch is not collecting signatures",
+        ));
+    }
+    if !row.signer_slots.clone().unwrap_or_default().contains(&slot) {
+        return Err(ApiError::conflict(
+            "not_a_signer",
+            "two other trustees are signing this batch",
+        ));
+    }
+    let input: PostInputs = req.json()?;
+    let digest: [u8; 32] = hex::decode(&input.digest)
+        .ok()
+        .and_then(|b| b.try_into().ok())
+        .ok_or_else(|| ApiError::BadRequest("digest must be 32 bytes, hex".into()))?;
+    let signature: [u8; 64] = hex::decode(&input.signature)
+        .ok()
+        .and_then(|b| b.try_into().ok())
+        .ok_or_else(|| ApiError::BadRequest("signature must be 64 bytes, hex".into()))?;
+    if !sealforge_api::auth::verify_round2_inputs(
+        &req.pubkey,
+        &signature,
+        &row.code,
+        &row.id.to_string(),
+        slot as u16,
+        &digest,
+    ) {
+        return Err(ApiError::BadRequest(
+            "the signature doesn't verify under your trustee key".into(),
+        ));
+    }
+    let statement = serde_json::json!(SignedInputs {
+        digest: input.digest.to_lowercase(),
+        signature: input.signature.to_lowercase(),
+    });
+    let mut tx = state.db.begin().await?;
+    lock(&mut tx, row.id).await?;
+    let existing: Option<Option<serde_json::Value>> = sqlx::query_scalar(
+        "SELECT inputs_json FROM signature_shares WHERE batch_id = $1 AND trustee_id = $2",
+    )
+    .bind(row.id)
+    .bind(trustee_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    match existing {
+        None => {
+            return Err(ApiError::conflict(
+                "not_committed",
+                "commit to this batch before stating your round 2 inputs",
+            ))
+        }
+        Some(Some(prev)) if prev != statement => {
+            return Err(ApiError::conflict(
+                "inputs_fixed",
+                "you already stated different round 2 inputs for this batch",
+            ))
+        }
+        Some(Some(_)) => {}
+        Some(None) => {
+            sqlx::query(
+                "UPDATE signature_shares SET inputs_json = $3 WHERE batch_id = $1 AND trustee_id = $2",
+            )
+            .bind(row.id)
+            .bind(trustee_id)
+            .bind(&statement)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
     tx.commit().await?;
     let row = load(&state, &id).await?;
     Ok(Json(view(&state, &row, trustee_id).await?))

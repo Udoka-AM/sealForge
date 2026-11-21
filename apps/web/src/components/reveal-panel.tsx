@@ -5,6 +5,7 @@ import { ExternalLink, Eye } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { Button, buttonClass } from "@/components/button";
+import { EscrowGateNotice, useEscrowGate } from "@/components/escrow-check";
 import { networkOfUa, unit } from "@/lib/format";
 import { markRevealSent, type StoredReceipt, updateReceipt } from "@/lib/receipts";
 import type { AuctionView } from "@/lib/types";
@@ -31,10 +32,11 @@ export function RevealPanel({
   const [open, setOpen] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
 
+  // The reveal carries the price and salt: it goes only to the address checked
+  // when the bid was prepared, and only while every trustee signature confirms it.
+  const escrow = useEscrowGate(auction, receipt);
   const reveal =
-    auction.escrow_ua && receipt.price_zat !== undefined
-      ? prepareReveal(receipt, auction.escrow_ua)
-      : null;
+    escrow.ok && receipt.price_zat !== undefined ? prepareReveal(receipt, escrow.ua) : null;
 
   const uri = reveal?.uri;
   useEffect(() => {
@@ -83,11 +85,12 @@ export function RevealPanel({
           refunded in full.
         </span>
       </p>
-      {walletReady && reveal && auction.escrow_ua ? (
+      <EscrowGateNotice gate={escrow} />
+      {walletReady && reveal && escrow.ok ? (
         <WalletPay
           network={auction.network}
           request={{
-            to: auction.escrow_ua,
+            to: escrow.ua,
             amount_zat: Number(REVEAL_AMOUNT_ZAT),
             memo: reveal.memo,
             label: `reveal:${auction.code}`,
@@ -133,7 +136,7 @@ export function RevealPanel({
             </Button>
           </div>
         </div>
-      ) : (
+      ) : reveal ? (
         <Button
           type="button"
           variant={walletReady ? "ghost" : "primary"}
@@ -142,7 +145,7 @@ export function RevealPanel({
           <Eye size={16} aria-hidden="true" />{" "}
           {walletReady ? "Reveal from another wallet (QR code)" : "Reveal my bid"}
         </Button>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -22,6 +22,12 @@ export interface StoredSigner {
   /** Trustee slot and label, from identity.json. */
   slot?: number;
   label?: string;
+  /**
+   * Trustee only: the X25519 secret from identity.json (hex) that opens the
+   * escrow's sealed viewing key, so this browser can check each transaction
+   * before signing it (security review D1). Viewing power only.
+   */
+  encSecret?: string;
 }
 
 // PKCS#8 wrapper for a raw Ed25519 seed (RFC 8410).
@@ -31,7 +37,7 @@ const PKCS8_PREFIX = Uint8Array.from([
 
 const storeKey = (role: Role) => `sf-signer:${role}`;
 
-function hexToBytes(hex: string): Uint8Array | null {
+function hexToBytes(hex: string): Uint8Array<ArrayBuffer> | null {
   const clean = hex.trim();
   if (!/^[0-9a-fA-F]*$/.test(clean) || clean.length % 2 !== 0) return null;
   const out = new Uint8Array(clean.length / 2);
@@ -55,6 +61,58 @@ function toHex(bytes: ArrayBuffer): string {
 }
 
 export class KeyFileError extends Error {}
+
+/** `sealforge_api::auth::round2_inputs_message`: what a chosen signer signs. */
+function round2InputsMessage(code: string, batchId: string, slot: number, digest: string) {
+  return new TextEncoder().encode(
+    `sealforge-round2-inputs-v1\n${code}\n${batchId}\n${slot}\n${digest.toLowerCase()}`,
+  );
+}
+
+/** Sign this trustee's statement of the round 2 inputs it signs over (hex). */
+export async function signRound2Inputs(
+  signer: StoredSigner,
+  code: string,
+  batchId: string,
+  digest: string,
+): Promise<string> {
+  if (signer.slot === undefined)
+    throw new Error("This key file doesn't say which trustee slot it is.");
+  const sig = await crypto.subtle.sign(
+    { name: "Ed25519" },
+    signer.key,
+    round2InputsMessage(code, batchId, signer.slot, digest),
+  );
+  return toHex(sig);
+}
+
+/** Check a co-signer's statement with its key from the public auction page. */
+export async function verifyRound2Inputs(
+  pubkeyHex: string,
+  signatureHex: string,
+  code: string,
+  batchId: string,
+  slot: number,
+  digest: string,
+): Promise<boolean> {
+  const pubkey = hexToBytes(pubkeyHex);
+  const signature = hexToBytes(signatureHex);
+  if (!pubkey || !signature) return false;
+  if (pubkey.length !== 32 || signature.length !== 64) return false;
+  try {
+    const key = await crypto.subtle.importKey("raw", pubkey, { name: "Ed25519" }, false, [
+      "verify",
+    ]);
+    return await crypto.subtle.verify(
+      { name: "Ed25519" },
+      key,
+      signature,
+      round2InputsMessage(code, batchId, slot, digest),
+    );
+  } catch {
+    return false;
+  }
+}
 
 /** True when this browser can sign with Ed25519 through WebCrypto. */
 export async function ed25519Supported(): Promise<boolean> {
@@ -95,7 +153,13 @@ export async function loadOrganiserKey(text: string): Promise<StoredSigner> {
 export async function loadTrusteeIdentity(
   text: string,
 ): Promise<{ code: string; signer: StoredSigner }> {
-  let parsed: { auction_code?: string; slot?: number; label?: string; signing_key?: string };
+  let parsed: {
+    auction_code?: string;
+    slot?: number;
+    label?: string;
+    signing_key?: string;
+    enc_secret?: string;
+  };
   try {
     parsed = JSON.parse(text);
   } catch {
@@ -108,6 +172,10 @@ export async function loadTrusteeIdentity(
     ...(await importSeed(seed)),
     slot: parsed.slot,
     label: parsed.label,
+    encSecret:
+      parsed.enc_secret && /^[0-9a-f]{64}$/i.test(parsed.enc_secret)
+        ? parsed.enc_secret
+        : undefined,
   };
   seed.fill(0);
   await set(storeKey(`trustee:${parsed.auction_code}`), signer);

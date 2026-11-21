@@ -110,7 +110,8 @@ fn reserve(value: u64) -> Result<(), ApiError> {
 
 fn trustees(slots: &[TrusteeSlotInput]) -> Result<(), ApiError> {
     let ids: BTreeSet<u16> = slots.iter().map(|t| t.slot).collect();
-    if slots.len() != 3 || ids != BTreeSet::from([1, 2, 3]) {
+    let expected = BTreeSet::from(sealforge_api::types::TRUSTEE_SLOTS);
+    if slots.len() != expected.len() || ids != expected {
         return Err(ApiError::Validation(
             "exactly three trustees with slots 1, 2 and 3 are required".into(),
         ));

@@ -3,7 +3,8 @@
 import { CircleCheck, CircleX, Info, LoaderCircle, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { HashChip } from "@/components/hash-chip";
-import { checkEscrow } from "@/lib/auditor";
+import { checkEscrow, type EscrowSource } from "@/lib/auditor";
+import { type EscrowCheckState, type EscrowGate, escrowGate } from "@/lib/escrow-gate";
 import { escrowAddressOf } from "@/lib/scanner";
 import type { AuctionView, EscrowCheck, PublishedResult } from "@/lib/types";
 
@@ -27,10 +28,7 @@ function predatesAttestations(source: AuctionView | PublishedResult): boolean {
   return biddingOver && (source.open_height ?? source.close_height) < since;
 }
 
-type State =
-  | { status: "checking" }
-  | { status: "done"; check: EscrowCheck }
-  | { status: "error"; message: string };
+type State = EscrowCheckState;
 
 /**
  * Checks, in this browser with the WebAssembly auditor, that every trustee
@@ -38,13 +36,14 @@ type State =
  * the trustees' keys, though it could list keys of its own: hence the keys are
  * shown so bidders can compare them with what the trustees post themselves.
  */
-export function useEscrowCheck(source: AuctionView | PublishedResult): State {
+export function useEscrowCheck(source: EscrowSource | null): State {
   const [state, setState] = useState<State>({ status: "checking" });
   const key = JSON.stringify(source);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `key` stands in for `source`
   useEffect(() => {
     let live = true;
     setState({ status: "checking" });
+    if (!source) return;
     checkEscrow(source)
       .then((check) => live && setState({ status: "done", check }))
       .catch((e: Error) => live && setState({ status: "error", message: e.message }));
@@ -96,6 +95,14 @@ function Summary({ state, older = false }: { state: State; older?: boolean }) {
         No trustee has signed this address, so only the organiser vouches for it.
       </p>
     );
+  if (check.signed === check.total && check.problems?.length)
+    return (
+      <p role="alert" className="inline-flex items-start gap-2 font-medium text-danger">
+        <ShieldAlert size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+        The trustee list doesn&rsquo;t check out: {check.problems.join("; ")}. Don&rsquo;t send
+        funds to this address.
+      </p>
+    );
   return (
     <p role="alert" className="inline-flex items-start gap-2 font-medium text-danger">
       <ShieldAlert size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
@@ -111,6 +118,45 @@ const VERDICT: Record<EscrowCheck["trustees"][number]["verdict"], string> = {
   invalid: "invalid signature",
   wrong_key: "unexpected key",
 };
+
+/** Where a trustee publishes its long-term key: a link only for http(s) URLs. */
+function Place({ value }: { value: string }) {
+  if (/^https?:\/\//i.test(value))
+    return (
+      <a
+        href={value}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        className="break-all underline decoration-border underline-offset-2 hover:text-text"
+      >
+        {value}
+      </a>
+    );
+  return <span className="num break-all text-text">{value}</span>;
+}
+
+/** Who vouches for a trustee's key: its long-term key and where it's published. */
+function Identity({ t }: { t: EscrowCheck["trustees"][number] }) {
+  if (t.identity === "certified" && t.identity_pubkey && t.identity_published_at)
+    return (
+      <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 pl-6 text-[13px] text-muted">
+        Vouched for by
+        <HashChip value={t.identity_pubkey} label={`${t.label}'s long-term key`} />
+        published at <Place value={t.identity_published_at} />
+      </span>
+    );
+  if (t.identity === "invalid")
+    return (
+      <span className="basis-full pl-6 text-[13px] text-danger">
+        Its long-term key certificate doesn&rsquo;t verify
+      </span>
+    );
+  return (
+    <span className="basis-full pl-6 text-[13px] text-muted">
+      No long-term key: nothing ties this key to a known person
+    </span>
+  );
+}
 
 function TrusteeKeys({ check }: { check: EscrowCheck }) {
   return (
@@ -130,6 +176,7 @@ function TrusteeKeys({ check }: { check: EscrowCheck }) {
           {t.verdict !== "signed" ? (
             <span className="text-[13px] text-danger">{VERDICT[t.verdict]}</span>
           ) : null}
+          <Identity t={t} />
         </li>
       ))}
     </ul>
@@ -138,7 +185,7 @@ function TrusteeKeys({ check }: { check: EscrowCheck }) {
 
 /** The auction page's escrow card: did the trustees sign the address shown? */
 export function EscrowAttestations({ auction }: { auction: AuctionView }) {
-  const state = useEscrowCheck(auction);
+  const state = useEscrowCheck({ kind: "view", view: auction });
   return (
     <div className="space-y-3 border-t border-border pt-4">
       <Summary state={state} older={predatesAttestations(auction)} />
@@ -151,8 +198,10 @@ export function EscrowAttestations({ auction }: { auction: AuctionView }) {
             <TrusteeKeys check={state.check} />
             <p className="max-w-[60ch] text-[13px] text-muted">
               Checked in your browser. Each trustee rebuilt this address from its own share of the
-              escrow key and signed it. To rule out a site that invented its own trustees, compare
-              these keys with the ones the trustees post themselves.
+              escrow key and signed it. To rule out a stand-in trustee, open the place each one
+              publishes its long-term key and check the key there matches. A trustee with no
+              long-term key could be anyone, and so could one whose place you don&rsquo;t recognise:
+              keys prove who signed, not that the three trustees are different people.
             </p>
           </div>
         </details>
@@ -161,22 +210,36 @@ export function EscrowAttestations({ auction }: { auction: AuctionView }) {
   );
 }
 
-/** Bid flow guard: true when the trustees' signatures contradict the address. */
-export function useEscrowBlocked(auction: AuctionView): {
-  blocked: boolean;
-  state: State;
-} {
-  const state = useEscrowCheck(auction);
-  return { blocked: state.status === "done" && state.check.verdict === "failed", state };
+export function useEscrowGate(
+  auction: AuctionView | null,
+  receipt?: { escrow_ua?: string },
+): EscrowGate {
+  const state = useEscrowCheck(auction ? { kind: "view", view: auction } : null);
+  return escrowGate(state, auction, receipt);
 }
 
-export function EscrowWarning({ state }: { state: State }) {
-  if (state.status === "checking") return null;
-  if (state.status === "done" && state.check.verdict === "verified") return null;
+/** Why a payment is blocked, in place of the pay button. Nothing once it's allowed. */
+export function EscrowGateNotice({ gate }: { gate: EscrowGate }) {
+  if (gate.ok) return null;
+  if (gate.state.status === "checking")
+    return (
+      <p className="inline-flex items-center gap-2 text-sm text-muted">
+        <LoaderCircle
+          size={16}
+          aria-hidden="true"
+          className="animate-spin motion-reduce:animate-none"
+        />
+        {gate.reason}
+      </p>
+    );
   return (
-    <div className="rounded-[var(--radius-control)] border border-current p-3 text-sm">
-      <Summary state={state} />
-    </div>
+    <p
+      role="alert"
+      className="flex items-start gap-2 rounded-[var(--radius-control)] border border-current p-3 text-sm text-danger"
+    >
+      <ShieldAlert size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+      {gate.reason}
+    </p>
   );
 }
 
@@ -196,7 +259,7 @@ export function EscrowAudit({
   result: PublishedResult;
   shownUa: string | null;
 }) {
-  const state = useEscrowCheck(result);
+  const state = useEscrowCheck({ kind: "result", result });
   const [keyMatch, setKeyMatch] = useState<KeyMatch>({ status: "checking" });
   useEffect(() => {
     let live = true;

@@ -41,6 +41,7 @@ pub fn router(state: AppState) -> Router {
             get(batches::list_for_organiser),
         )
         .route("/v1/trustees/join", post(dkg::join))
+        .route("/v1/auctions/{code}/trustee-identity", post(dkg::certify))
         .route("/v1/auctions/{code}/dkg", get(dkg::state))
         .route("/v1/auctions/{code}/dkg/round1", post(dkg::round1))
         .route("/v1/auctions/{code}/dkg/round2", post(dkg::round2))
@@ -54,6 +55,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/auctions/{code}/refunds", get(results::refund_progress))
         .route("/v1/auctions/{code}/batches", get(batches::list))
         .route("/v1/batches/{id}/commitments", post(batches::commit))
+        .route("/v1/batches/{id}/inputs", post(batches::inputs))
         .route("/v1/batches/{id}/shares", post(batches::share))
         .layer(TraceLayer::new_for_http())
         .with_state(state)

@@ -21,6 +21,15 @@ export interface TrusteeView {
   pubkey?: string | null;
   /** The trustee's signature over the escrow address (hex). */
   escrow_attestation?: string | null;
+  /** The trustee's long-term key vouching for `pubkey` in this auction. */
+  identity?: TrusteeIdentityCert | null;
+}
+
+/** A trustee's long-term key (hex), where it publishes it, and its certificate. */
+export interface TrusteeIdentityCert {
+  pubkey: string;
+  published_at: string;
+  signature: string;
 }
 
 export interface AuctionView {
@@ -120,6 +129,23 @@ export interface ConsoleBatch {
 }
 
 /** GET /v1/auctions/{code}/batches (trustee view). */
+/** GET /v1/auctions/{code}/dkg: only the field the signing page needs. */
+export interface TrusteeDkgState {
+  escrow_ua: string | null;
+  /** `nk ‖ rivk`, sealed to this trustee's encryption key (hex). */
+  escrow_view_secret_for_me?: string | null;
+}
+
+/** What the trustee's browser checked in a batch's transaction (sealforge-verify). */
+export interface VerifiedBatch {
+  sighash: string;
+  lines: string[];
+  warnings: string[];
+  payments: [string, number][];
+  fee_zat: number;
+  expiry_height: number;
+}
+
 export interface TrusteeBatch {
   id: string;
   auction_code: string;
@@ -133,6 +159,16 @@ export interface TrusteeBatch {
   signer_commitments: Record<string, string[]>;
   i_committed: boolean;
   i_shared: boolean;
+  /** The transaction to check before signing (PCZT, hex). */
+  pczt?: string | null;
+  /** Payout batches: the organiser's payout address. */
+  payout_ua?: string | null;
+  /**
+   * Each chosen signer's signed statement of the round 2 inputs it signs over
+   * (digest and Ed25519 signature, hex), by slot. A signer sends its share only
+   * once its co-signer's statement matches its own.
+   */
+  signer_inputs?: Record<string, { digest: string; signature: string }>;
 }
 
 /** GET /v1/auctions/{code}/result (sealforge-api PublishedResult). */
@@ -195,7 +231,13 @@ export interface EscrowCheck {
     label: string;
     pubkey: string | null;
     verdict: "signed" | "missing" | "invalid" | "wrong_key";
+    /** Whether a long-term key vouches for this trustee's key. */
+    identity?: "certified" | "none" | "invalid";
+    identity_pubkey?: string | null;
+    identity_published_at?: string | null;
   }[];
+  /** Why the trustee list itself is unacceptable; empty when well formed. */
+  problems?: string[];
 }
 
 /** sealforge-auditor AuditReport. */

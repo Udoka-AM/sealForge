@@ -260,6 +260,51 @@ pub fn set_max_notes_per_tx(notes: usize) {
     let _ = MAX_NOTES.set(notes.clamp(2, MAX_NOTES_PER_TX));
 }
 
+/// Refunds still owed: refund notes not yet confirmed on chain, plus payments
+/// owed a refund that have a refund address but no refund notes planned yet (a
+/// late payment, until the next late-refund planning run). While any are open
+/// the payout must not sweep their funds and the auction must not settle past
+/// them (security review F17).
+async fn refunds_owed(state: &AppState, auction_id: Uuid) -> anyhow::Result<i64> {
+    Ok(sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM refund_notes n WHERE n.auction_id = $1 \
+                 AND n.kind = 'refund' AND n.status <> 'confirmed') \
+              + (SELECT count(*) FROM bids b WHERE b.auction_id = $1 AND b.refund_due_zat >= 10000 \
+                 AND b.refund_ua_enc IS NOT NULL \
+                 AND NOT EXISTS (SELECT 1 FROM refund_notes n WHERE n.bid_id = b.id))",
+    )
+    .bind(auction_id)
+    .fetch_one(&state.db)
+    .await?)
+}
+
+/// What comes after the refunds: the next payout, settling, or waiting.
+#[derive(Debug, PartialEq, Eq)]
+enum AfterRefunds {
+    PlanPayout,
+    Settle,
+    Wait,
+}
+
+/// Decide [`AfterRefunds`]. `open_refunds` is [`refunds_owed`].
+fn after_refunds(
+    open_refunds: i64,
+    payout_notes: i64,
+    open_payout: i64,
+    to_pay: bool,
+    more_to_pay: bool,
+) -> AfterRefunds {
+    if open_refunds > 0 {
+        AfterRefunds::Wait
+    } else if to_pay && (payout_notes == 0 || (open_payout == 0 && more_to_pay)) {
+        AfterRefunds::PlanPayout
+    } else if open_payout == 0 && !more_to_pay {
+        AfterRefunds::Settle
+    } else {
+        AfterRefunds::Wait
+    }
+}
+
 /// Smallest fee buffer worth sweeping back on an auction without proceeds
 /// (twice the ZIP-317 minimum fee).
 const MIN_SWEEP_ZAT: i64 = 20_000;
@@ -502,9 +547,12 @@ async fn process_batches(
     .await?;
     if in_flight == 0 {
         // A consolidation goes first: it's what lets the waiting refund fit.
+        // Refunds go before a payout: a payout planned before a late payment
+        // arrived waits for that payment's refund (F17), so building it first
+        // would block the refund forever.
         let next: Option<(Uuid, String)> = sqlx::query_as(
             "SELECT id, kind::text FROM tx_batches WHERE auction_id = $1 AND status = 'building' \
-             ORDER BY (kind = 'consolidate') DESC, created_at LIMIT 1",
+             ORDER BY (kind = 'consolidate') DESC, (kind = 'refund') DESC, created_at LIMIT 1",
         )
         .bind(auction.id)
         .fetch_optional(&state.db)
@@ -519,6 +567,13 @@ async fn process_batches(
                 tracing::info!(code = %auction.code, notes = sweep.notes, "consolidating escrow notes");
                 (sweep.payment, 1)
             } else if kind == "payout" {
+                // A payment that arrived after the payout was planned is still
+                // owed its refund: don't sweep it into the payout (F17). Wait
+                // until its refund is planned, sent and confirmed.
+                if refunds_owed(state, auction.id).await? > 0 {
+                    tracing::info!(code = %auction.code, "payout waits: a late payment's refund isn't confirmed yet");
+                    return Ok(());
+                }
                 // The payout sweeps what's left: proceeds plus any fee buffer and
                 // refund dust, net of fees. Payments awaiting manual review stay.
                 let held: i64 = sqlx::query_scalar(
@@ -621,9 +676,8 @@ async fn process_batches(
     }
 
     // When every refund is confirmed, pay the organiser; when that's confirmed, settle.
-    let (open_refunds, payout_notes, open_payout): (i64, i64, i64) = sqlx::query_as(
-        "SELECT count(*) FILTER (WHERE kind = 'refund' AND status <> 'confirmed'), \
-                count(*) FILTER (WHERE kind = 'payout'), \
+    let (payout_notes, open_payout): (i64, i64) = sqlx::query_as(
+        "SELECT count(*) FILTER (WHERE kind = 'payout'), \
                 count(*) FILTER (WHERE kind = 'payout' AND status <> 'confirmed') \
          FROM refund_notes WHERE auction_id = $1",
     )
@@ -647,9 +701,9 @@ async fn process_batches(
     .bind(auction.id)
     .fetch_one(&state.db)
     .await?;
-    let next_payout =
-        open_refunds == 0 && to_pay && (payout_notes == 0 || (open_payout == 0 && more_to_pay));
-    if next_payout {
+    let open_refunds = refunds_owed(state, auction.id).await?;
+    let next = after_refunds(open_refunds, payout_notes, open_payout, to_pay, more_to_pay);
+    if next == AfterRefunds::PlanPayout {
         let mut tx = state.db.begin().await?;
         let batch_id: Uuid = sqlx::query_scalar(
             "INSERT INTO tx_batches (auction_id, kind, status) VALUES ($1, 'payout', 'building') RETURNING id",
@@ -669,7 +723,7 @@ async fn process_batches(
         .await?;
         tx.commit().await?;
         tracing::info!(code = %auction.code, proceeds, "payout batch planned");
-    } else if open_refunds == 0 && open_payout == 0 && !more_to_pay {
+    } else if next == AfterRefunds::Settle {
         let moved = sqlx::query(
             "UPDATE auctions SET status = 'settled', settled_at = now(), updated_at = now() WHERE id = $1 AND status = 'refunding'",
         )
@@ -749,6 +803,7 @@ pub async fn run(state: AppState, zaino_url: String, network: Network, wallet_di
         }
     }
 }
+
 #[cfg(test)]
 mod expiry_tests {
     use super::past_expiry;
@@ -761,5 +816,31 @@ mod expiry_tests {
         assert!(past_expiry(100, 140));
         // 0: no expiry.
         assert!(!past_expiry(0, 1_000_000));
+    }
+}
+
+#[cfg(test)]
+mod after_refunds_tests {
+    use super::{after_refunds, AfterRefunds};
+
+    #[test]
+    fn a_late_payment_holds_the_payout_and_settlement() {
+        // Refunds all confirmed, but a late payment's refund isn't planned yet
+        // (counted in open_refunds): neither pay out nor settle (F17).
+        assert_eq!(after_refunds(1, 0, 0, true, false), AfterRefunds::Wait);
+        assert_eq!(after_refunds(1, 1, 0, true, false), AfterRefunds::Wait);
+    }
+
+    #[test]
+    fn otherwise_pay_out_then_settle() {
+        assert_eq!(
+            after_refunds(0, 0, 0, true, false),
+            AfterRefunds::PlanPayout
+        );
+        assert_eq!(after_refunds(0, 1, 1, true, false), AfterRefunds::Wait);
+        assert_eq!(after_refunds(0, 1, 0, true, true), AfterRefunds::PlanPayout);
+        assert_eq!(after_refunds(0, 1, 0, true, false), AfterRefunds::Settle);
+        // Nothing to pay (no proceeds, too small a fee buffer): settle.
+        assert_eq!(after_refunds(0, 0, 0, false, false), AfterRefunds::Settle);
     }
 }
