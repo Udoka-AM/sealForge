@@ -54,6 +54,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/auctions/{code}/refunds", get(results::refund_progress))
         .route("/v1/auctions/{code}/batches", get(batches::list))
         .route("/v1/batches/{id}/commitments", post(batches::commit))
+        .route("/v1/batches/{id}/inputs", post(batches::inputs))
         .route("/v1/batches/{id}/shares", post(batches::share))
         .layer(TraceLayer::new_for_http())
         .with_state(state)

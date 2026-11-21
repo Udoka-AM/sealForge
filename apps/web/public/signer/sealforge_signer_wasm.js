@@ -52,6 +52,40 @@ export function key_info(key_package_hex) {
 }
 
 /**
+ * Digest of the round 2 inputs (hex), the same as the CLI's: a chosen signer
+ * signs it with its trustee key before signing, and checks its co-signer's
+ * matches (`sealforge_api::auth::round2_inputs_digest`).
+ * @param {string} sighash_hex
+ * @param {string} alphas_json
+ * @param {string} signer_commitments_json
+ * @returns {string}
+ */
+export function round2_inputs_digest(sighash_hex, alphas_json, signer_commitments_json) {
+    let deferred5_0;
+    let deferred5_1;
+    try {
+        const ptr0 = passStringToWasm0(sighash_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(alphas_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(signer_commitments_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.round2_inputs_digest(ptr0, len0, ptr1, len1, ptr2, len2);
+        var ptr4 = ret[0];
+        var len4 = ret[1];
+        if (ret[3]) {
+            ptr4 = 0; len4 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred5_0 = ptr4;
+        deferred5_1 = len4;
+        return getStringFromWasm0(ptr4, len4);
+    } finally {
+        wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
+    }
+}
+
+/**
  * Round 2: one signature share per spend.
  *
  * - `alphas_json`: `["<hex α>", …]` in spend order

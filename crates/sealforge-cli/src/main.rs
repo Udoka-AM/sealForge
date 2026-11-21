@@ -178,6 +178,7 @@ async fn main() -> anyhow::Result<()> {
                     escrow_ua,
                     signed,
                     total,
+                    ..
                 } => println!(
                     "The public page for {code} shows the escrow address you signed ({escrow_ua}), \
                      lists your key, and {signed} of {total} trustee attestations verify."
@@ -222,6 +223,7 @@ async fn main() -> anyhow::Result<()> {
                     p,
                     trustee::SignProgress::Committed { .. }
                         | trustee::SignProgress::WaitingForSecondSigner { .. }
+                        | trustee::SignProgress::WaitingForCoSignerCheck { .. }
                 )
             });
             if !wait || !waiting {

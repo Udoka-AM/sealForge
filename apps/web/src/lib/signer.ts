@@ -11,6 +11,11 @@ interface SignerModule {
   default: (init: { module_or_path: string }) => Promise<unknown>;
   key_info: (keyPackageHex: string) => string;
   commit_batch: (keyPackageHex: string, spends: number) => string;
+  round2_inputs_digest: (
+    sighashHex: string,
+    alphasJson: string,
+    signerCommitmentsJson: string,
+  ) => string;
   sign_batch: (
     keyPackageHex: string,
     sighashHex: string,
@@ -78,6 +83,22 @@ export async function signBatch(
       JSON.stringify(nonces),
     ),
   ) as string[];
+}
+
+/**
+ * Digest of everything a round 2 share depends on besides the key and the
+ * nonces (hex), computed by the same Rust code as `sealforge trustee sign`.
+ */
+export async function round2InputsDigest(
+  sighash: string,
+  alphas: string[],
+  signerCommitments: Record<string, string[]>,
+): Promise<string> {
+  return (await load()).round2_inputs_digest(
+    sighash,
+    JSON.stringify(alphas),
+    JSON.stringify(signerCommitments),
+  );
 }
 
 /**

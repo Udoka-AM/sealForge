@@ -153,6 +153,12 @@ export interface TrusteeBatch {
   pczt?: string | null;
   /** Payout batches: the organiser's payout address. */
   payout_ua?: string | null;
+  /**
+   * Each chosen signer's signed statement of the round 2 inputs it signs over
+   * (digest and Ed25519 signature, hex), by slot. A signer sends its share only
+   * once its co-signer's statement matches its own.
+   */
+  signer_inputs?: Record<string, { digest: string; signature: string }>;
 }
 
 /** GET /v1/auctions/{code}/result (sealforge-api PublishedResult). */

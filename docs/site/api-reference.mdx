@@ -38,6 +38,7 @@ Status: `Testnet`. Router: `crates/sealforge-coordinator/src/routes/mod.rs`. Req
 | `POST /v1/auctions/{code}/dkg/complete` | trustee | `CompleteDkg { public_key_package }` → `DkgState` | `409 dkg_mismatch` if packages differ |
 | `GET /v1/auctions/{code}/batches` | trustee | → `[BatchView]` | `sighash`, `spends [{action_index, alpha}]`, `total_out_zat`, `output_count`, signer state. **No PCZT** |
 | `POST /v1/batches/{id}/commitments` | trustee | `PostCommitments { commitments }` → `BatchView` | `409 not_signing` |
+| `POST /v1/batches/{id}/inputs` | trustee (chosen signer) | `PostInputs { digest, signature }` → `BatchView`. The signer's Ed25519 statement of its round 2 inputs; fixed once posted. Co-signers read it from `BatchView.signer_inputs` | `409 not_a_signer`, `not_committed`, `inputs_fixed`; `400` if the signature doesn't verify |
 | `POST /v1/batches/{id}/shares` | trustee | `PostShares { shares }` → `BatchView` | `409 not_a_signer` |
 
 ### Errors

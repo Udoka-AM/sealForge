@@ -146,3 +146,15 @@ A redirected refund (a note sent to an address other than its bid's memo) is ref
 | Payout | 0.1996 ZEC, the proceeds net of fees, only after the late refund confirmed | Confirmed; auction `settled` |
 
 The run found two bugs in this change, both fixed and covered by tests: the ledger was written with the create-only key writer, so a trustee couldn't record a second refund batch for an auction (now replaced atomically: `Keystore::replace`); and Zaino answers a lookup of an expired, never-mined transaction with RPC error -5 rather than gRPC `NotFound`, which the earlier-refunds check treated as a failure, so one expired batch blocked every later refund (`sealforge-chain::is_missing_transaction`). It also showed that the coordinator retries broadcasting an expired signed batch forever and fails each scan meanwhile (D3, tracked separately).
+
+## Signers check each other's round 2 inputs (stream 2c)
+
+**Date:** 2026-11-21. Auction `KBANH7TJZ2` on the local regtest chain (2 bids, 1 lot). One trustee signed in the browser, the others with the CLI.
+
+| Step | What happened | Result |
+|---|---|---|
+| Refund | Trustees A and B on the CLI. Each posted its signed round 2 inputs statement; the first waited ("waiting for your co-signer") until the second had too | Both statements matched; signed, confirmed |
+| Payout | Trustee A in the browser (identity and key share loaded into the trustee page), trustee B on the CLI | The browser checked the transaction, committed, and posted its statement (WebCrypto Ed25519). B's CLI verified it under A's key from the public page, found the same digest (`593c630d…`), and signed. The browser then verified B's statement and signed |
+| Settlement | | Payout of 0.19975 ZEC confirmed; auction `settled`. No browser console errors |
+
+The refusal paths (a swapped commitment, and a forged statement) are covered by `dkg_e2e`.
