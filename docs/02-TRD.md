@@ -148,7 +148,7 @@ No analytics or third-party trackers ship in the bid or ShieldRamp flows. Server
 | Page load (auction page) | LCP < 2.0 s on 4G, JS < 200 KB gzipped excluding WebZjs/WASM (lazy-loaded) |
 | Uptime during a live auction | 99.5% for coordinator + scanner. Bids are never lost during downtime, because the scanner resumes from `scanner_state.last_height` |
 | Backups | Postgres `pg_dump` nightly to a Hetzner Storage Box, age-encrypted, 14-day retention (`scripts/backup.sh`). `SF_DATA_KEY` held offline. Restore drill before the mainnet auction (`scripts/restore-drill.sh`) |
-| Recovery | RTO 2 h, RPO 24 h for the database. Funds don't depend on newer rows: payments are rescanned from the chain, and unconfirmed batches are re-signed. Escrow UFVKs are in the database and also with each trustee (its keystore and backup string), so losing the database plus `SF_DATA_KEY` no longer strands escrowed funds: two trustees' backups still hold everything a spend needs. Building and broadcasting that spend without the coordinator is not automated yet |
+| Recovery | RTO 2 h, RPO 24 h for the database. Funds don't depend on newer rows: payments are rescanned from the chain, and unconfirmed batches are re-signed. Escrow UFVKs are in the database and also with each trustee (its keystore and backup string), so losing the database plus `SF_DATA_KEY` no longer strands escrowed funds: two trustees' backups still hold everything a spend needs, and `sealforge escrow recover-start` / `recover-cosign` / `recover-finish` sweep the escrow to an agreed address with only those backups and a lightwallet server (#64, drilled on regtest) |
 
 ## 2.9 Environments and delivery
 

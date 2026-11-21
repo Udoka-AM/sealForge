@@ -32,6 +32,12 @@ Status: `Testnet`. Code: `crates/sealforge-cli/src/trustee.rs`, browser `/truste
 
 What you check when you sign: the CLI and the browser decode the transaction (PCZT) themselves, compute the sighash, and run the shared frost-zec checks plus sealForge's batch rules: every output is owed, refunds go to each bid's own refund address (CLI, with `--lightwalletd`), and payouts only to the payout address ([5 Security, trust assumption 3](/security#trust-assumptions)). Before releasing your share, you and your co-signer also confirm you were shown the same commitments.
 
+**If the coordinator is gone.** Two trustees can still move the funds with their backup strings alone. Agree a destination by voice first, for example a new escrow or an address that will refund the bidders. Then:
+
+1. Trustee A runs `sealforge escrow recover-start --backup a.txt --lightwalletd <server> --to <address>`, and sends the `request.json` it writes to trustee B. It holds no secrets.
+2. Trustee B runs `sealforge escrow recover-cosign --backup b.txt --request request.json --to <address>`, types the address themselves, reads the decoded transaction, and runs again with `--approve` to sign. The `reply.json` goes back to A.
+3. Trustee A runs `sealforge escrow recover-finish --backup a.txt --reply reply.json --lightwalletd <server>`, which signs, checks and broadcasts.
+
 **CLI or browser.** The browser trustee page holds your key share in JavaScript memory while it's open, the same trust as the CLI on that machine plus the browser's attack surface. Use the CLI for large auctions. Never run more than one trustee on one machine outside test networks: that defeats the threshold.
 
 ## Bidder
