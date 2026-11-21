@@ -11,8 +11,10 @@ import {
   KeyFileError,
   loadTrusteeIdentity,
   type StoredSigner,
+  signRound2Inputs,
+  verifyRound2Inputs,
 } from "@/lib/sfsig";
-import { commitBatch, keyInfo, signBatch, verifyBatch } from "@/lib/signer";
+import { commitBatch, keyInfo, round2InputsDigest, signBatch, verifyBatch } from "@/lib/signer";
 import {
   type AuctionView,
   BATCH_KIND_LABEL,
@@ -32,6 +34,8 @@ type Phase =
   | "committing"
   | "waiting"
   | "signing"
+  | "co-signer-check"
+  | "refused"
   | "signed"
   | "not-needed"
   | "lost-nonces"
@@ -51,6 +55,15 @@ function signingInputs(b: TrusteeBatch): string {
     b.spends.map((s) => s.alpha.toLowerCase()),
     commitments,
   ]);
+}
+
+/** The coordinator showed the two signers different inputs: never sign this batch. */
+class Equivocation extends Error {}
+
+function equivocation(batchId: string, why: string): Equivocation {
+  return new Equivocation(
+    `Refused batch ${batchId.slice(0, 8)}: ${why} Don't sign; tell the organiser and the other trustees, and treat the coordinator as compromised.`,
+  );
 }
 
 function base64ToHex(b64: string): string {
@@ -143,6 +156,8 @@ export function TrusteeSigning({ code }: { code: string }) {
   // What this browser decoded in each batch's transaction, or why it refused.
   const [checked, setChecked] = useState<Map<string, VerifiedBatch | string>>(new Map());
   const [busy, setBusy] = useState<Set<string>>(new Set());
+  // Batches refused because the coordinator equivocated: never retried.
+  const [refused, setRefused] = useState<Map<string, string>>(new Map());
 
   const load = useCallback(async () => {
     if (!signer) return;
@@ -176,7 +191,8 @@ export function TrusteeSigning({ code }: { code: string }) {
         chosen &&
         ready &&
         !b.i_shared &&
-        !busy.has(b.id)
+        !busy.has(b.id) &&
+        !refused.has(b.id)
       ) {
         const inputs = signingInputs(b);
         // Already signed over other inputs: never sign again with these nonces.
@@ -188,7 +204,52 @@ export function TrusteeSigning({ code }: { code: string }) {
             let shares: string[];
             if (record) {
               shares = record.shares;
-            } else if (mine) {
+            } else if (mine && signer.slot !== undefined) {
+              // Between rounds (stream 2c): state what this page signs over,
+              // and sign only once the co-signer has stated the same.
+              const me = signer.slot;
+              const digest = await round2InputsDigest(
+                b.sighash,
+                b.spends.map((s) => s.alpha),
+                b.signer_commitments,
+              );
+              const stated = b.signer_inputs?.[String(me)];
+              if (!stated) {
+                const signature = await signRound2Inputs(signer, code, b.id, digest);
+                await api("POST", `/v1/batches/${b.id}/inputs`, signer, { digest, signature });
+                await load();
+                return;
+              }
+              if (stated.digest !== digest)
+                throw equivocation(
+                  b.id,
+                  "the coordinator now shows different round 2 inputs than the ones you stated.",
+                );
+              const coSigner = b.signer_slots.find((s) => s !== me);
+              const theirs =
+                coSigner === undefined ? undefined : b.signer_inputs?.[String(coSigner)];
+              if (coSigner === undefined || !theirs) return;
+              const theirKey = view.trustees.find((t) => t.slot === coSigner)?.pubkey;
+              if (
+                !theirKey ||
+                !(await verifyRound2Inputs(
+                  theirKey,
+                  theirs.signature,
+                  code,
+                  b.id,
+                  coSigner,
+                  theirs.digest,
+                ))
+              )
+                throw equivocation(
+                  b.id,
+                  `slot ${coSigner}'s statement doesn't verify under its public key.`,
+                );
+              if (theirs.digest !== digest)
+                throw equivocation(
+                  b.id,
+                  `slot ${coSigner} was shown different round 2 inputs (commitments, sighash or randomizers) than you were.`,
+                );
               // Check the transaction again right before signing it.
               await checkTransaction(code, signer, keyHex, b, view);
               shares = await signBatch(
@@ -207,6 +268,7 @@ export function TrusteeSigning({ code }: { code: string }) {
             await api("POST", `/v1/batches/${b.id}/shares`, signer, { shares });
             await load();
           } catch (e) {
+            if (e instanceof Equivocation) setRefused((m) => new Map(m).set(b.id, e.message));
             setError(e instanceof Error ? e.message : "Signing failed.");
           } finally {
             setBusy((s) => {
@@ -218,7 +280,7 @@ export function TrusteeSigning({ code }: { code: string }) {
         })();
       }
     }
-  }, [batches, keyHex, signer, busy, load, code]);
+  }, [batches, keyHex, signer, busy, refused, load, code]);
 
   async function approve(b: TrusteeBatch) {
     if (!signer || !keyHex) return;
@@ -274,9 +336,11 @@ export function TrusteeSigning({ code }: { code: string }) {
     if (!b.i_committed) return "review";
     const chosen = me !== undefined && b.signer_slots.includes(me);
     if (b.signer_slots.length >= 2 && !chosen) return "not-needed";
+    if (refused.has(b.id)) return "refused";
     const record = signed.current.get(b.id);
     if (record && chosen && record.inputs !== signingInputs(b)) return "inputs-changed";
     if (!nonces.current.has(b.id) && !record) return "lost-nonces";
+    if (chosen && me !== undefined && b.signer_inputs?.[String(me)]) return "co-signer-check";
     return "waiting";
   }
 
@@ -495,6 +559,14 @@ function PhaseLine({ phase }: { phase: Phase }) {
     committing: [spin, "Sending your commitments…"],
     waiting: [spin, "Committed. Waiting for a second trustee; keep this page open."],
     signing: [spin, "Signing…"],
+    "co-signer-check": [
+      spin,
+      "You stated what you'll sign. Waiting for your co-signer to do the same before your share is sent; keep this page open.",
+    ],
+    refused: [
+      null,
+      "Refused: the coordinator showed you and your co-signer different things to sign. Nothing was sent. Tell the organiser and the other trustees.",
+    ],
     signed: [done, "Your signature share is in."],
     "not-needed": [done, "Two other trustees are signing this one. You're not needed."],
     "lost-nonces": [

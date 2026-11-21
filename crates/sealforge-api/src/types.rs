@@ -381,6 +381,20 @@ pub struct BatchView {
     /// each bid from the chain and check the note goes to its refund address.
     #[serde(default)]
     pub refunds: Vec<RefundNoteView>,
+    /// Each chosen signer's signed statement of the round 2 inputs it will sign
+    /// over. A signer releases its shares only once its co-signer's statement
+    /// matches its own (a mismatch means the coordinator equivocated).
+    #[serde(default)]
+    pub signer_inputs: std::collections::BTreeMap<u16, SignedInputs>,
+}
+
+/// A chosen signer's statement of its round 2 inputs: the
+/// [`crate::auth::round2_inputs_digest`] and the signer's Ed25519 signature
+/// over [`crate::auth::round2_inputs_message`], both hex.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignedInputs {
+    pub digest: String,
+    pub signature: String,
 }
 
 /// One refund note in a batch, and the bid (payment to the escrow) it refunds.
@@ -428,4 +442,11 @@ pub struct PostCommitments {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PostShares {
     pub shares: Vec<String>,
+}
+
+/// Between rounds: a chosen signer's signed statement of its round 2 inputs.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PostInputs {
+    pub digest: String,
+    pub signature: String,
 }

@@ -6,7 +6,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use pasta_curves::group::ff::{FromUniformBytes, PrimeField};
 use rand::{rngs::OsRng, RngCore};
-use sealforge_api::types::{AuctionStatus, AuctionView, ConsoleBatch, DkgState, SpendAuthView};
+use sealforge_api::types::{
+    AuctionStatus, AuctionView, BatchView, ConsoleBatch, DkgState, PostInputs, SpendAuthView,
+};
 use sealforge_cli::{
     client::Client,
     keystore::Keystore,
@@ -39,6 +41,49 @@ async fn sign_fake(store: &Keystore, url: &str, code: &str) -> anyhow::Result<Ve
         },
     )
     .await
+}
+
+/// Post a chosen signer's signed statement of its round 2 inputs, as the CLI
+/// does before signing, without signing yet. Lets a test put both statements
+/// in place first, so the signing order below is deterministic.
+async fn state_inputs(store: &Keystore, url: &str, code: &str, batch: &str) {
+    let identity = store.trustee_identity(code).unwrap();
+    let key = identity.signing_key().unwrap();
+    let client = Client::new(url, Some(key.clone()));
+    let views: Vec<BatchView> = client
+        .get(&format!("/v1/auctions/{code}/batches"))
+        .await
+        .unwrap();
+    let view = views.into_iter().find(|b| b.id == batch).unwrap();
+    let alphas: Vec<[u8; 32]> = view
+        .spends
+        .iter()
+        .map(|s| hex::decode(&s.alpha).unwrap().try_into().unwrap())
+        .collect();
+    let commitments: BTreeMap<u16, Vec<Vec<u8>>> = view
+        .signer_commitments
+        .iter()
+        .map(|(slot, values)| {
+            (
+                *slot,
+                values.iter().map(|c| hex::decode(c).unwrap()).collect(),
+            )
+        })
+        .collect();
+    let sighash: [u8; 32] = hex::decode(&view.sighash).unwrap().try_into().unwrap();
+    let digest = sealforge_api::auth::round2_inputs_digest(&sighash, &alphas, &commitments);
+    let signature =
+        sealforge_api::auth::sign_round2_inputs(&key, code, batch, identity.slot, &digest);
+    let _: BatchView = client
+        .post(
+            &format!("/v1/batches/{batch}/inputs"),
+            &PostInputs {
+                digest: hex::encode(digest),
+                signature: hex::encode(signature),
+            },
+        )
+        .await
+        .unwrap();
 }
 
 async fn start_coordinator(db: PgPool) -> (String, AppState) {
@@ -360,6 +405,15 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
             batch: batch.clone()
         }]
     );
+    // Before any share leaves, each signer states the round 2 inputs it signs
+    // over; a signer whose co-signer hasn't stated yet waits.
+    assert_eq!(
+        sign_fake(&trustees[1], &url, &code).await.unwrap(),
+        vec![SignProgress::WaitingForCoSignerCheck {
+            batch: batch.clone()
+        }]
+    );
+    state_inputs(&trustees[2], &url, &code, &batch).await;
     // Both signers post their shares at the same moment; the batch must still become `signed`.
     let (s1, s2) = tokio::join!(
         sign_fake(&trustees[1], &url, &code),
@@ -474,7 +528,13 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     .await
     .unwrap();
     assert_eq!(reset, 1);
-    for i in [2, 1, 2, 1] {
+    for i in [2, 1] {
+        sign_fake(&trustees[i], &url, &code).await.unwrap();
+    }
+    for i in [2, 1] {
+        state_inputs(&trustees[i], &url, &code, &stalled.to_string()).await;
+    }
+    for i in [2, 1] {
         sign_fake(&trustees[i], &url, &code).await.unwrap();
     }
     let (status, slots): (String, Vec<i16>) =
@@ -508,6 +568,7 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
             "{progress:?}"
         );
     }
+    state_inputs(&trustees[1], &url, &code, &replayed_id).await;
     let progress = sign_fake(&trustees[0], &url, &code).await.unwrap();
     assert!(
         progress.contains(&SignProgress::Signed {
@@ -566,6 +627,84 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .join(format!("batch-{replayed_id}.nonces"))
         .exists());
 
+    // A coordinator that shows the two signers different commitment sets is
+    // caught before either releases a share (stream 2c).
+    let equivocated: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO tx_batches (auction_id, kind, status, sighash, spend_auth, total_out_zat, output_count) \
+         SELECT id, 'refund', 'awaiting_signatures', $2, $3, 5000000, 1 FROM auctions WHERE code = $1 RETURNING id",
+    )
+    .bind(&code)
+    .bind(&sighash[..])
+    .bind(serde_json::to_value(&spends[..1]).unwrap())
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let equivocated_id = equivocated.to_string();
+    for i in [0, 1] {
+        sign_fake(&trustees[i], &url, &code).await.unwrap();
+    }
+    state_inputs(&trustees[1], &url, &code, &equivocated_id).await;
+    // Slot 2 stated its inputs over the real set; slot 1 is now shown slot 1's
+    // own commitment in place of slot 2's.
+    // Rows by slot: `$2` is the slot whose row changes, `$3` the one copied from.
+    sqlx::query(
+        "UPDATE signature_shares SET commitments_json = ( \
+           SELECT s.commitments_json FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id \
+           WHERE s.batch_id = $1 AND t.slot = $3) \
+         WHERE batch_id = $1 AND trustee_id = ( \
+           SELECT s.trustee_id FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id \
+           WHERE s.batch_id = $1 AND t.slot = $2)",
+    )
+    .bind(equivocated)
+    .bind(2i16)
+    .bind(1i16)
+    .execute(&db)
+    .await
+    .unwrap();
+    let err = sign_fake(&trustees[0], &url, &code).await.unwrap_err();
+    assert!(
+        err.to_string().contains("(equivocation)")
+            && err.to_string().contains("different round 2 inputs"),
+        "{err}"
+    );
+    // A forged statement, slot 2's signature over slot 1's digest, doesn't verify.
+    sqlx::query(
+        "UPDATE signature_shares SET inputs_json = jsonb_set(inputs_json, '{digest}', ( \
+           SELECT s.inputs_json->'digest' FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id \
+           WHERE s.batch_id = $1 AND t.slot = $3)) \
+         WHERE batch_id = $1 AND trustee_id = ( \
+           SELECT s.trustee_id FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id \
+           WHERE s.batch_id = $1 AND t.slot = $2)",
+    )
+    .bind(equivocated)
+    .bind(2i16)
+    .bind(1i16)
+    .execute(&db)
+    .await
+    .unwrap();
+    let err = sign_fake(&trustees[0], &url, &code).await.unwrap_err();
+    assert!(
+        err.to_string().contains("(equivocation)")
+            && err
+                .to_string()
+                .contains("doesn't verify under its public key"),
+        "{err}"
+    );
+    let slot_1_share: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT s.shares_json FROM signature_shares s JOIN trustees t ON t.id = s.trustee_id \
+         WHERE s.batch_id = $1 AND t.slot = 1",
+    )
+    .bind(equivocated)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(slot_1_share, None, "no share left slot 1");
+    sqlx::query("UPDATE tx_batches SET status = 'failed' WHERE id = $1")
+        .bind(equivocated)
+        .execute(&db)
+        .await
+        .unwrap();
+
     // Bidders can check the escrow themselves (F10): the public page lists each
     // trustee's key and attestation, and they verify for the address shown.
     let public: AuctionView = Client::new(&url, None)
@@ -586,7 +725,11 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
             trustee::PublicCheck::Matches {
                 escrow_ua: escrow.clone(),
                 signed: 3,
-                total: 3
+                total: 3,
+                keys: keys
+                    .iter()
+                    .map(|(slot, k)| (*slot, hex::decode(k).unwrap().try_into().unwrap()))
+                    .collect(),
             }
         );
     }

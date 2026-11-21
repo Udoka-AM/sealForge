@@ -111,14 +111,11 @@ pub fn sign_batch(
     ))
 }
 
-fn sign_batch_inner(
-    key_package_hex: &str,
-    sighash_hex: &str,
-    alphas_json: &str,
-    signer_commitments_json: &str,
-    nonces_json: &str,
-) -> Res<String> {
-    let kp = key_package(key_package_hex)?;
+/// Parse the alphas (`["<hex>", …]`) and both signers' commitments
+/// (`{"<slot>": ["<hex>", …], …}`) a round 2 share is made over.
+type Round2Inputs = (Vec<[u8; 32]>, BTreeMap<u16, Vec<Vec<u8>>>);
+
+fn round2_inputs(alphas_json: &str, signer_commitments_json: &str) -> Res<Round2Inputs> {
     let alphas = serde_json::from_str::<Vec<String>>(alphas_json)
         .map_err(err)?
         .iter()
@@ -138,6 +135,37 @@ fn sign_batch_inner(
             ))
         })
         .collect::<Res<BTreeMap<_, _>>>()?;
+    Ok((alphas, commitments))
+}
+
+/// Digest of the round 2 inputs (hex), the same as the CLI's: a chosen signer
+/// signs it with its trustee key before signing, and checks its co-signer's
+/// matches (`sealforge_api::auth::round2_inputs_digest`).
+#[wasm_bindgen]
+pub fn round2_inputs_digest(
+    sighash_hex: &str,
+    alphas_json: &str,
+    signer_commitments_json: &str,
+) -> Result<String, JsError> {
+    js((|| {
+        let (alphas, commitments) = round2_inputs(alphas_json, signer_commitments_json)?;
+        Ok(hex::encode(sealforge_api::auth::round2_inputs_digest(
+            &hex32(sighash_hex)?,
+            &alphas,
+            &commitments,
+        )))
+    })())
+}
+
+fn sign_batch_inner(
+    key_package_hex: &str,
+    sighash_hex: &str,
+    alphas_json: &str,
+    signer_commitments_json: &str,
+    nonces_json: &str,
+) -> Res<String> {
+    let kp = key_package(key_package_hex)?;
+    let (alphas, commitments) = round2_inputs(alphas_json, signer_commitments_json)?;
     let nonces = serde_json::from_str::<Vec<String>>(nonces_json)
         .map_err(err)?
         .iter()

@@ -421,6 +421,9 @@ pub enum PublicCheck {
         escrow_ua: String,
         signed: u32,
         total: u32,
+        /// Every trustee's key, as listed on the public page and checked
+        /// against its escrow attestation.
+        keys: BTreeMap<u16, [u8; 32]>,
     },
     /// Bidders can't see the auction yet (it opens later).
     NotPublicYet,
@@ -444,6 +447,17 @@ pub fn my_key(store: &Keystore, code: &str) -> anyhow::Result<String> {
 /// This catches a coordinator that shows bidders a different address, or that
 /// lists a key it controls in this trustee's place. It can't catch one that
 /// serves this trustee a different page from everyone else.
+/// Trustee keys (by slot) listed on a public auction page.
+fn public_keys(view: &sealforge_api::types::AuctionView) -> BTreeMap<u16, [u8; 32]> {
+    view.trustees
+        .iter()
+        .filter_map(|t| {
+            let key = hex::decode(t.pubkey.as_deref()?).ok()?.try_into().ok()?;
+            Some((t.slot, key))
+        })
+        .collect()
+}
+
 pub async fn check_public(
     store: &Keystore,
     coordinator: &str,
@@ -499,6 +513,7 @@ pub async fn check_public(
         escrow_ua: shown,
         signed: check.signed,
         total: check.total,
+        keys: public_keys(&view),
     })
 }
 
@@ -521,7 +536,7 @@ pub fn key_share(store: &Keystore, code: &str) -> anyhow::Result<(KeyPackage, Pu
 // ---------------------------------------------------------------------------
 // Signing escrow batches (task 3.9).
 
-use sealforge_api::types::{BatchView, PostCommitments, PostShares};
+use sealforge_api::types::{BatchView, PostCommitments, PostInputs, PostShares};
 use sealforge_escrow::signing;
 
 /// What one `sign_step` did for a batch.
@@ -543,6 +558,11 @@ pub enum SignProgress {
     /// trustee already signed. Signing again would reuse nonces, so it waits
     /// for the round to reset and start over with fresh ones.
     InputsChanged {
+        batch: String,
+    },
+    /// This trustee stated its round 2 inputs; its co-signer hasn't yet. No
+    /// share leaves until both statements match.
+    WaitingForCoSignerCheck {
         batch: String,
     },
     Done {
@@ -575,6 +595,12 @@ impl std::fmt::Display for SignProgress {
                  if this repeats, treat the coordinator as compromised.",
                 short(batch)
             ),
+            Self::WaitingForCoSignerCheck { batch } => write!(
+                f,
+                "Batch {}: you stated what you'll sign; waiting for your co-signer to do the same \
+                 before sending your share. Run again shortly.",
+                short(batch)
+            ),
             Self::Done { batch } => {
                 write!(f, "Batch {}: nothing left for you to do.", short(batch))
             }
@@ -599,33 +625,52 @@ struct SignedRecord {
     shares: Vec<String>,
 }
 
-/// Digest of everything a round 2 share depends on besides the key and the
-/// nonces: the sighash, each spend's alpha, and every signer's commitments.
-fn signing_inputs_digest(
-    sighash: &[u8; 32],
-    alphas: &[[u8; 32]],
-    commitments: &BTreeMap<u16, Vec<Vec<u8>>>,
-) -> String {
-    fn len(h: &mut Sha256, n: usize) {
-        h.update((n as u64).to_le_bytes());
+/// Check the co-signer's signed statement of its round 2 inputs against this
+/// trustee's own digest, with the co-signer's key from the public page. A
+/// mismatch means the coordinator showed the two signers different
+/// commitment sets (or altered one), so no share may leave.
+fn check_co_signer_inputs(
+    code: &str,
+    batch: &BatchView,
+    co_signer: u16,
+    statement: &sealforge_api::types::SignedInputs,
+    key: Option<&[u8; 32]>,
+    mine: &str,
+) -> anyhow::Result<()> {
+    let refuse = |why: String| {
+        anyhow!(
+            "REFUSED batch {} (equivocation): {why} Don't sign; tell the organiser and the other \
+             trustees, and treat the coordinator as compromised.",
+            batch.id
+        )
+    };
+    let key = key.ok_or_else(|| {
+        refuse(format!(
+            "slot {co_signer} has no key on the public auction page."
+        ))
+    })?;
+    let digest: [u8; 32] = hex::decode(&statement.digest)
+        .ok()
+        .and_then(|b| b.try_into().ok())
+        .ok_or_else(|| refuse(format!("slot {co_signer}'s statement is malformed.")))?;
+    let signature: [u8; 64] = hex::decode(&statement.signature)
+        .ok()
+        .and_then(|b| b.try_into().ok())
+        .ok_or_else(|| refuse(format!("slot {co_signer}'s statement is malformed.")))?;
+    if !sealforge_api::auth::verify_round2_inputs(
+        key, &signature, code, &batch.id, co_signer, &digest,
+    ) {
+        return Err(refuse(format!(
+            "slot {co_signer}'s statement doesn't verify under its public key."
+        )));
     }
-    let mut h = Sha256::new();
-    h.update(b"sealforge/round2-inputs/v1");
-    h.update(sighash);
-    len(&mut h, alphas.len());
-    for alpha in alphas {
-        h.update(alpha);
+    if statement.digest != mine {
+        return Err(refuse(format!(
+            "slot {co_signer} was shown different round 2 inputs (commitments, sighash or \
+             randomizers) than you were."
+        )));
     }
-    len(&mut h, commitments.len());
-    for (slot, values) in commitments {
-        h.update(slot.to_le_bytes());
-        len(&mut h, values.len());
-        for v in values {
-            len(&mut h, v.len());
-            h.update(v);
-        }
-    }
-    hex::encode(h.finalize())
+    Ok(())
 }
 
 async fn post_shares(client: &Client, batch: &str, shares: Vec<String>) -> anyhow::Result<()> {
@@ -1000,14 +1045,20 @@ pub async fn require_public(
     coordinator: &str,
     code: &str,
     policy: &SignPolicy,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<BTreeMap<u16, [u8; 32]>> {
     match check_public(store, coordinator, code).await? {
-        PublicCheck::Matches { .. } => Ok(()),
+        PublicCheck::Matches { keys, .. } => Ok(keys),
         PublicCheck::NotPublicYet => bail!(
             "Refusing to co-sign for {code}: the public auction page isn't available, so you \
              can't confirm it shows bidders the escrow address you attested."
         ),
-        PublicCheck::NotAttested if policy.allow_unattested_escrow => Ok(()),
+        // No attestations to check the keys against: take the listed ones.
+        PublicCheck::NotAttested if policy.allow_unattested_escrow => {
+            let view: sealforge_api::types::AuctionView = Client::new(coordinator, None)
+                .get(&format!("/v1/auctions/{code}"))
+                .await?;
+            Ok(public_keys(&view))
+        }
         PublicCheck::NotAttested => bail!(
             "Refusing to co-sign for {code}: this keystore has no record of the escrow address \
              you attested. Run `sealforge trustee dkg {code}` to check it. For an auction from \
@@ -1034,7 +1085,7 @@ pub async fn sign_step_with(
     let (key_package, _) = key_share(store, code)?;
     // Never co-sign money out of an escrow whose public page showed bidders
     // something other than what this trustee verified, or that is missing.
-    require_public(store, coordinator, code, &policy).await?;
+    let public_keys = require_public(store, coordinator, code, &policy).await?;
     let client = Client::new(coordinator, Some(identity.signing_key()?));
     let batches: Vec<BatchView> = client.get(&format!("/v1/auctions/{code}/batches")).await?;
     let me = identity.slot;
@@ -1150,7 +1201,8 @@ pub async fn sign_step_with(
             })
             .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
         let sighash = hex32(&batch.sighash)?;
-        let inputs = signing_inputs_digest(&sighash, &alphas, &commitments);
+        let digest = sealforge_api::auth::round2_inputs_digest(&sighash, &alphas, &commitments);
+        let inputs = hex::encode(digest);
 
         // A share made with these nonces may already have left this machine
         // (the POST below can fail after the coordinator received it). Never
@@ -1167,6 +1219,54 @@ pub async fn sign_step_with(
             out.push(SignProgress::Signed { batch: batch.id });
             continue;
         }
+
+        // Between rounds: state what this trustee will sign over, and sign only
+        // once the co-signer has stated the same (stream 2c).
+        match batch.signer_inputs.get(&me) {
+            None => {
+                let signature = sealforge_api::auth::sign_round2_inputs(
+                    &identity.signing_key()?,
+                    code,
+                    &batch.id,
+                    me,
+                    &digest,
+                );
+                let _: BatchView = client
+                    .post(
+                        &format!("/v1/batches/{}/inputs", batch.id),
+                        &PostInputs {
+                            digest: inputs.clone(),
+                            signature: hex::encode(signature),
+                        },
+                    )
+                    .await?;
+            }
+            Some(stated) if stated.digest != inputs => bail!(
+                "REFUSED batch {} (equivocation): the coordinator now shows different round 2 \
+                 inputs than the ones you stated. Don't sign; tell the organiser and the other \
+                 trustees, and treat the coordinator as compromised.",
+                batch.id
+            ),
+            Some(_) => {}
+        }
+        let co_signer = batch
+            .signer_slots
+            .iter()
+            .copied()
+            .find(|s| *s != me)
+            .ok_or_else(|| anyhow!("batch {} has no co-signer", batch.id))?;
+        let Some(theirs) = batch.signer_inputs.get(&co_signer) else {
+            out.push(SignProgress::WaitingForCoSignerCheck { batch: batch.id });
+            continue;
+        };
+        check_co_signer_inputs(
+            code,
+            &batch,
+            co_signer,
+            theirs,
+            public_keys.get(&co_signer),
+            &inputs,
+        )?;
 
         let nonce_hex: Vec<String> =
             serde_json::from_slice(&store.read(code, &nonces_file(&batch.id))?.ok_or_else(

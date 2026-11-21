@@ -81,6 +81,22 @@ export async function signBatch(
 }
 
 /**
+ * Digest of everything a round 2 share depends on besides the key and the
+ * nonces (hex), computed by the same Rust code as `sealforge trustee sign`.
+ */
+export async function round2InputsDigest(
+  sighash: string,
+  alphas: string[],
+  signerCommitments: Record<string, string[]>,
+): Promise<string> {
+  return (await load()).round2_inputs_digest(
+    sighash,
+    JSON.stringify(alphas),
+    JSON.stringify(signerCommitments),
+  );
+}
+
+/**
  * Decode and check a batch's transaction before taking part in signing it
  * (security review D1): the same checks as `sealforge trustee sign`. Throws
  * with the refusal when the transaction isn't one this trustee may sign.
