@@ -278,7 +278,7 @@ pub fn verify_batch(
                         return Err(refuse(
                             "payment",
                             format!(
-                                "the second output isn't the fee: {} zat to {}",
+                                "neither output is the fee the published result implies ({} zat to {})",
                                 fee.zat, fee.ua
                             ),
                         ));

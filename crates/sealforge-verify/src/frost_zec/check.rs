@@ -365,6 +365,9 @@ pub fn analyze_at(
     let mut actions = 0usize;
     let mut valued_spends = 0usize;
     let mut valued_outputs = 0usize;
+    // Zero-value notes back to the group itself: the wallet's change output
+    // when the change is exactly zero (see the action count below).
+    let mut own_zero_outputs = 0usize;
 
     if *pczt.global().tx_version() == V6_TX_VERSION {
         warnings.push(pre_authorization(
@@ -462,10 +465,35 @@ pub fn analyze_at(
                              the user would not be shown"
                         )));
                     }
+                    own_zero_outputs += 1;
                     lines.push(format!(
                         "send 0 {} to this group's own address",
                         unit(network)
                     ));
+                    lines.push(format!("    {}", describe_memo(&memo)));
+                } else if let Some(recipient) = output
+                    .recipient()
+                    .filter(|r| fvk.scope_for_address(r) == Some(Scope::Internal))
+                {
+                    // Zero change: the wallet encrypts change with no outgoing
+                    // key, so it is read back with the group's internal
+                    // incoming key, as valued change is below.
+                    let (note, address, memo) = action
+                        .decrypt_output_with_ivk(&internal_ivk, bundle_version)
+                        .map_err(|e| refuse(&format!("action {index}: note encryption"), &e))?
+                        .ok_or_else(|| {
+                            TxError::Refused(format!(
+                                "action {index}: a zero-value note to this group that it \
+                                 cannot decrypt"
+                            ))
+                        })?;
+                    if address != recipient || note.value().inner() != 0 {
+                        return Err(TxError::Refused(format!(
+                            "action {index}: the encrypted note differs from the one described"
+                        )));
+                    }
+                    own_zero_outputs += 1;
+                    lines.push(format!("change 0 {} back to this group", unit(network)));
                     lines.push(format!("    {}", describe_memo(&memo)));
                 }
             } else {
@@ -576,7 +604,17 @@ pub fn analyze_at(
     // does not catch a coordinator that spends more notes than needed or
     // splits the change: the co-signer does not know which notes a payment
     // should spend.
-    let needed = valued_spends.max(valued_outputs).max(GRACE_ACTIONS);
+    //
+    // One exception: when a payment leaves exactly zero change, the standard
+    // wallet (zcash_client_backend) still adds a zero-value change note to the
+    // sender, so that the number of payees and their sum don't give away the
+    // inputs. With one payee that note fits in the padding; with two (a payout
+    // and its protocol fee) it is a third action. One such note, readable and
+    // sent to this group's own address, is allowed; it costs at most one
+    // action's fee. Any more is padding.
+    let needed = valued_spends
+        .max(valued_outputs + own_zero_outputs.min(1))
+        .max(GRACE_ACTIONS);
     if actions > needed {
         return Err(format!(
             "the transaction has {actions} actions where its payments need {needed}: the \
