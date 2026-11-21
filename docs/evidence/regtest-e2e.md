@@ -110,3 +110,16 @@ While auditing this run, the chain audit first flagged all 3 bid outcomes. The p
 | Audit | `sealforge-audit` rescanned from Zaino | Every published figure matches; the UIVK receives at the escrow address and all 3 trustee attestations verify (exit 0) |
 
 Escrow arithmetic: 0.48 ZEC in, 0.08 ZEC refunded, 0.39935 ZEC paid out in two sweeps, 0.00065 ZEC in fees across four transactions. No transaction spent more than 3 notes.
+
+## Expired batches are rebuilt (D3)
+
+**Date:** 2026-11-21. Auction `2G3R0JTC7P` on the local regtest chain (2 bids, 1 lot).
+
+| Step | What happened | Result |
+|---|---|---|
+| Refund batch | 2 outputs, 0.03 ZEC. One trustee committed, the second never did | Left in `awaiting_signatures` |
+| Expiry | Blocks mined past the PCZT's expiry height (1838) | Batch marked `expired`, audit event `batch.expired` with `replaced_by`; a new refund batch for the same notes was built |
+| Replacement | Signed by two trustees | Confirmed |
+| Payout | 0.19975 ZEC | Confirmed; auction `settled`. `/readyz` stayed 200 with the expired batch on record |
+
+Before this fix, the run for the late-payment check (auction `E23XDR8JEB`) showed the failure: a signed batch that expired before broadcast was retried forever, the node rejected it each time, and every escrow scan for the auction failed.

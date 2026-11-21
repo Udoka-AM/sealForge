@@ -36,7 +36,7 @@ Precise questions where outside review would change the design. Each says what w
 ## Chain handling
 
 10. **Reorgs after close.** Close waits 10 confirmations past the last counting height ([2.2](/protocol/lifecycle#height-rules)). A deeper reorg after the result is computed isn't handled. Is 10 the right policy at 25 s and at 75 s spacing, and should the coordinator re-verify the bid set before publishing?
-11. **Batch expiry.** A broadcast batch whose transaction expires unmined isn't detected (`failed` is never set, D3). What's the recommended pattern with `zcash_client_sqlite` for detecting expiry and rebuilding?
+11. **Batch expiry.** Expired batches are now detected and rebuilt (D3): a batch expires once the escrow wallet has scanned to the PCZT's expiry height without seeing the transaction ([Batch states](/protocol/lifecycle#batch-states)). Open: should the coordinator use `zcash_client_sqlite`'s own record of expired transactions instead of comparing heights, and is the default expiry delta right for batches that wait on people to sign?
 
 ## Performance
 

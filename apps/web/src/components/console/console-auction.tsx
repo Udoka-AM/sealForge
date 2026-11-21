@@ -463,6 +463,7 @@ const BATCH_LABEL: Record<ConsoleBatch["status"], string> = {
   broadcast: "Sent, confirming",
   confirmed: "Confirmed",
   failed: "Failed",
+  expired: "Expired, rebuilt",
 };
 
 function BatchStatusCell({ b }: { b: ConsoleBatch }) {
@@ -471,6 +472,8 @@ function BatchStatusCell({ b }: { b: ConsoleBatch }) {
       <Check size={14} aria-hidden="true" className="text-success" />
     ) : b.status === "failed" ? (
       <Circle size={10} aria-hidden="true" className="text-danger" />
+    ) : b.status === "expired" ? (
+      <Circle size={10} aria-hidden="true" className="text-muted" />
     ) : (
       <LoaderCircle size={14} aria-hidden="true" className="text-warning" />
     );

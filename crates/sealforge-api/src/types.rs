@@ -372,7 +372,8 @@ pub struct ConsoleBatch {
     pub id: String,
     /// `refund` or `payout`
     pub kind: String,
-    /// `building`, `awaiting_signatures`, `signed`, `broadcast`, `confirmed`, `failed`
+    /// `building`, `awaiting_signatures`, `signed`, `broadcast`, `confirmed`, `failed`,
+    /// `expired` (not mined by its expiry height; its notes moved to a new batch)
     pub status: String,
     pub output_count: Option<u32>,
     pub total_out_zat: Option<u64>,

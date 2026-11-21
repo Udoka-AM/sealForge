@@ -62,7 +62,7 @@ Found while writing these docs (2026-11-13), not yet fixed:
 |---|---|---|---|
 | D1 | **High** | Trustees sign a sighash without the PCZT, so they can't verify outputs (trust assumption 3) | `crates/sealforge-cli/src/trustee.rs` `sign_step`; `crates/sealforge-signer-wasm`; `BatchView` in `crates/sealforge-api/src/types.rs` |
 | D2 | Medium | Three of four committed WASM modules were built from a dirty tree (`source_dirty: true`), so they can't be reproduced from the recorded commit | `apps/web/public/{auditor,signer,wallet}/BUILD.json` |
-| D3 | Low | Batch status `failed` is never set, so a transaction that expires unmined isn't detected automatically | `crates/sealforge-coordinator/src/scanner.rs` |
+| D3 | Low | A transaction that expired unmined wasn't detected: the coordinator retried broadcasting it forever and every escrow scan failed meanwhile. **Fixed**: the batch is marked `expired` and rebuilt ([Batch states](/protocol/lifecycle#batch-states)); regtest: an unsigned refund past its expiry was replaced, signed and confirmed | `crates/sealforge-coordinator/src/scanner.rs` `expire_batches` |
 | D4 | Low | Documented retention (UFVK and refund addresses deleted 30 days after settlement) is not implemented | [4 Architecture §Data model](/architecture#data-model) |
 
 ## Open items from the review
@@ -89,4 +89,4 @@ This is the canonical list; [10 Roadmap](/roadmap) links here. Each item MUST be
 - [ ] **Clean, reproducible WASM builds (D2)**: every `BUILD.json` with `"source_dirty": false`, reproduced by the CI `wasm` job.
 - [ ] **Off-site encrypted backups drilled** on the production host ([evidence/backup-drill.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/backup-drill.md) lists what isn't drilled yet).
 - [ ] **Rescan performance on real blocks** measured for the 3,500-block audit target ([evidence/perf.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/perf.md)).
-- [ ] **Expiry handling for broadcast batches (D3).**
+- [x] **Expiry handling for broadcast batches (D3).** Expired batches are marked `expired` and rebuilt.
