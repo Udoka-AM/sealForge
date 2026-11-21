@@ -11,6 +11,11 @@ interface SignerModule {
   default: (init: { module_or_path: string }) => Promise<unknown>;
   key_info: (keyPackageHex: string) => string;
   commit_batch: (keyPackageHex: string, spends: number) => string;
+  round2_inputs_digest: (
+    sighashHex: string,
+    alphasJson: string,
+    signerCommitmentsJson: string,
+  ) => string;
   sign_batch: (
     keyPackageHex: string,
     sighashHex: string,
