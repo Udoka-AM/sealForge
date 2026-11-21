@@ -36,6 +36,10 @@ pub struct Settings {
     pub invite_codes: Vec<String>,
     /// Key for pgcrypto-encrypted columns (escrow UFVK). DKG can't complete without it.
     pub data_key: Option<String>,
+    /// sealForge's fee for new auctions, in basis points (0: none), and where
+    /// it is paid. Recorded on each auction at creation (issue #74).
+    pub fee_bps: u16,
+    pub fee_ua: Option<String>,
 }
 
 impl AppState {

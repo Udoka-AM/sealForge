@@ -144,6 +144,21 @@ pub struct AuctionView {
     pub bid_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner: Option<OwnerFields>,
+    /// sealForge's fee on this auction's proceeds, in basis points, fixed when
+    /// the auction was created. 0 (omitted) means no fee.
+    #[serde(default, skip_serializing_if = "is_zero_u16")]
+    pub fee_bps: u16,
+    /// Where the fee is paid, when there is one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fee_ua: Option<String>,
+}
+
+fn is_zero_u16(v: &u16) -> bool {
+    *v == 0
+}
+
+fn is_zero_u64(v: &u64) -> bool {
+    *v == 0
 }
 
 /// The public bid count appears only from this many bids (docs/03-APP-FLOW.md §3.7).
@@ -345,6 +360,17 @@ pub struct PublishedResult {
     /// Each trustee's attestation over `escrow_ua`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trustees: Vec<TrusteeAttestation>,
+    /// sealForge's fee rate for this auction, in basis points (omitted: none).
+    #[serde(default, skip_serializing_if = "is_zero_u16")]
+    pub fee_bps: u16,
+    /// Where the fee is paid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fee_ua: Option<String>,
+    /// The fee owed: `sealforge_core::fee::protocol_fee_zat` of the sum of
+    /// every bid's `price_paid_zat` at `fee_bps`. Paid as a second output of
+    /// the payout; the organiser gets the rest.
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub fee_zat: u64,
 }
 
 /// A trustee's signed statement that `escrow_ua` derives from the FROST group

@@ -1187,28 +1187,68 @@ pub async fn check_batch(
             batch.kind
         )
     })?;
-    let result: Option<sealforge_api::types::PublishedResult> = if kind == BatchKind::Refund {
-        Some(
-            Client::new(coordinator, None)
-                .get(&format!("/v1/auctions/{code}/result"))
-                .await
-                .with_context(|| {
-                    format!(
-                        "REFUSED batch {}: no published result to check refunds against",
-                        batch.id
-                    )
-                })?,
-        )
-    } else {
-        None
-    };
-    let refund_total_due_zat = result
+    let published: Option<sealforge_api::types::PublishedResult> =
+        if kind == BatchKind::Refund || kind == BatchKind::Payout {
+            Some(
+                Client::new(coordinator, None)
+                    .get(&format!("/v1/auctions/{code}/result"))
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "REFUSED batch {}: no published result to check it against",
+                            batch.id
+                        )
+                    })?,
+            )
+        } else {
+            None
+        };
+    let refund_total_due_zat = published
         .as_ref()
+        .filter(|_| kind == BatchKind::Refund)
         .map(|r| r.bids.iter().map(|b| b.refund_due_zat).sum());
+    let refuse = |refusal: sealforge_verify::Refusal| {
+        anyhow!(
+            "REFUSED batch {} ({}): {}. Don't sign; tell the organiser and the other trustees.",
+            batch.id,
+            refusal.class,
+            refusal.message
+        )
+    };
+    // The protocol fee, recomputed from the published result (issue #74).
+    let fee = match (&published, kind) {
+        (Some(r), BatchKind::Payout) => sealforge_verify::fee_rule(
+            r.fee_bps,
+            r.fee_ua.as_deref(),
+            r.fee_zat,
+            r.bids.iter().map(|b| b.price_paid_zat),
+        )
+        .map_err(refuse)?,
+        _ => None,
+    };
+    let mut chain = chain;
+    let fee_already_signed = match &fee {
+        Some(_) => {
+            let chain = chain.as_deref_mut().ok_or_else(|| {
+                anyhow!(
+                    "REFUSED batch {}: this payout may carry the fee, which is checked against \
+                     what you signed before through the chain; pass --lightwalletd with a \
+                     lightwallet server you trust",
+                    batch.id
+                )
+            })?;
+            let (entries, tip) = ledger_on_chain(store, code, chain).await?;
+            let batch_txid = sealforge_verify::batch_txid(&pczt).map_err(refuse)?;
+            sealforge_verify::refunds::fee_signed_before(&entries, tip, &batch_txid)
+        }
+        None => false,
+    };
     let rules = BatchRules {
         kind,
         refund_total_due_zat,
         payout_ua: batch.payout_ua.clone(),
+        fee,
+        fee_already_signed,
     };
     let spends = batch
         .spends
@@ -1227,15 +1267,8 @@ pub async fn check_batch(
         &spends,
         &rules,
     )
-    .map_err(|refusal| {
-        anyhow!(
-            "REFUSED batch {} ({}): {}. Don't sign; tell the organiser and the other trustees.",
-            batch.id,
-            refusal.class,
-            refusal.message
-        )
-    })?;
-    let ledger_entry = match result {
+    .map_err(refuse)?;
+    let ledger_entry = match published.filter(|_| kind == BatchKind::Refund) {
         Some(result) => {
             let chain = chain.ok_or_else(|| {
                 anyhow!(
@@ -1249,12 +1282,38 @@ pub async fn check_batch(
                     .await?,
             )
         }
+        // A payout that pays the fee goes in the ledger too, so this trustee
+        // never signs the fee twice.
+        None if verified.protocol_fee_zat > 0 => Some(sealforge_verify::refunds::LedgerEntry {
+            batch_txid: sealforge_verify::batch_txid(&pczt).map_err(refuse)?,
+            expiry_height: verified.expiry_height,
+            notes: Vec::new(),
+            fee_zat: verified.protocol_fee_zat,
+        }),
         None => None,
     };
     Ok(CheckedBatch {
         verified,
         ledger_entry,
     })
+}
+
+/// This trustee's ledger, each entry with whether its lightwallet server has
+/// that transaction, and the server's tip.
+async fn ledger_on_chain(
+    store: &Keystore,
+    code: &str,
+    chain: &mut sealforge_chain::Client,
+) -> anyhow::Result<(Vec<(sealforge_verify::refunds::LedgerEntry, bool)>, u32)> {
+    let tip = sealforge_chain::chain_tip(chain).await?;
+    let mut entries = Vec::new();
+    for entry in read_ledger(store, code)? {
+        let on_chain = sealforge_chain::fetch_transaction(chain, entry.batch_txid)
+            .await?
+            .is_some();
+        entries.push((entry, on_chain));
+    }
+    Ok((entries, tip))
 }
 
 /// Before co-signing money out of an escrow: the public page bidders paid from
@@ -1347,7 +1406,9 @@ pub async fn sign_step_with(
                 };
             }
             if let Some(view) = &view {
-                if chain.is_none() && batch.kind == "refund" {
+                // Refunds, and payouts that may carry the fee, are checked
+                // against this trustee's own ledger through the chain.
+                if chain.is_none() && (batch.kind == "refund" || batch.kind == "payout") {
                     if let Some(url) = &policy.lightwalletd {
                         chain = Some(sealforge_chain::connect(url).await.with_context(|| {
                             format!("connecting to the lightwallet server {url}")

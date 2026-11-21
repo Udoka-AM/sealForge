@@ -114,6 +114,7 @@ Rust type: `sealforge_core::receipt::Receipt`. The web app's stored form may add
 | `merkle_root` | Hex, [2.4](/protocol/commitments#merkle-tree) |
 | `bids[]` | Per included bid: `txid`, `output_index`, `block_height`, `amount_zat` (the bid or revealed price), `deposit_zat` and `reveal_zat` (sealed-reveal), `commitment`, `leaf_hash`, `is_winner`, `price_paid_zat`, `refund_due_zat` |
 | `escrow_ua` | The escrow address bidders paid. Omitted for auctions from before attestations. The auditor checks that `uivk` receives at exactly this address |
+| `fee_bps`, `fee_ua`, `fee_zat` | The protocol fee, recorded when the auction was created: rate in basis points (max 1000), the fee address, and `fee_zat = floor(Σ price_paid_zat × fee_bps / 10000)` (`sealforge_core::fee::protocol_fee_zat`). Paid as one extra output of the first payout. Omitted when the rate is 0. The auditor recomputes `fee_zat`; trustees refuse a payout whose fee output differs |
 | `trustees[]` | `slot`, `label`, `pubkey` (Ed25519, hex) and `signature` (hex): each trustee's attestation over `sealforge-escrow-v1\n{auction_code}\n{slot}\n{escrow_ua}` (`sealforge_api::auth::escrow_attestation_message`). Omitted when empty |
 
 ## Versioning policy

@@ -91,20 +91,21 @@ has no test network to exercise them against.
 
 ## How it makes money
 
-**Status: every model below is `Specified`. None is implemented. There is no
-protocol fee in the code today:** the payout sends the escrow's whole remaining
-balance, net of ZIP-317 fees, to the organiser's payout address
-(`EscrowWallet::build_sweep` in `crates/sealforge-chain/src/spend.rs`).
+**Status: the take rate is `Built`; the other models are `Specified`.** The
+coordinator charges a protocol fee in basis points of the clearing proceeds,
+set by `SF_FEE_BPS` (default 0, capped at 1000) and paid to `SF_FEE_UA`. Each
+auction records the rate in force when it is created, so a later change never
+applies to an auction already running.
 
 | Model | Status | Mechanics |
 |---|---|---|
-| **Take rate on settled volume** | Specified | A basis-point fee on the clearing proceeds. It would be one extra output in the payout sweep (`build_sweep`), and would need to appear in the published result so the auditor can check it |
+| **Take rate on settled volume** | Built | `fee = floor(sum of prices paid × bps / 10000)`, published in the result as `fee_bps`, `fee_ua` and `fee_zat`. It is one extra output in the first payout sweep (`build_sweep`). Trustees recompute it from the published result and refuse a payout that pays a different amount, a different address, or the fee a second time. The auditor recomputes it too. Bidders pay nothing extra: the fee comes out of the organiser's payout |
 | **Hosted coordinator** | Specified | Organisers who want the auction run for them, rather than deploying the stack |
 | **White label** | Specified | Registries, launchpads and ticketing platforms embedding the auction card and the audit page under their own brand |
 | **Trustee as a service** | Specified | Independent trustees are a requirement, not an extra. Being one of the three, for a fee, is a service with a real cost base |
 
-The escrow already sweeps a payout to the organiser, so a protocol fee would
-add one output to an existing transaction, not new machinery.
+The public instance runs with the rate at 0 until mainnet. The fee is charged on
+proceeds, so a refunded or losing bid never pays it.
 
 ## What is defensible
 

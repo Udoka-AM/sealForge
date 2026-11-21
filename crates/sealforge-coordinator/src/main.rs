@@ -30,6 +30,8 @@ async fn main() -> anyhow::Result<()> {
         Settings {
             invite_codes: config.invite_codes(),
             data_key: config.data_key.clone().filter(|k| !k.is_empty()),
+            fee_bps: config.fee_bps,
+            fee_ua: config.fee_ua.clone().filter(|u| !u.is_empty()),
         },
     );
     if let Some(height) = config.dev_chain_height {
@@ -56,6 +58,21 @@ async fn main() -> anyhow::Result<()> {
             network,
             config.wallet_dir.clone(),
         ));
+    }
+    anyhow::ensure!(
+        config.fee_bps <= sealforge_core::fee::MAX_FEE_BPS,
+        "SF_FEE_BPS is at most {}",
+        sealforge_core::fee::MAX_FEE_BPS
+    );
+    if config.fee_bps > 0 {
+        let ua = state
+            .settings
+            .fee_ua
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("SF_FEE_BPS is set, so SF_FEE_UA is required"))?;
+        sealforge_coordinator::validate::shielded_ua(ua, network)
+            .map_err(|e| anyhow::anyhow!("SF_FEE_UA: {e:?}"))?;
+        tracing::info!(bps = config.fee_bps, "protocol fee on new auctions");
     }
     let policy = config.refund_policy()?;
     if let Some(blocks) = config.min_window_blocks {

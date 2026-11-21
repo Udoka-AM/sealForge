@@ -105,6 +105,7 @@ async fn closes_at_close_height_and_publishes_an_auditable_result(db: PgPool) {
         Settings {
             invite_codes: vec!["inv".into()],
             data_key: Some(DATA_KEY.into()),
+            ..Default::default()
         },
     );
     let app = routes::router(state.clone());

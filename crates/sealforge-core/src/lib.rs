@@ -7,6 +7,7 @@
 pub mod amount;
 pub mod clearing;
 pub mod denominations;
+pub mod fee;
 pub mod memo;
 pub mod merkle;
 pub mod receipt;

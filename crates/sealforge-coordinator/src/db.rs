@@ -29,6 +29,8 @@ pub struct AuctionRow {
     pub payout_ua: String,
     pub fee_buffer_zat: i64,
     pub status: AuctionStatus,
+    pub fee_bps: i16,
+    pub fee_ua: Option<String>,
 }
 
 /// Column list for `AuctionRow`, spliced in at compile time so queries stay static strings.
@@ -36,7 +38,7 @@ macro_rules! auction_columns {
     () => {
         "id, code, organiser_id, title, description, lot_image_url, network, mode, \
      bid_mode, quantity, reserve_zat, open_height, close_height, reveal_close_height, escrow_ua, payout_ua, \
-     fee_buffer_zat, status"
+     fee_buffer_zat, status, fee_bps, fee_ua"
     };
 }
 
@@ -162,6 +164,8 @@ pub async fn auction_view(
             })
             .collect(),
         bid_count: (owner || bids >= sealforge_api::types::MIN_PUBLIC_BID_COUNT).then_some(bids),
+        fee_bps: row.fee_bps.max(0) as u16,
+        fee_ua: (row.fee_bps > 0).then(|| row.fee_ua.clone()).flatten(),
         owner: owner.then(|| OwnerFields {
             payout_ua: row.payout_ua.clone(),
             fee_buffer_zat: row.fee_buffer_zat as u64,

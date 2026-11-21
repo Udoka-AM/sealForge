@@ -92,6 +92,7 @@ async fn start_coordinator(db: PgPool) -> (String, AppState) {
         Settings {
             invite_codes: vec!["org-invite".into()],
             data_key: Some(DATA_KEY.into()),
+            ..Default::default()
         },
     );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

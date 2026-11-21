@@ -71,6 +71,22 @@ pub struct LedgerEntry {
     pub batch_txid: [u8; 32],
     pub expiry_height: u32,
     pub notes: Vec<RefundClaim>,
+    /// Payouts: the protocol fee this batch paid (issue #74). One fee per
+    /// auction: a later payout may not pay it again while this one counts.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub fee_zat: u64,
+}
+
+fn is_zero(v: &u64) -> bool {
+    *v == 0
+}
+
+/// Whether this trustee already signed a payout that pays the fee and that is
+/// (or may still be) on chain, other than `this_txid`.
+pub fn fee_signed_before(entries: &[(LedgerEntry, bool)], tip: u32, this_txid: &[u8; 32]) -> bool {
+    entries.iter().any(|(entry, on_chain)| {
+        entry.fee_zat > 0 && &entry.batch_txid != this_txid && still_counts(entry, *on_chain, tip)
+    })
 }
 
 /// Whether an earlier signed batch still counts against what a bid may be
@@ -265,6 +281,7 @@ pub fn check_refund_batch(
         batch_txid,
         expiry_height: verified.expiry_height,
         notes: claims.to_vec(),
+        fee_zat: 0,
     })
 }
 
@@ -469,11 +486,44 @@ mod tests {
     }
 
     #[test]
+    fn a_fee_counts_once_until_its_payout_expires() {
+        let paid = LedgerEntry {
+            batch_txid: [6; 32],
+            expiry_height: 100,
+            notes: vec![],
+            fee_zat: 500_000,
+        };
+        let refund = LedgerEntry {
+            batch_txid: [7; 32],
+            expiry_height: 100,
+            notes: vec![claim(1, 1_000_000)],
+            fee_zat: 0,
+        };
+        let this = [8; 32];
+        assert!(!fee_signed_before(&[(refund.clone(), true)], 50, &this));
+        assert!(
+            fee_signed_before(&[(paid.clone(), false)], 50, &this),
+            "may still be mined"
+        );
+        assert!(
+            fee_signed_before(&[(paid.clone(), true)], 500, &this),
+            "mined"
+        );
+        assert!(
+            !fee_signed_before(&[(paid.clone(), false)], 500, &this),
+            "expired unmined"
+        );
+        // The same payout asked again (a retry) isn't a second fee.
+        assert!(!fee_signed_before(&[(paid, false)], 50, &[6; 32]));
+    }
+
+    #[test]
     fn expired_unmined_batches_stop_counting() {
         let entry = LedgerEntry {
             batch_txid: [5; 32],
             expiry_height: 100,
             notes: vec![claim(1, 2_000_000)],
+            fee_zat: 0,
         };
         // Mined: counts. Not mined but could still be: counts. Expired: doesn't.
         assert!(still_counts(&entry, true, 500));

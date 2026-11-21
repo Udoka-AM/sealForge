@@ -72,7 +72,17 @@ pub async fn result(
     .fetch_all(&state.db)
     .await?;
 
+    // The protocol fee follows from the published bids alone (issue #74).
+    let proceeds: u64 = leaves
+        .iter()
+        .map(|l| l.price_paid_zat.unwrap_or(0).max(0) as u64)
+        .sum();
+    let fee_bps = auction.fee_bps.max(0) as u16;
+    let fee_zat = sealforge_core::fee::protocol_fee_zat(proceeds, fee_bps);
     Ok(Json(PublishedResult {
+        fee_bps,
+        fee_ua: (fee_bps > 0).then(|| auction.fee_ua.clone()).flatten(),
+        fee_zat,
         auction_code: auction.code.clone(),
         network: auction.network,
         rules: ResultRules {

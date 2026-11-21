@@ -33,6 +33,7 @@ impl Api {
             Settings {
                 invite_codes: vec![INVITE.into()],
                 data_key: Some("test-data-key".into()),
+                ..Default::default()
             },
         );
         Self {

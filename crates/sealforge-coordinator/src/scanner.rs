@@ -583,9 +583,42 @@ async fn process_batches(
                 .bind(auction.id)
                 .fetch_one(&state.db)
                 .await?;
+                // sealForge's fee, a second output, once per auction (issue #74):
+                // not again if an earlier payout already pays it.
+                let proceeds: i64 = sqlx::query_scalar(
+                    "SELECT COALESCE(sum(price_paid_zat), 0)::bigint FROM bids WHERE auction_id = $1",
+                )
+                .bind(auction.id)
+                .fetch_one(&state.db)
+                .await?;
+                let fee_due = sealforge_core::fee::protocol_fee_zat(
+                    proceeds.max(0) as u64,
+                    auction.fee_bps.max(0) as u16,
+                );
+                let fee_paid: bool = sqlx::query_scalar(
+                    "SELECT EXISTS (SELECT 1 FROM tx_batches WHERE auction_id = $1 AND kind = 'payout' \
+                     AND protocol_fee_zat > 0 AND status NOT IN ('expired', 'failed') AND id <> $2)",
+                )
+                .bind(auction.id)
+                .bind(batch_id)
+                .fetch_one(&state.db)
+                .await?;
+                let extra = match (&auction.fee_ua, fee_due > 0 && !fee_paid) {
+                    (Some(ua), true) => Some(PaymentOut {
+                        address: ua.clone(),
+                        amount_zat: fee_due,
+                        memo: None,
+                    }),
+                    _ => None,
+                };
                 let sweep = tokio::task::block_in_place(|| {
-                    wallet.build_sweep(&auction.payout_ua, held as u64, max_notes)
+                    wallet.build_sweep(&auction.payout_ua, held as u64, max_notes, extra.as_ref())
                 })?;
+                sqlx::query("UPDATE tx_batches SET protocol_fee_zat = $2 WHERE id = $1")
+                    .bind(batch_id)
+                    .bind(if sweep.extra_paid { fee_due as i64 } else { 0 })
+                    .execute(&state.db)
+                    .await?;
                 sqlx::query("UPDATE refund_notes SET denomination_zat = $2 WHERE batch_id = $1")
                     .bind(batch_id)
                     .bind(sweep.amount_zat as i64)
@@ -597,7 +630,7 @@ async fn process_batches(
                     .bind(sweep.more_left)
                     .execute(&state.db)
                     .await?;
-                (sweep.payment, 1)
+                (sweep.payment, 1 + usize::from(sweep.extra_paid))
             } else {
                 let outputs: Vec<(String, i64)> = sqlx::query_as(
                     "SELECT pgp_sym_decrypt(b.refund_ua_enc, $2), n.denomination_zat FROM refund_notes n \

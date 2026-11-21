@@ -188,7 +188,7 @@ pub async fn start(
         EscrowWallet::create(&wallet_path, params, &ufvk, height, &mut client).await?
     };
     wallet.sync(&mut client).await?;
-    let sweep = tokio::task::block_in_place(|| wallet.build_sweep(to, 0, MAX_NOTES_PER_TX))?;
+    let sweep = tokio::task::block_in_place(|| wallet.build_sweep(to, 0, MAX_NOTES_PER_TX, None))?;
     let unsigned = sweep.payment;
 
     let round1 =
@@ -306,6 +306,8 @@ pub fn cosign(
             kind: BatchKind::Payout,
             refund_total_due_zat: None,
             payout_ua: Some(to.to_owned()),
+            fee: None,
+            fee_already_signed: false,
         },
     )
     .map_err(|r| refuse(format!("({}) {}.", r.class, r.message)))?;
