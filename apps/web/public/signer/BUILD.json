@@ -1,10 +1,10 @@
 {
   "crate": "sealforge-signer-wasm",
   "version": "0.1.0",
-  "git_commit": "398cbacf70dcab286d603f883f67a9e6ebab6f6d",
+  "git_commit": "34fd34d6a166c7ffc91dfb957064fb97fe0bca2e",
   "source_dirty": false,
   "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
   "clang": "Debian clang version 19.1.7 (3+b1)",
   "wasm_bindgen": "0.2.129",
-  "wasm_sha256": "3a3930d244137a451f6d870e7dafb7a7f638f0e99115017f731a29f6dd590eff"
+  "wasm_sha256": "13b296899b17398ef314f3c9296b2a646c6832d5079c5e2769203f99c79ce4f9"
 }
