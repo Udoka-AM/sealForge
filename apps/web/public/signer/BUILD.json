@@ -1,7 +1,7 @@
 {
   "crate": "sealforge-signer-wasm",
   "version": "0.1.0",
-  "git_commit": "1af1218517fafa6fdb92d25ef2280b6cf1f4c228",
+  "git_commit": "8eb9f8d5e2aa37f5e5accc39430c20bf319da886",
   "source_dirty": false,
   "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
   "clang": "Debian clang version 19.1.7 (3+b1)",
