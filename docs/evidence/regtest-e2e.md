@@ -168,3 +168,18 @@ The refusal paths (a swapped commitment, and a forged statement) are covered by 
 | Identities | Trustee A ran `sealforge trustee identity --published-at https://example.org/alice`, B used `@bob_trustee`, C made none | `trustee join` certified A and B automatically; C was told it has no long-term key |
 | Auction page | Escrow card, "Trustee keys" | All three signatures verify. A and B show "Vouched for by" their long-term keys (A's matches the key its CLI printed) and where they're published; C shows "No long-term key: nothing ties this key to a known person" |
 | Tampering | B's published place edited in the coordinator database to `https://attacker.example` | The page says "slot 2's long-term key certificate doesn't verify. Don't send funds to this address", and the bid button is gone. No console errors |
+
+## Late payments are refunded before the payout (F17)
+
+**Date:** 2026-11-21. Auction `E23XDR8JEB` on the local regtest chain (3 bids of 0.03, 0.05 and 0.2 ZEC, 1 lot, refund delays shortened to 60 s). The bug was found in the run before (`72HSQZ1429`), where a late payment was swept into the organiser's payout.
+
+| Step | What happened | Result |
+|---|---|---|
+| Refunds | The two losing bids refunded (0.08 ZEC) | Confirmed; the payout batch was planned straight after |
+| Late payment | 0.01 ZEC sent to the escrow while the payout was planned but not yet built | Detected as late, refund due in full. The payout logged `payout waits` and wasn't built |
+| First fix, not enough | With only "no refund planned yet" holding the payout, it was built once the late refund was planned but still waiting out its delay: **0.2097 ZEC, the late payment included** | Not signed; this run is why the fix also counts planned refunds that aren't confirmed |
+| Second gap | With the wider hold, the waiting payout was always picked first and returned early, so the late refund was never built | Fixed: refund batches are built before a waiting payout |
+| Late refund | Built while the payout waited | Confirmed |
+| Payout | 1 output, **0.1996 ZEC** (the proceeds net of fees) | Confirmed; auction `settled` |
+
+Escrow arithmetic: 0.29 ZEC in, 0.09 ZEC refunded (including the late payment), 0.1996 ZEC paid out, the rest in fees.
