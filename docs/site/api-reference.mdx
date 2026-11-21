@@ -32,6 +32,7 @@ Status: `Testnet`. Router: `crates/sealforge-coordinator/src/routes/mod.rs`. Req
 | `GET /v1/console/auctions/{code}` | organiser | → `AuctionView` | |
 | `GET /v1/console/auctions/{code}/batches` | organiser | → `[ConsoleBatch]` | |
 | `POST /v1/trustees/join` | signed with the trustee's new key | `JoinAsTrustee { invite_code, enc_pubkey }` → `TrusteeJoined` | `409 already_trustee` |
+| `POST /v1/auctions/{code}/trustee-identity` | trustee | `TrusteeIdentityCert { pubkey, published_at, signature }` → `DkgState`. The trustee's long-term key vouching for its key in this auction (`sealforge-trustee-cert-v1`); public in `TrusteeView.identity` and the result's `trustees[].identity` | `400` if it doesn't verify or `published_at` isn't 1 to 200 printable characters; `409 identity_in_use` (the key holds another seat here), `identity_fixed`, `auction_over` |
 | `GET /v1/auctions/{code}/dkg` | trustee | → `DkgState` | Round-1 packages, round-2 packages addressed to the caller |
 | `POST /v1/auctions/{code}/dkg/round1` | trustee | `PostRound1 { payload, signature }` → `DkgState` | `409 not_in_dkg`, `package_exists`; `400 invalid_request` if the package signature doesn't verify |
 | `POST /v1/auctions/{code}/dkg/round2` | trustee | `PostRound2 { packages: [Round2Out] }` → `DkgState` | Sealed and signed per recipient |
