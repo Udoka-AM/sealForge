@@ -97,6 +97,10 @@ enum TrusteeCommand {
         /// Keep going until nothing is waiting on you (polls every 10 s).
         #[arg(long)]
         wait: bool,
+        /// Sign for an auction you never attested, from before escrow
+        /// attestations existed. Without it, signing refuses.
+        #[arg(long)]
+        allow_unattested_escrow: bool,
     },
 }
 
@@ -185,13 +189,20 @@ async fn main() -> anyhow::Result<()> {
                  so they can pin it: the auction page shows each trustee's key."
             );
         }
-        Command::Trustee(TrusteeCommand::Sign { code, wait }) => loop {
+        Command::Trustee(TrusteeCommand::Sign {
+            code,
+            wait,
+            allow_unattested_escrow,
+        }) => loop {
             for batch in trustee::pending_batches(&store, url, &code).await? {
                 if batch.status == "awaiting_signatures" && !batch.i_shared {
                     println!("Reviewing {}", trustee::describe_batch(&batch));
                 }
             }
-            let progress = trustee::sign_step(&store, url, &code).await?;
+            let policy = trustee::SignPolicy {
+                allow_unattested_escrow,
+            };
+            let progress = trustee::sign_step_with(&store, url, &code, policy).await?;
             if progress.is_empty() {
                 println!("Nothing to sign for {code}.");
             }

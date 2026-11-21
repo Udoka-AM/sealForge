@@ -26,7 +26,7 @@ Status: `Testnet`. Code: `crates/sealforge-cli/src/trustee.rs`, browser `/truste
 
 1. `sealforge trustee join <invite>`, then `sealforge trustee dkg <CODE> --wait`. Your key share is written to your disk (owner-only).
 2. **Compare the fingerprint** with the other two trustees on a call or in person. If they differ, stop.
-3. When batches are due: `sealforge trustee sign <CODE> --wait`. You commit; if you're one of the first two, you sign.
+3. When batches are due: `sealforge trustee sign <CODE> --wait`. You commit; if you're one of the first two, you sign. Before committing or signing, the CLI and the browser page both check that the public auction page is up, lists your key in your slot, and shows the escrow address you attested with every trustee's signature, and refuse otherwise. For an auction from before escrow attestations, the CLI needs `--allow-unattested-escrow`.
 
 What you are, and aren't, checking when you sign: you sign a sighash and α per escrow spend. The CLI shows the coordinator's stated output count and total, but **you can't see the transaction's outputs** ([5 Security, trust assumption 3](/security#trust-assumptions)). Treat the coordinator as trusted for what it asks you to sign until trustee-side PCZT verification ships.
 

@@ -256,6 +256,39 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     let one_share = BTreeMap::from([(id1, shares[&id1])]);
     assert!(signing::aggregate(&request, &package, &one_share, &pubkeys).is_err());
 
+    // Trustees refuse to co-sign while bidders can't see the auction page
+    // (F15): a 404 is not "nothing to check".
+    let err = trustee::sign_step(&trustees[0], &url, &code)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Refusing to co-sign"), "{err}");
+
+    // The organiser opens it; from here the public page shows the attested address.
+    state.set_chain_tip(3_900_000);
+    let opened = organiser::auction_open(&org, &url, &code).await.unwrap();
+    assert_eq!(opened.status, AuctionStatus::Open);
+    assert_eq!(opened.escrow_ua.as_deref(), Some(escrow.as_str()));
+
+    // A keystore with no record of the attested address refuses too, unless the
+    // trustee itself opts in for an auction from before attestations.
+    let attested = trustees[0].trustee_dir(&code).join("escrow-attested.txt");
+    let record = std::fs::read(&attested).unwrap();
+    std::fs::remove_file(&attested).unwrap();
+    let err = trustee::sign_step(&trustees[0], &url, &code)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("no record of the escrow address"),
+        "{err}"
+    );
+    let allowed = trustee::SignPolicy {
+        allow_unattested_escrow: true,
+    };
+    assert!(trustee::sign_step_with(&trustees[0], &url, &code, allowed)
+        .await
+        .is_ok());
+    std::fs::write(&attested, record).unwrap();
+
     // A two-spend escrow batch goes through `trustee sign` over HTTP.
     let sighash = [7u8; 32];
     let spends = vec![
@@ -505,12 +538,6 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .trustee_dir(&code)
         .join(format!("batch-{replayed_id}.nonces"))
         .exists());
-
-    // And the organiser can open it.
-    state.set_chain_tip(3_900_000);
-    let opened = organiser::auction_open(&org, &url, &code).await.unwrap();
-    assert_eq!(opened.status, AuctionStatus::Open);
-    assert_eq!(opened.escrow_ua.as_deref(), Some(escrow.as_str()));
 
     // Bidders can check the escrow themselves (F10): the public page lists each
     // trustee's key and attestation, and they verify for the address shown.

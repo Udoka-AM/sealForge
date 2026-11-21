@@ -668,16 +668,59 @@ pub fn describe_batch(b: &BatchView) -> String {
 }
 
 /// Move this trustee's part of every pending batch forward by one round.
+/// What `trustee sign` accepts before co-signing. The default refuses anything
+/// short of a public page showing the address this trustee attested.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SignPolicy {
+    /// Sign for an auction this trustee never attested (one from before escrow
+    /// attestations existed). Only the trustee can choose this, on its own
+    /// command line; nothing the coordinator sends turns it on.
+    pub allow_unattested_escrow: bool,
+}
+
+/// Before co-signing money out of an escrow: the public page bidders paid from
+/// must be up and show the address this trustee attested, its own key, and
+/// valid attestations (security review F15). Anything else refuses.
+pub async fn require_public(
+    store: &Keystore,
+    coordinator: &str,
+    code: &str,
+    policy: SignPolicy,
+) -> anyhow::Result<()> {
+    match check_public(store, coordinator, code).await? {
+        PublicCheck::Matches { .. } => Ok(()),
+        PublicCheck::NotPublicYet => bail!(
+            "Refusing to co-sign for {code}: the public auction page isn't available, so you \
+             can't confirm it shows bidders the escrow address you attested."
+        ),
+        PublicCheck::NotAttested if policy.allow_unattested_escrow => Ok(()),
+        PublicCheck::NotAttested => bail!(
+            "Refusing to co-sign for {code}: this keystore has no record of the escrow address \
+             you attested. Run `sealforge trustee dkg {code}` to check it. For an auction from \
+             before escrow attestations, pass --allow-unattested-escrow."
+        ),
+    }
+}
+
 pub async fn sign_step(
     store: &Keystore,
     coordinator: &str,
     code: &str,
 ) -> anyhow::Result<Vec<SignProgress>> {
+    sign_step_with(store, coordinator, code, SignPolicy::default()).await
+}
+
+pub async fn sign_step_with(
+    store: &Keystore,
+    coordinator: &str,
+    code: &str,
+    policy: SignPolicy,
+) -> anyhow::Result<Vec<SignProgress>> {
     let identity = store.trustee_identity(code)?;
     let (key_package, _) = key_share(store, code)?;
     // Never co-sign money out of an escrow whose public page showed bidders
-    // something other than what this trustee verified.
-    check_public(store, coordinator, code).await?;
+    // something other than what this trustee verified, or that is missing.
+    require_public(store, coordinator, code, policy).await?;
     let client = Client::new(coordinator, Some(identity.signing_key()?));
     let batches: Vec<BatchView> = client.get(&format!("/v1/auctions/{code}/batches")).await?;
     let me = identity.slot;

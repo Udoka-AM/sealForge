@@ -3,6 +3,7 @@
 import { Check, KeyRound, LoaderCircle, ShieldCheck } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/button";
+import { checkEscrow } from "@/lib/auditor";
 import { zec } from "@/lib/format";
 import {
   api,
@@ -42,6 +43,37 @@ function signingInputs(b: TrusteeBatch): string {
     b.spends.map((s) => s.alpha.toLowerCase()),
     commitments,
   ]);
+}
+
+function base64ToHex(b64: string): string {
+  return Array.from(atob(b64), (c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Before committing nonces or sending shares (security review F15): the public
+ * page bidders pay from must be up, list this trustee's own key in its slot,
+ * and carry valid signatures from every trustee over the address it shows.
+ * This trustee's own valid signature there proves it attested exactly that
+ * address. Anything else throws, and nothing is signed.
+ */
+async function requirePublicEscrow(code: string, signer: StoredSigner): Promise<void> {
+  let view: AuctionView;
+  try {
+    view = await api<AuctionView>("GET", `/v1/auctions/${code}`, null);
+  } catch {
+    throw new Error(
+      "Refusing to co-sign: the public auction page isn't available, so you can't confirm it shows bidders the escrow address you attested.",
+    );
+  }
+  if (signer.slot === undefined)
+    throw new Error("Refusing to co-sign: this key file doesn't say which trustee slot it is.");
+  const check = await checkEscrow({ kind: "view", view }, [
+    [signer.slot, base64ToHex(signer.keyId)],
+  ]);
+  if (check.verdict !== "verified" || !view.escrow_ua || check.escrow_ua !== view.escrow_ua)
+    throw new Error(
+      "Refusing to co-sign: the public auction page doesn't show the escrow address you attested, signed by every trustee. Tell the organiser and the other trustees.",
+    );
 }
 
 /** S16: review escrow batches and co-sign them with this trustee's key share. */
@@ -103,6 +135,7 @@ export function TrusteeSigning({ code }: { code: string }) {
         setBusy((s) => new Set(s).add(b.id));
         (async () => {
           try {
+            await requirePublicEscrow(code, signer);
             let shares: string[];
             if (record) {
               shares = record.shares;
@@ -134,13 +167,14 @@ export function TrusteeSigning({ code }: { code: string }) {
         })();
       }
     }
-  }, [batches, keyHex, signer, busy, load]);
+  }, [batches, keyHex, signer, busy, load, code]);
 
   async function approve(b: TrusteeBatch) {
     if (!signer || !keyHex) return;
     setApproved((s) => new Set(s).add(b.id));
     setBusy((s) => new Set(s).add(b.id));
     try {
+      await requirePublicEscrow(code, signer);
       const round1 = await commitBatch(keyHex, b.spends.length);
       // A fresh round: shares from an earlier, reset round are void.
       signed.current.delete(b.id);
