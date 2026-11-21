@@ -11,10 +11,12 @@ authors.workspace = true
 [features]
 default = ["address"]
 # Escrow viewing keys and addresses. Off for the browser signer, which only signs.
-address = ["dep:orchard", "dep:zcash_keys", "dep:zcash_protocol"]
+address = ["dep:orchard", "dep:zcash_keys", "dep:zcash_protocol", "dep:bech32"]
 
 [dependencies]
+bech32 = { workspace = true, optional = true }
 serde.workspace = true
+zeroize.workspace = true
 thiserror.workspace = true
 hex.workspace = true
 orchard = { workspace = true, optional = true }

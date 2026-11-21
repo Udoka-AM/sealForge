@@ -734,6 +734,67 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         );
     }
 
+    // Backups (stream 3): each trustee kept the escrow's viewing key when it
+    // attested, and its backup string checks out against its own keystore only.
+    let mut backups = Vec::new();
+    for t in &trustees {
+        backups.push(trustee::backup(t, &url, &code).await.unwrap());
+    }
+    for (i, t) in trustees.iter().enumerate() {
+        assert!(t.trustee_dir(&code).join("escrow-view.json").exists());
+        let check = trustee::check_backup(t, &code, &backups[i]).unwrap();
+        assert_eq!(
+            (check.slot, check.escrow_ua.as_str()),
+            (i as u16 + 1, escrow.as_str())
+        );
+        let other = &backups[(i + 1) % 3];
+        assert!(
+            trustee::check_backup(t, &code, other).is_err(),
+            "another trustee's backup"
+        );
+    }
+    // Two backup strings alone, no coordinator and no keystore, rebuild the
+    // escrow address and sign a spend that verifies under ak.
+    {
+        use sealforge_escrow::backup::{recover_group, Backup};
+        let pair: Vec<Backup> = [&backups[0], &backups[2]]
+            .into_iter()
+            .map(|s| Backup::decode(s).unwrap())
+            .collect();
+        assert_eq!(
+            sealforge_escrow::address::escrow_address(
+                &pair[0].full_viewing_key(),
+                &sealforge_escrow::address::EncodingParams(pair[0].network),
+            )
+            .unwrap(),
+            escrow
+        );
+        let (restored, group) = recover_group(&pair).unwrap();
+        let request = signing::SpendAuthRequest {
+            sighash: random_alpha(),
+            alpha: random_alpha(),
+        };
+        let mut nonces = BTreeMap::new();
+        let mut commitments = BTreeMap::new();
+        for (id, kp) in &restored {
+            let (n, c) = signing::commit(kp, &mut OsRng);
+            nonces.insert(*id, n);
+            commitments.insert(*id, c);
+        }
+        let package = signing::signing_package(&request, commitments);
+        let shares = nonces
+            .iter()
+            .map(|(id, n)| {
+                (
+                    *id,
+                    signing::sign(&request, &package, n, &restored[id]).unwrap(),
+                )
+            })
+            .collect();
+        let sig = signing::aggregate(&request, &package, &shares, &group).unwrap();
+        signing::verify_spend_auth(&pair[0].ak(), &request, &sig).unwrap();
+    }
+
     // A coordinator that shows bidders another address fails every check, and
     // no trustee will co-sign money out of the escrow while it does.
     sqlx::query("UPDATE auctions SET escrow_ua = $2 WHERE code = $1")

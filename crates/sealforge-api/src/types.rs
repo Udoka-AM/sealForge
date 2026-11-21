@@ -222,6 +222,10 @@ pub struct DkgState {
     /// checks it against `escrow_ua` before attesting.
     #[serde(default)]
     pub escrow_view_secret_for_me: Option<String>,
+    /// Chain height when the escrow was created: where a wallet restored from
+    /// a trustee backup starts scanning.
+    #[serde(default)]
+    pub escrow_birthday_height: Option<u32>,
 }
 
 /// A trustee's attestation that the escrow address derives from the FROST

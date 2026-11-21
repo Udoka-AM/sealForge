@@ -40,6 +40,63 @@ const KEY_PACKAGE: &str = "key-package.hex";
 const PUBLIC_KEY_PACKAGE: &str = "public-key-package.hex";
 /// The escrow address this trustee checked and signed.
 const ESCROW_ATTESTED: &str = "escrow-attested.txt";
+/// The escrow's full viewing key, kept once this trustee has checked that it
+/// gives the address it attested: with its key share, what it needs to spend
+/// from the escrow with another trustee if the coordinator is gone.
+const ESCROW_VIEW: &str = "escrow-view.json";
+
+/// What [`ESCROW_VIEW`] holds. Viewing power over the escrow, not spending.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SavedEscrowView {
+    /// `ak ‖ nk ‖ rivk`, hex.
+    fvk: String,
+    /// `mainnet`, `testnet` or `regtest`.
+    network: String,
+    escrow_ua: String,
+    /// Height the escrow was created at, if the coordinator said.
+    #[serde(default)]
+    birthday_height: Option<u32>,
+}
+
+fn network_name(n: zcash_protocol::consensus::NetworkType) -> &'static str {
+    use zcash_protocol::consensus::NetworkType;
+    match n {
+        NetworkType::Main => "mainnet",
+        NetworkType::Test => "testnet",
+        NetworkType::Regtest => "regtest",
+    }
+}
+
+fn network_from_name(name: &str) -> anyhow::Result<zcash_protocol::consensus::NetworkType> {
+    use zcash_protocol::consensus::NetworkType;
+    Ok(match name {
+        "mainnet" => NetworkType::Main,
+        "testnet" => NetworkType::Test,
+        "regtest" => NetworkType::Regtest,
+        other => bail!("unknown network {other:?}"),
+    })
+}
+
+/// Keep the escrow's viewing key once it checked out against `escrow_ua`.
+fn save_escrow_view(
+    store: &Keystore,
+    code: &str,
+    fvk: &orchard::keys::FullViewingKey,
+    network: zcash_protocol::consensus::NetworkType,
+    escrow_ua: &str,
+    birthday_height: Option<u32>,
+) -> anyhow::Result<()> {
+    if store.read(code, ESCROW_VIEW)?.is_some() {
+        return Ok(());
+    }
+    let saved = SavedEscrowView {
+        fvk: hex::encode(fvk.to_bytes()),
+        network: network_name(network).to_owned(),
+        escrow_ua: escrow_ua.to_owned(),
+        birthday_height,
+    };
+    store.write(code, ESCROW_VIEW, &serde_json::to_vec_pretty(&saved)?)
+}
 
 /// Where this trustee's DKG stands after a step.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -356,8 +413,9 @@ pub async fn dkg_step(
 /// Rebuild the escrow address from this trustee's own group key and the
 /// `nk ‖ rivk` the coordinator sealed to it, and attest to it only if it
 /// matches the address the coordinator shows. A coordinator showing the
-/// address of a wallet it controls alone fails here. The view secret is used
-/// in memory only and never written to disk.
+/// address of a wallet it controls alone fails here. Once it matches, the
+/// escrow's viewing key is kept (`escrow-view.json`, 0600) for backups and so
+/// two trustees can spend without the coordinator.
 async fn verify_escrow(
     store: &Keystore,
     client: &Client,
@@ -387,19 +445,28 @@ async fn verify_escrow(
     let (_, pubkeys) = key_share(store, code)?;
     let ak = dkg::group_key_bytes(&pubkeys)?;
     let fvk = address::escrow_fvk_from_parts(&ak, &view_secret)?;
-    let matches = [NetworkType::Main, NetworkType::Test, NetworkType::Regtest]
+    let network = [NetworkType::Main, NetworkType::Test, NetworkType::Regtest]
         .into_iter()
-        .any(|n| address::escrow_address(&fvk, &EncodingParams(n)).is_ok_and(|ua| ua == shown));
-    ensure!(
-        matches,
+        .find(|n| address::escrow_address(&fvk, &EncodingParams(*n)).is_ok_and(|ua| ua == shown));
+    let Some(network) = network else {
+        bail!(
         "ESCROW ADDRESS MISMATCH for auction {code}: the address the coordinator shows ({shown}) \
          does not come from the trustees' group key. Do not send funds to it, don't let the \
          auction open, and tell the organiser and the other trustees now."
-    );
+        );
+    };
     let signature = sign_escrow_attestation(&identity.signing_key()?, code, state.my_slot, shown);
     // Remember what we signed, so later commands can check the public page
     // shows bidders this same address (`check_public`).
     store.write(code, ESCROW_ATTESTED, shown.as_bytes())?;
+    save_escrow_view(
+        store,
+        code,
+        &fvk,
+        network,
+        shown,
+        state.escrow_birthday_height,
+    )?;
     let _: DkgState = client
         .post(
             &format!("/v1/auctions/{code}/dkg/verify-escrow"),
@@ -757,6 +824,26 @@ pub async fn escrow_view(
         .read(code, ESCROW_ATTESTED)?
         .ok_or_else(|| anyhow!("no record of the escrow address you attested for {code}"))?;
     let attested = String::from_utf8(attested)?;
+    let (_, pubkeys) = key_share(store, code)?;
+    let ak = dkg::group_key_bytes(&pubkeys)?;
+    // The copy this trustee kept when it attested, checked again.
+    if let Some(bytes) = store.read(code, ESCROW_VIEW)? {
+        let saved: SavedEscrowView = serde_json::from_slice(&bytes)?;
+        let fvk_bytes: [u8; 96] = hex::decode(&saved.fvk)?
+            .try_into()
+            .map_err(|_| anyhow!("{ESCROW_VIEW} for {code} is malformed"))?;
+        let fvk = orchard::keys::FullViewingKey::from_bytes(&fvk_bytes)
+            .ok_or_else(|| anyhow!("{ESCROW_VIEW} for {code} holds no valid viewing key"))?;
+        let network = network_from_name(&saved.network)?;
+        ensure!(
+            fvk_bytes[..32] == ak
+                && address::escrow_address(&fvk, &EncodingParams(network))
+                    .is_ok_and(|ua| ua == attested),
+            "{ESCROW_VIEW} for {code} doesn't give the address you attested. Don't sign; check \
+             this machine."
+        );
+        return Ok(EscrowView { fvk, network });
+    }
     let state: DkgState = client.get(&format!("/v1/auctions/{code}/dkg")).await?;
     let sealed = hex::decode(
         state
@@ -770,8 +857,7 @@ pub async fn escrow_view(
         .map_err(|_| anyhow!("could not open the escrow view secret"))?
         .try_into()
         .map_err(|_| anyhow!("the escrow view secret has the wrong length"))?;
-    let (_, pubkeys) = key_share(store, code)?;
-    let fvk = address::escrow_fvk_from_parts(&dkg::group_key_bytes(&pubkeys)?, &view_secret)?;
+    let fvk = address::escrow_fvk_from_parts(&ak, &view_secret)?;
     let network = [NetworkType::Main, NetworkType::Test, NetworkType::Regtest]
         .into_iter()
         .find(|n| address::escrow_address(&fvk, &EncodingParams(*n)).is_ok_and(|ua| ua == attested))
@@ -781,7 +867,99 @@ pub async fn escrow_view(
                  the address you attested. Don't sign; tell the organiser and the other trustees."
             )
         })?;
+    // Keystores from before escrow views were kept get one now.
+    save_escrow_view(
+        store,
+        code,
+        &fvk,
+        network,
+        &attested,
+        state.escrow_birthday_height,
+    )?;
     Ok(EscrowView { fvk, network })
+}
+
+/// This trustee's backup string for `code`: its signing share and the
+/// escrow's viewing key ([`sealforge_escrow::backup`]). Secret. A keystore
+/// from before viewing keys were kept fetches it from the coordinator once,
+/// checked against the address this trustee attested.
+pub async fn backup(store: &Keystore, coordinator: &str, code: &str) -> anyhow::Result<String> {
+    let (key_package, pubkeys) = key_share(store, code)?;
+    if store.read(code, ESCROW_VIEW)?.is_none() {
+        let identity = store.trustee_identity(code)?;
+        escrow_view(
+            store,
+            &Client::new(coordinator, Some(identity.signing_key()?)),
+            code,
+        )
+        .await?;
+    }
+    let saved: SavedEscrowView = serde_json::from_slice(
+        &store
+            .read(code, ESCROW_VIEW)?
+            .ok_or_else(|| anyhow!("no escrow viewing key kept for {code}"))?,
+    )?;
+    let fvk_bytes: [u8; 96] = hex::decode(&saved.fvk)?
+        .try_into()
+        .map_err(|_| anyhow!("{ESCROW_VIEW} for {code} is malformed"))?;
+    let fvk = orchard::keys::FullViewingKey::from_bytes(&fvk_bytes)
+        .ok_or_else(|| anyhow!("{ESCROW_VIEW} for {code} holds no valid viewing key"))?;
+    let n = u16::try_from(pubkeys.verifying_shares().len())?;
+    let backup = sealforge_escrow::backup::Backup::new(
+        &key_package,
+        n,
+        &fvk,
+        network_from_name(&saved.network)?,
+        saved.birthday_height.unwrap_or(0),
+    )?;
+    Ok(backup.encode()?)
+}
+
+/// What a backup string restores, checked against this machine's keystore.
+#[derive(Debug, PartialEq, Eq)]
+pub struct BackupCheck {
+    pub slot: u16,
+    pub threshold: (u8, u8),
+    pub escrow_ua: String,
+    pub birthday_height: u32,
+}
+
+/// Check a backup string for `code` against this keystore: the same trustee,
+/// the same signing share, the same group key, and a viewing key that gives
+/// the address this trustee attested. Proves the string restores what this
+/// machine holds, without writing anything.
+pub fn check_backup(store: &Keystore, code: &str, text: &str) -> anyhow::Result<BackupCheck> {
+    use sealforge_escrow::address::{self, EncodingParams};
+
+    ensure!(
+        !text.trim().is_empty(),
+        "no backup string given (the input is empty)"
+    );
+    let backup = sealforge_escrow::backup::Backup::decode(text)?;
+    let restored = backup.key_package()?;
+    let (key_package, _) = key_share(store, code)?;
+    ensure!(
+        restored == key_package,
+        "this backup's key share isn't the one this machine holds for {code} (another trustee's, \
+         or another auction's)"
+    );
+    let attested = String::from_utf8(
+        store
+            .read(code, ESCROW_ATTESTED)?
+            .ok_or_else(|| anyhow!("no record of the escrow address you attested for {code}"))?,
+    )?;
+    let escrow_ua =
+        address::escrow_address(&backup.full_viewing_key(), &EncodingParams(backup.network))?;
+    ensure!(
+        escrow_ua == attested,
+        "this backup's viewing key gives {escrow_ua}, not the address you attested ({attested})"
+    );
+    Ok(BackupCheck {
+        slot: backup.id as u16,
+        threshold: (backup.t, backup.n),
+        escrow_ua,
+        birthday_height: backup.birthday_height,
+    })
 }
 
 /// Decode and check a batch's transaction before taking part in signing it
