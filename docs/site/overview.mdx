@@ -43,7 +43,7 @@ Stated as what is hidden, from whom, and when. Each links to where it's enforced
 - **Bidder behaviour at the exit.** A bidder who moves all refund notes out at once recreates their refund amount ([2.7 Refund privacy](/protocol/refunds#known-residuals)).
 - **Source-chain privacy for ShieldRamp.** Not built. EVM-side deposits are public.
 - **Coordinator and organiser liveness.** Refunds need the organiser to publish, the coordinator to build transactions, and two trustees to sign. Any of them can delay ([5 Security](/security#trust-assumptions)).
-- **Protection against a malicious coordinator at refund time.** Trustees sign the sighash the coordinator gives them without seeing the transaction, so they can't detect a spend that pays the wrong place. One rogue trustee can't move funds; a rogue coordinator plus two trustees signing as instructed can. Closing this is a mainnet gate ([5 Security](/security#trust-assumptions)).
+- **Protection against colluding trustees, or one party posing as three.** Trustees now decode and check every transaction before signing, so a coordinator can't slip a wrong payment past honest trustees. But two trustees who collude can move the funds, and the published keys prove who signed, not that the three trustees are different people. Independent trustee operators are a mainnet gate ([5 Security](/security#trust-assumptions)).
 - **Operator blindness in deposit mode** ([5 Security](/security#trust-assumptions)).
 
 ## Ninety seconds
