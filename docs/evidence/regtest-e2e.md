@@ -123,3 +123,26 @@ Escrow arithmetic: 0.48 ZEC in, 0.08 ZEC refunded, 0.39935 ZEC paid out in two s
 | Payout 2 | 2 spends, one output to the payout address, 0.0995 ZEC | Both checked and signed; confirmed at **1148**, auction `settled` |
 
 No batch was refused and none was signed without its checks (no `REFUSED` or `WARNING` lines in the signing log). The refusals themselves are tested on real PCZTs in `crates/sealforge-verify` (17 shared tamper cases, plus sealForge's rules).
+
+## Refunds tied to bidders on chain (D1, second part)
+
+**Date:** 2026-11-21. Auction `72HSQZ1429` on the local regtest chain (3 bids, 1 lot). Trustees ran `sealforge trustee sign --lightwalletd http://127.0.0.1:8137`.
+
+| Step | What happened | Result |
+|---|---|---|
+| Honest refund | 3 notes for the two losing bids. Each trustee read both bids from Zaino, decrypted their memos with the escrow viewing key, matched every note to its bid's refund address and split, and recorded the batch in its `refund-ledger.json` | Signed by trustees A and B; confirmed. The ledger's txid (`bf71e189…09d1`, computed from the unsigned PCZT) is the mined txid |
+| Duplicate refund | The coordinator, compromised (its database guard against over-refunding switched off), planned the losing bid's 0.01 ZEC note a second time | **Refused by A and B**: "is owed 3000000 zat as notes [2000000, 1000000]; with what you already signed, this batch would pay [1000000, 2000000, 1000000]". C, who signed nothing before, committed, but can't sign alone, and any pair includes A or B |
+| Payout | One output to the payout address | Checked and signed |
+
+A redirected refund (a note sent to an address other than its bid's memo) is refused by `sealforge-verify::refunds::tests`, and on chain in the run below.
+
+**Redirected late refund.** Auction `E23XDR8JEB`, same chain and trustee command, run with the F17 fix (late payments) merged in. A 0.01 ZEC payment arrived after the refunds were confirmed, and the coordinator's database was edited to send its refund to a different regtest address before the refund was batched.
+
+| Step | What happened | Result |
+|---|---|---|
+| Redirected refund | 1 output, 0.01 ZEC, to an address that isn't the one in the payment's memo | **Refused by all three trustees**, class `payment`: "the transaction's refund outputs aren't the claimed notes, each to its bid's refund address" |
+| Honest refund | The real refund address restored; the bad batch discarded | Signed by A and B, confirmed. Each ledger now holds the auction's refund batches |
+| Expired batches | Two refund batches for the same note expired before broadcast during the run (see below) | Trustees signed the replacement: a ledger entry that never reached the chain stops counting after its expiry height |
+| Payout | 0.1996 ZEC, the proceeds net of fees, only after the late refund confirmed | Confirmed; auction `settled` |
+
+The run found two bugs in this change, both fixed and covered by tests: the ledger was written with the create-only key writer, so a trustee couldn't record a second refund batch for an auction (now replaced atomically: `Keystore::replace`); and Zaino answers a lookup of an expired, never-mined transaction with RPC error -5 rather than gRPC `NotFound`, which the earlier-refunds check treated as a failure, so one expired batch blocked every later refund (`sealforge-chain::is_missing_transaction`). It also showed that the coordinator retries broadcasting an expired signed batch forever and fails each scan meanwhile (D3, tracked separately).

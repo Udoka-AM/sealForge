@@ -101,6 +101,11 @@ enum TrusteeCommand {
         /// attestations existed. Without it, signing refuses.
         #[arg(long)]
         allow_unattested_escrow: bool,
+        /// A lightwallet server you trust (gRPC, e.g. https://zec.rocks:443).
+        /// Refund batches are checked against the chain through it; without
+        /// it they are refused.
+        #[arg(long, env = "SF_LIGHTWALLETD_URL")]
+        lightwalletd: Option<String>,
     },
 }
 
@@ -193,6 +198,7 @@ async fn main() -> anyhow::Result<()> {
             code,
             wait,
             allow_unattested_escrow,
+            lightwalletd,
         }) => loop {
             for batch in trustee::pending_batches(&store, url, &code).await? {
                 if batch.status == "awaiting_signatures" && !batch.i_shared {
@@ -201,6 +207,7 @@ async fn main() -> anyhow::Result<()> {
             }
             let policy = trustee::SignPolicy {
                 allow_unattested_escrow,
+                lightwalletd: lightwalletd.clone(),
                 ..Default::default()
             };
             let progress = trustee::sign_step_with(&store, url, &code, policy).await?;

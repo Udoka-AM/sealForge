@@ -351,6 +351,14 @@ fn verify_batch_inner(
     )
     .map_err(err)?;
     let kind = BatchKind::parse(&batch.kind).ok_or("REFUSED: unknown batch kind")?;
+    // Refund notes are tied to their bidders by reading each bid from the
+    // chain, which this page doesn't do yet (security review D1, second part).
+    if kind == BatchKind::Refund {
+        return Err(
+            "REFUSED: refund batches are checked against the chain, which this page can't do yet. Sign them with `sealforge trustee sign --lightwalletd <server you trust>`."
+                .into(),
+        );
+    }
     let rules = BatchRules {
         kind,
         refund_total_due_zat: (refund_total_due_zat >= 0.0).then_some(refund_total_due_zat as u64),
