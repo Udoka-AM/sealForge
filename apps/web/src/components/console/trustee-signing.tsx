@@ -5,6 +5,8 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/button";
 import { checkEscrow } from "@/lib/auditor";
 import { zec } from "@/lib/format";
+import { findTransaction, getLatestHeight } from "@/lib/grpc-web";
+import { ledgerOnChain, readLedger, recordSigned } from "@/lib/refund-ledger";
 import {
   api,
   forgetSigner,
@@ -104,12 +106,45 @@ async function requirePublicEscrow(code: string, signer: StoredSigner): Promise<
  * this trustee's own key share and must give the address on the public page,
  * which `requirePublicEscrow` checked carries this trustee's own attestation.
  */
+/** Where this browser keeps the trustee's chosen lightwallet server. */
+const LWD_KEY = "sealforge:trustee-lightwalletd";
+
+/**
+ * Read what a refund batch claims from the chain, through the trustee's own
+ * lightwallet server: each claimed bid's transaction, and whether each batch
+ * in this trustee's ledger is on chain. The signer WASM then runs the same
+ * checks as `sealforge trustee sign --lightwalletd`.
+ */
+async function refundChain(
+  endpoint: string,
+  code: string,
+  keyId: string,
+  b: TrusteeBatch,
+  result: PublishedResult,
+) {
+  const tip = await getLatestHeight(endpoint);
+  const bids = [];
+  for (const txid of new Set((b.refunds ?? []).map((n) => n.bid_txid))) {
+    const tx = await findTransaction(endpoint, txid);
+    // Not mined (or unknown to this server): the check refuses its notes.
+    if (tx?.height)
+      bids.push({
+        txid,
+        raw: Array.from(tx.raw, (x) => x.toString(16).padStart(2, "0")).join(""),
+        height: tx.height,
+      });
+  }
+  const ledger = await ledgerOnChain(endpoint, await readLedger(code, keyId));
+  return { tip, bids, result, ledger };
+}
+
 async function checkTransaction(
   code: string,
   signer: StoredSigner,
   keyHex: string,
   b: TrusteeBatch,
   view: AuctionView,
+  lightwalletd: string | null,
 ): Promise<VerifiedBatch> {
   if (!signer.encSecret)
     throw new Error(
@@ -121,9 +156,15 @@ async function checkTransaction(
       "Refusing to co-sign: the coordinator sent no escrow viewing key to check with.",
     );
   let refundTotalDueZat: number | null = null;
+  let chain: unknown;
   if (b.kind === "refund") {
+    if (!lightwalletd)
+      throw new Error(
+        "Refund batches are checked against the chain. Set a lightwallet server you trust above, then check again.",
+      );
     const result = await api<PublishedResult>("GET", `/v1/auctions/${code}/result`, null);
     refundTotalDueZat = result.bids.reduce((sum, bid) => sum + bid.refund_due_zat, 0);
+    chain = await refundChain(lightwalletd, code, signer.keyId, b, result);
   }
   return verifyBatch({
     keyPackageHex: keyHex,
@@ -133,6 +174,7 @@ async function checkTransaction(
     network: view.network,
     batch: b,
     refundTotalDueZat,
+    refundChain: chain,
   });
 }
 
@@ -156,6 +198,26 @@ export function TrusteeSigning({ code }: { code: string }) {
   // What this browser decoded in each batch's transaction, or why it refused.
   const [checked, setChecked] = useState<Map<string, VerifiedBatch | string>>(new Map());
   const [busy, setBusy] = useState<Set<string>>(new Set());
+  // The lightwallet server this trustee chose for refund checks (this browser only).
+  const [lightwalletd, setLightwalletd] = useState<string | null>(null);
+  const [lwdDraft, setLwdDraft] = useState("");
+  useEffect(() => {
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(LWD_KEY);
+    } catch {
+      // storage unavailable: ask each time
+    }
+    if (saved) {
+      setLightwalletd(saved);
+      setLwdDraft(saved);
+      return;
+    }
+    fetch("/api/wallet/config")
+      .then((r) => r.json())
+      .then((c: { grpcWeb?: string | null }) => setLwdDraft((d) => d || (c.grpcWeb ?? "")))
+      .catch(() => {});
+  }, []);
   // Batches refused because the coordinator equivocated: never retried.
   const [refused, setRefused] = useState<Map<string, string>>(new Map());
 
@@ -250,8 +312,10 @@ export function TrusteeSigning({ code }: { code: string }) {
                   b.id,
                   `slot ${coSigner} was shown different round 2 inputs (commitments, sighash or randomizers) than you were.`,
                 );
-              // Check the transaction again right before signing it.
-              await checkTransaction(code, signer, keyHex, b, view);
+              // Check the transaction again right before signing it, and put a
+              // refund batch in this trustee's ledger before any share leaves.
+              const again = await checkTransaction(code, signer, keyHex, b, view, lightwalletd);
+              if (again.ledger_entry) await recordSigned(code, signer.keyId, again.ledger_entry);
               shares = await signBatch(
                 keyHex,
                 b.sighash,
@@ -280,7 +344,7 @@ export function TrusteeSigning({ code }: { code: string }) {
         })();
       }
     }
-  }, [batches, keyHex, signer, busy, refused, load, code]);
+  }, [batches, keyHex, signer, busy, refused, load, code, lightwalletd]);
 
   async function approve(b: TrusteeBatch) {
     if (!signer || !keyHex) return;
@@ -288,7 +352,7 @@ export function TrusteeSigning({ code }: { code: string }) {
     setBusy((s) => new Set(s).add(b.id));
     try {
       const view = await requirePublicEscrow(code, signer);
-      await checkTransaction(code, signer, keyHex, b, view);
+      await checkTransaction(code, signer, keyHex, b, view, lightwalletd);
       const round1 = await commitBatch(keyHex, b.spends.length);
       // A fresh round: shares from an earlier, reset round are void.
       signed.current.delete(b.id);
@@ -320,14 +384,14 @@ export function TrusteeSigning({ code }: { code: string }) {
         let outcome: VerifiedBatch | string;
         try {
           const view = await requirePublicEscrow(code, signer);
-          outcome = await checkTransaction(code, signer, keyHex, b, view);
+          outcome = await checkTransaction(code, signer, keyHex, b, view, lightwalletd);
         } catch (e) {
           outcome = e instanceof Error ? e.message : String(e);
         }
         setChecked((m) => new Map(m).set(b.id, outcome));
       })();
     }
-  }, [batches, keyHex, signer, checked, code]);
+  }, [batches, keyHex, signer, checked, code, lightwalletd]);
 
   function phase(b: TrusteeBatch, me: number | undefined): Phase {
     if (b.status !== "awaiting_signatures") return b.i_shared ? "signed" : "done";
@@ -377,6 +441,61 @@ export function TrusteeSigning({ code }: { code: string }) {
           Forget identity
         </Button>
       </div>
+
+      <section className={`${card} max-w-[560px] space-y-3`} aria-labelledby="lwd-heading">
+        <h2 id="lwd-heading" className="font-semibold">
+          Lightwallet server for refund checks
+        </h2>
+        <p className="text-sm text-muted">
+          Before you sign a refund, this page reads each bid from the chain through this server and
+          checks every note goes to that bid&rsquo;s own refund address. Use a server you trust: if
+          it&rsquo;s the auction operator&rsquo;s, you&rsquo;re trusting the operator for this
+          check. It needs gRPC-web (as the Audit page uses).
+        </p>
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const value = lwdDraft.trim().replace(/\/$/, "");
+            if (!/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(value)) {
+              setError("The lightwallet server must be an https:// URL (or http://localhost).");
+              return;
+            }
+            try {
+              localStorage.setItem(LWD_KEY, value);
+            } catch {
+              // storage unavailable: use it for this visit only
+            }
+            setLightwalletd(value);
+            setChecked(new Map());
+            setError(null);
+          }}
+        >
+          <label htmlFor="lwd" className="sr-only">
+            Lightwallet server (gRPC-web URL)
+          </label>
+          <input
+            id="lwd"
+            type="url"
+            inputMode="url"
+            spellCheck={false}
+            value={lwdDraft}
+            onChange={(e) => setLwdDraft(e.target.value)}
+            placeholder="https://lightwalletd.example"
+            className="num h-10 min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface-2 px-3 text-sm"
+          />
+          <Button type="submit" variant="ghost">
+            {lightwalletd && lightwalletd === lwdDraft.trim().replace(/\/$/, "")
+              ? "Saved"
+              : "Use this server"}
+          </Button>
+        </form>
+        {!lightwalletd ? (
+          <p className="text-sm text-warning">
+            Refund batches stay refused until you choose a server.
+          </p>
+        ) : null}
+      </section>
 
       {keyHex ? (
         <p className="flex items-center gap-2 text-sm text-muted">

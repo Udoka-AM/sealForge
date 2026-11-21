@@ -32,6 +32,7 @@ interface SignerModule {
     nowSecs: number,
     batchJson: string,
     refundTotalDueZat: number,
+    refundChainJson: string,
   ) => string;
 }
 
@@ -114,6 +115,8 @@ export async function verifyBatch(args: {
   network: string;
   batch: unknown;
   refundTotalDueZat: number | null;
+  /** Refund batches: what this page read through the trustee's lightwallet server. */
+  refundChain?: unknown;
 }): Promise<VerifiedBatch> {
   return JSON.parse(
     (await load()).verify_batch(
@@ -125,6 +128,7 @@ export async function verifyBatch(args: {
       Math.floor(Date.now() / 1000),
       JSON.stringify(args.batch),
       args.refundTotalDueZat ?? -1,
+      args.refundChain === undefined ? "" : JSON.stringify(args.refundChain),
     ),
   ) as VerifiedBatch;
 }

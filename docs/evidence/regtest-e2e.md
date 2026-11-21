@@ -196,3 +196,14 @@ Escrow arithmetic: 0.29 ZEC in, 0.09 ZEC refunded (including the late payment), 
 | Payout | 0.19975 ZEC | Confirmed; auction `settled`. `/readyz` stayed 200 with the expired batch on record |
 
 Before this fix, the run for the late-payment check (auction `E23XDR8JEB`) showed the failure: a signed batch that expired before broadcast was retried forever, the node rejected it each time, and every escrow scan for the auction failed.
+
+## Refunds signed in the browser, checked against the chain (#54)
+
+**Date:** 2026-11-21. Auction `G2ME977STY` on the local regtest chain (3 bids of 0.03, 0.05 and 0.2 ZEC, 1 lot). Trustee A signed in the browser trustee page, trustee B with `sealforge trustee sign --lightwalletd`. The page's lightwallet server was the regtest Zaino behind Envoy (gRPC-web).
+
+| Step | What happened | Result |
+|---|---|---|
+| No server chosen | Refund batch waiting; the page had only the operator's suggested server prefilled | "Refund batches are checked against the chain. Set a lightwallet server you trust above"; nothing signed |
+| Redirected refund | The 0.03 ZEC bid's refund address edited in the coordinator's database before the batch was built | **Browser refused**, class `payment`: "the transaction's refund outputs aren't the claimed notes, each to its bid's refund address". The CLI refused the same batch with the same class |
+| Honest refund | Address restored, batch rebuilt | The browser decoded it (3 refunds to each bid's own address, change back to the escrow), committed, stated its round 2 inputs and signed; B signed with the CLI. Confirmed. The browser's IndexedDB ledger holds the batch, its txid equal to the mined txid (`a88b7a65…`) |
+| Duplicate note | The coordinator, with its database guard off, planned a 0.01 ZEC note for the same bid again | **Browser refused** from its ledger: "is owed 3000000 zat as notes [2000000, 1000000]; with what you already signed, this batch would pay [1000000, 2000000, 1000000]" |

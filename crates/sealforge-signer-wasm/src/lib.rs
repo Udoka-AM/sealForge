@@ -295,6 +295,12 @@ mod tests {
 /// - `batch_json`: the trustee's `BatchView`
 /// - `refund_total_due_zat`: refunds owed in total by the published result
 ///   (refund batches), or a negative number when there is none
+/// - `refund_chain_json`: refund batches only (empty otherwise), what this
+///   page read through the trustee's own lightwallet server ([`RefundChain`])
+///
+/// Returns the [`sealforge_verify::VerifiedBatch`] as JSON, plus, for a refund
+/// batch, `ledger_entry`: what to add to this trustee's ledger before any
+/// share leaves the page.
 #[wasm_bindgen]
 #[allow(clippy::too_many_arguments)]
 pub fn verify_batch(
@@ -306,6 +312,7 @@ pub fn verify_batch(
     now_secs: f64,
     batch_json: &str,
     refund_total_due_zat: f64,
+    refund_chain_json: &str,
 ) -> Result<String, JsError> {
     js(verify_batch_inner(
         key_package_hex,
@@ -316,7 +323,124 @@ pub fn verify_batch(
         now_secs,
         batch_json,
         refund_total_due_zat,
+        refund_chain_json,
     ))
+}
+
+/// A bid transaction as read from the trustee's lightwallet server.
+#[derive(serde::Deserialize)]
+struct BidTransaction {
+    /// Transaction id, internal byte order (hex), as in the published result.
+    txid: String,
+    /// The raw transaction (hex).
+    raw: String,
+    /// The height it was mined at.
+    height: u32,
+}
+
+/// One entry of this trustee's ledger and whether its server has that transaction.
+#[derive(serde::Deserialize)]
+struct LedgerOnChain {
+    entry: sealforge_verify::refunds::LedgerEntry,
+    on_chain: bool,
+}
+
+/// What the page read from the chain to check a refund batch: every mined bid
+/// transaction a note claims, the published result, this trustee's ledger,
+/// and the server's tip.
+#[derive(serde::Deserialize)]
+struct RefundChain {
+    tip: u32,
+    bids: Vec<BidTransaction>,
+    result: sealforge_api::types::PublishedResult,
+    ledger: Vec<LedgerOnChain>,
+}
+
+#[derive(serde::Serialize)]
+struct Checked {
+    #[serde(flatten)]
+    verified: sealforge_verify::VerifiedBatch,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ledger_entry: Option<sealforge_verify::refunds::LedgerEntry>,
+}
+
+/// Tie every note of a refund batch to its bid on chain: the same rules as
+/// `sealforge trustee sign --lightwalletd` (sealforge_verify::refunds).
+fn check_refunds(
+    batch: &sealforge_api::types::BatchView,
+    pczt: &[u8],
+    fvk: &orchard::keys::FullViewingKey,
+    network: zcash_protocol::consensus::NetworkType,
+    verified: &sealforge_verify::VerifiedBatch,
+    chain: RefundChain,
+) -> Res<sealforge_verify::refunds::LedgerEntry> {
+    use std::collections::BTreeMap;
+
+    use sealforge_verify::refunds::{BidOnChain, RefundClaim, ResultBid};
+    use zcash_protocol::consensus::NetworkType;
+
+    let claims = batch
+        .refunds
+        .iter()
+        .map(|n| {
+            Ok(RefundClaim {
+                bid_txid: hex32(&n.bid_txid)?,
+                bid_output_index: n.bid_output_index,
+                value_zat: n.value_zat,
+            })
+        })
+        .collect::<Res<Vec<_>>>()?;
+    let params = match network {
+        NetworkType::Main => sealforge_scan::ChainParams::Mainnet,
+        NetworkType::Test => sealforge_scan::ChainParams::Testnet,
+        NetworkType::Regtest => sealforge_scan::ChainParams::regtest(),
+    };
+    let scanner = sealforge_scan::EscrowScanner::from_fvk(params, fvk);
+    let mut bids = BTreeMap::new();
+    for tx in &chain.bids {
+        let txid = hex32(&tx.txid)?;
+        let raw = hex::decode(&tx.raw).map_err(err)?;
+        let payments = scanner
+            .decrypt_transaction(&raw, tx.height)
+            .map_err(|e| format!("decrypting bid {}: {e}", tx.txid))?;
+        for p in payments.into_iter().filter(|p| p.txid == txid) {
+            // Only bids a note in this batch claims.
+            if claims.iter().any(|c| c.bid() == (p.txid, p.output_index)) {
+                bids.insert(
+                    (p.txid, p.output_index),
+                    BidOnChain::from_payment(p.amount_zat, p.memo.as_deref()),
+                );
+            }
+        }
+    }
+    let listed = chain
+        .result
+        .bids
+        .iter()
+        .map(|b| {
+            Ok((
+                (hex32(&b.txid)?, b.output_index),
+                ResultBid {
+                    commitment: hex32(&b.commitment)?,
+                    refund_due_zat: b.refund_due_zat,
+                },
+            ))
+        })
+        .collect::<Res<BTreeMap<_, _>>>()?;
+    let ledger: Vec<_> = chain
+        .ledger
+        .into_iter()
+        .map(|l| (l.entry, l.on_chain))
+        .collect();
+    sealforge_verify::refunds::check_refund_batch(
+        pczt, verified, &claims, &bids, &listed, &ledger, chain.tip,
+    )
+    .map_err(|r| {
+        format!(
+            "REFUSED ({}): {}. Don't sign; tell the organiser and the other trustees.",
+            r.class, r.message
+        )
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -329,6 +453,7 @@ fn verify_batch_inner(
     now_secs: f64,
     batch_json: &str,
     refund_total_due_zat: f64,
+    refund_chain_json: &str,
 ) -> Res<String> {
     use sealforge_verify::{frost_zec::keys, BatchKind, BatchRules};
     use zcash_protocol::consensus::NetworkType;
@@ -379,14 +504,19 @@ fn verify_batch_inner(
     )
     .map_err(err)?;
     let kind = BatchKind::parse(&batch.kind).ok_or("REFUSED: unknown batch kind")?;
-    // Refund notes are tied to their bidders by reading each bid from the
-    // chain, which this page doesn't do yet (security review D1, second part).
-    if kind == BatchKind::Refund {
-        return Err(
-            "REFUSED: refund batches are checked against the chain, which this page can't do yet. Sign them with `sealforge trustee sign --lightwalletd <server you trust>`."
-                .into(),
-        );
-    }
+    // Refund notes are tied to their bidders through the chain (security
+    // review D1, second part): no chain reads, no refund signature.
+    let refund_chain: Option<RefundChain> = if kind == BatchKind::Refund {
+        if refund_chain_json.trim().is_empty() {
+            return Err(
+                "REFUSED: refund batches are checked against the chain. Set a lightwallet server you trust on this page first."
+                    .into(),
+            );
+        }
+        Some(serde_json::from_str(refund_chain_json).map_err(err)?)
+    } else {
+        None
+    };
     let rules = BatchRules {
         kind,
         refund_total_due_zat: (refund_total_due_zat >= 0.0).then_some(refund_total_due_zat as u64),
@@ -412,5 +542,15 @@ fn verify_batch_inner(
             r.class, r.message
         )
     })?;
-    serde_json::to_string(&verified).map_err(err)
+    let ledger_entry = match refund_chain {
+        Some(chain) => Some(check_refunds(
+            &batch, &pczt, &fvk, network, &verified, chain,
+        )?),
+        None => None,
+    };
+    serde_json::to_string(&Checked {
+        verified,
+        ledger_entry,
+    })
+    .map_err(err)
 }
