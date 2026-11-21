@@ -47,6 +47,20 @@ pub struct TrusteeRow {
     pub dkg_status: DkgStatus,
     pub pubkey: Option<Vec<u8>>,
     pub escrow_attestation: Option<Vec<u8>>,
+    pub identity_pubkey: Option<Vec<u8>>,
+    pub identity_published_at: Option<String>,
+    pub identity_cert: Option<Vec<u8>>,
+}
+
+impl TrusteeRow {
+    /// The trustee's long-term key certificate, when it has one.
+    pub fn identity(&self) -> Option<sealforge_api::types::TrusteeIdentityCert> {
+        Some(sealforge_api::types::TrusteeIdentityCert {
+            pubkey: hex::encode(self.identity_pubkey.as_ref()?),
+            published_at: self.identity_published_at.clone()?,
+            signature: hex::encode(self.identity_cert.as_ref()?),
+        })
+    }
 }
 
 /// Every trustee of an auction with its public key and escrow attestation.
@@ -56,8 +70,8 @@ pub async fn trustees_public(
     auction_id: Uuid,
 ) -> Result<Vec<TrusteeRow>, ApiError> {
     Ok(sqlx::query_as(
-        "SELECT slot, label, dkg_status, pubkey, escrow_attestation \
-         FROM trustees WHERE auction_id = $1 ORDER BY slot",
+        "SELECT slot, label, dkg_status, pubkey, escrow_attestation, identity_pubkey, \
+         identity_published_at, identity_cert FROM trustees WHERE auction_id = $1 ORDER BY slot",
     )
     .bind(auction_id)
     .fetch_all(db)
@@ -139,6 +153,7 @@ pub async fn auction_view(
         trustees: trustees
             .into_iter()
             .map(|t| TrusteeView {
+                identity: t.identity(),
                 slot: t.slot as u16,
                 label: t.label,
                 dkg_status: t.dkg_status,

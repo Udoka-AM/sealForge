@@ -17,7 +17,8 @@ use std::collections::BTreeMap;
 mod escrow;
 pub use escrow::{
     check_escrow, check_escrow_result, check_escrow_view, check_result_json, check_view_json,
-    EscrowCheck, EscrowVerdict, TrusteeCheck, TrusteeClaim, TrusteeVerdict,
+    require_identities, EscrowCheck, EscrowVerdict, IdentityVerdict, TrusteeCheck, TrusteeClaim,
+    TrusteeVerdict,
 };
 
 use sealforge_api::types::{AuctionMode as ApiMode, BidMode, PublishedResult};

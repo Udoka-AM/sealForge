@@ -141,6 +141,33 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     for (joined, invite) in [a, b, c].into_iter().zip(invites) {
         assert_eq!(joined.unwrap().slot, invite.slot);
     }
+    // Long-term keys (stream 4): trustees 1 and 2 vouch for their auction keys;
+    // trustee 3 has none. One long-term key can't take two seats.
+    for (i, place) in [(0, "https://example.org/alice"), (1, "@bob")] {
+        trustee::long_term_identity(&trustees[i], Some(place)).unwrap();
+        trustee::certify(&trustees[i], &url, &code).await.unwrap();
+    }
+    assert!(
+        trustee::certify(&trustees[2], &url, &code).await.is_err(),
+        "no long-term key yet"
+    );
+    std::fs::copy(
+        trustees[0].root().join("trustee-identity.json"),
+        trustees[2].root().join("trustee-identity.json"),
+    )
+    .unwrap();
+    let err = trustee::certify(&trustees[2], &url, &code)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("identity_in_use"), "{err}");
+    std::fs::remove_file(trustees[2].root().join("trustee-identity.json")).unwrap();
+    let alice_key = trustees[0]
+        .long_term_identity()
+        .unwrap()
+        .unwrap()
+        .public_key_hex()
+        .unwrap();
+
     // An invite works once.
     let intruder = Keystore::new(root.join("intruder"));
     let reuse = trustee::join(&intruder, &url, &created.trustee_invites[0].invite_code).await;
@@ -716,9 +743,30 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .enumerate()
         .map(|(i, t)| (i as u16 + 1, trustee::my_key(t, &code).unwrap()))
         .collect();
-    let check = sealforge_auditor::check_escrow_view(&public, &keys);
+    let mut check = sealforge_auditor::check_escrow_view(&public, &keys);
     assert!(check.verified(), "{check:?}");
     assert_eq!((check.signed, check.total), (3, 3));
+    // The page shows who vouches for each trustee: certificates check out,
+    // trustee 3 has none, and a bidder who knows Alice's key can require it.
+    use sealforge_auditor::IdentityVerdict;
+    assert_eq!(
+        check
+            .trustees
+            .iter()
+            .map(|t| t.identity)
+            .collect::<Vec<_>>(),
+        [
+            IdentityVerdict::Certified,
+            IdentityVerdict::Certified,
+            IdentityVerdict::None
+        ]
+    );
+    assert_eq!(
+        check.trustees[0].identity_published_at.as_deref(),
+        Some("https://example.org/alice")
+    );
+    sealforge_auditor::require_identities(&mut check, std::slice::from_ref(&alice_key));
+    assert!(check.verified(), "{check:?}");
     for t in &trustees {
         assert_eq!(
             trustee::check_public(t, &url, &code).await.unwrap(),
@@ -795,6 +843,21 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         signing::verify_spend_auth(&pair[0].ak(), &request, &sig).unwrap();
     }
 
+    // A coordinator that edits where a trustee publishes its key (to point
+    // bidders at a page it controls) breaks the certificate: every trustee's
+    // public-page check fails, so none of them will co-sign.
+    sqlx::query("UPDATE trustees SET identity_published_at = 'https://attacker.example' WHERE identity_published_at = '@bob'")
+        .execute(&db)
+        .await
+        .unwrap();
+    for t in &trustees {
+        assert!(trustee::check_public(t, &url, &code).await.is_err());
+    }
+    sqlx::query("UPDATE trustees SET identity_published_at = '@bob' WHERE identity_published_at = 'https://attacker.example'")
+        .execute(&db)
+        .await
+        .unwrap();
+
     // A coordinator that shows bidders another address fails every check, and
     // no trustee will co-sign money out of the escrow while it does.
     sqlx::query("UPDATE auctions SET escrow_ua = $2 WHERE code = $1")
@@ -822,8 +885,9 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .unwrap();
 
     // A coordinator that swaps in a trustee key it controls can sign for that
-    // slot, so the attestations alone still verify. The replaced trustee
-    // catches it, and so does any bidder who pinned that trustee's real key.
+    // slot. Slot 2's long-term certificate names the real key, so the swap
+    // fails the check; the replaced trustee catches it too, and so does any
+    // bidder who pinned that trustee's real key.
     let fake = ed25519_dalek::SigningKey::from_bytes(&[9; 32]);
     let fake_sig = sealforge_api::auth::sign_escrow_attestation(&fake, &code, 2, &escrow);
     let (real_pubkey, real_sig): (Vec<u8>, Vec<u8>) = sqlx::query_as(
@@ -854,8 +918,32 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .get(&format!("/v1/auctions/{code}"))
         .await
         .unwrap();
-    assert!(sealforge_auditor::check_escrow_view(&public, &[]).verified());
+    assert!(!sealforge_auditor::check_escrow_view(&public, &[]).verified());
     assert!(!sealforge_auditor::check_escrow_view(&public, &keys).verified());
+    // Stripping the certificate too makes the attestations alone verify again
+    // (the residual): only a bidder who knows Bob's long-term key catches it.
+    let bob_key = trustees[1]
+        .long_term_identity()
+        .unwrap()
+        .unwrap()
+        .public_key_hex()
+        .unwrap();
+    sqlx::query("UPDATE trustees SET identity_pubkey = NULL, identity_published_at = NULL, identity_cert = NULL WHERE slot = 2 AND auction_id = (SELECT id FROM auctions WHERE code = $1)")
+        .bind(&code)
+        .execute(&db)
+        .await
+        .unwrap();
+    let stripped: AuctionView = Client::new(&url, None)
+        .get(&format!("/v1/auctions/{code}"))
+        .await
+        .unwrap();
+    let mut unpinned = sealforge_auditor::check_escrow_view(&stripped, &[]);
+    assert!(unpinned.verified());
+    sealforge_auditor::require_identities(&mut unpinned, std::slice::from_ref(&bob_key));
+    assert!(
+        !unpinned.verified(),
+        "a bidder who knows Bob's key catches the swap"
+    );
     let err = trustee::check_public(&trustees[1], &url, &code)
         .await
         .unwrap_err();

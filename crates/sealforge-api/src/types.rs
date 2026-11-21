@@ -94,6 +94,23 @@ pub struct TrusteeView {
     /// does (`sealforge_auditor::check_escrow`).
     #[serde(default)]
     pub escrow_attestation: Option<String>,
+    /// The trustee's long-term key vouching for `pubkey` in this auction.
+    /// `None` if the trustee hasn't certified (or the coordinator withholds it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<TrusteeIdentityCert>,
+}
+
+/// A trustee's long-term Ed25519 key vouching for its key in one auction
+/// ([`crate::auth::trustee_cert_message`]). The trustee publishes `pubkey` at
+/// `published_at` (a URL or handle it controls); bidders compare the two.
+/// Also the body of `POST /v1/auctions/{code}/trustee-identity`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrusteeIdentityCert {
+    /// Long-term public key (hex).
+    pub pubkey: String,
+    pub published_at: String,
+    /// Signature over the certificate message (hex).
+    pub signature: String,
 }
 
 /// Fields only the owning organiser sees.
@@ -340,6 +357,9 @@ pub struct TrusteeAttestation {
     pub pubkey: Option<String>,
     /// Ed25519 signature (hex), `None` if the trustee never attested.
     pub signature: Option<String>,
+    /// The trustee's long-term key vouching for `pubkey`, if it certified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<TrusteeIdentityCert>,
 }
 
 // ---------------------------------------------------------------------------
