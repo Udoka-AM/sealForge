@@ -110,3 +110,16 @@ While auditing this run, the chain audit first flagged all 3 bid outcomes. The p
 | Audit | `sealforge-audit` rescanned from Zaino | Every published figure matches; the UIVK receives at the escrow address and all 3 trustee attestations verify (exit 0) |
 
 Escrow arithmetic: 0.48 ZEC in, 0.08 ZEC refunded, 0.39935 ZEC paid out in two sweeps, 0.00065 ZEC in fees across four transactions. No transaction spent more than 3 notes.
+
+## Trustees check every escrow transaction (D1, first part)
+
+**Date:** 2026-11-21. Auction `XH0H1JETHM` on the local regtest chain, the same shape as above (8 bids, 4 lots, a 3-note limit), with both signing trustees running `sealforge trustee sign` in its default mode: before committing and before signing each batch, the CLI rebuilt the escrow's viewing key from its own key share, decoded the PCZT and ran the shared frost-zec checks plus sealForge's batch rules (`sealforge-verify`).
+
+| Batch | What the trustees checked | Result |
+|---|---|---|
+| Consolidation | 3 escrow spends; no payment leaves the escrow | Both checked and signed; confirmed at **1126** |
+| Refund | 2 spends, 4 standard-size notes, 0.08 ZEC, within what the result owes | Both checked and signed; confirmed at **1132** |
+| Payout 1 | 3 spends, one output to the payout address, 0.29985 ZEC | Both checked and signed; confirmed at **1140** |
+| Payout 2 | 2 spends, one output to the payout address, 0.0995 ZEC | Both checked and signed; confirmed at **1148**, auction `settled` |
+
+No batch was refused and none was signed without its checks (no `REFUSED` or `WARNING` lines in the signing log). The refusals themselves are tested on real PCZTs in `crates/sealforge-verify` (17 shared tamper cases, plus sealForge's rules).

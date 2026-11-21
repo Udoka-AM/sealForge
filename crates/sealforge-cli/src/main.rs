@@ -201,6 +201,7 @@ async fn main() -> anyhow::Result<()> {
             }
             let policy = trustee::SignPolicy {
                 allow_unattested_escrow,
+                ..Default::default()
             };
             let progress = trustee::sign_step_with(&store, url, &code, policy).await?;
             if progress.is_empty() {

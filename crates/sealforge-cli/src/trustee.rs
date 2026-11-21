@@ -669,13 +669,139 @@ pub fn describe_batch(b: &BatchView) -> String {
 
 /// Move this trustee's part of every pending batch forward by one round.
 /// What `trustee sign` accepts before co-signing. The default refuses anything
-/// short of a public page showing the address this trustee attested.
+/// short of a public page showing the address this trustee attested, and any
+/// batch whose transaction it hasn't decoded and checked.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SignPolicy {
     /// Sign for an auction this trustee never attested (one from before escrow
     /// attestations existed). Only the trustee can choose this, on its own
-    /// command line; nothing the coordinator sends turns it on.
+    /// command line; nothing the coordinator sends turns it on. Such an auction
+    /// has no sealed viewing key, so its batches are signed without the
+    /// transaction checks, and the CLI says so.
     pub allow_unattested_escrow: bool,
+    /// Tests only: sign batches that carry no transaction, as the protocol
+    /// tests' fake batches do. The CLI never sets it.
+    #[doc(hidden)]
+    pub skip_transaction_checks_for_tests: bool,
+}
+
+/// The escrow's full viewing key and network, rebuilt by this trustee from its
+/// own key share and the sealed `nk ‖ rivk`, and tied to the address it
+/// attested. What batch checks decrypt outputs with.
+pub struct EscrowView {
+    pub fvk: orchard::keys::FullViewingKey,
+    pub network: zcash_protocol::consensus::NetworkType,
+}
+
+/// Rebuild [`EscrowView`]. Refuses unless the key gives exactly the address
+/// this trustee attested: a coordinator can't swap in another viewing key now.
+pub async fn escrow_view(
+    store: &Keystore,
+    client: &Client,
+    code: &str,
+) -> anyhow::Result<EscrowView> {
+    use sealforge_escrow::address::{self, EncodingParams};
+    use zcash_protocol::consensus::NetworkType;
+
+    let attested = store
+        .read(code, ESCROW_ATTESTED)?
+        .ok_or_else(|| anyhow!("no record of the escrow address you attested for {code}"))?;
+    let attested = String::from_utf8(attested)?;
+    let state: DkgState = client.get(&format!("/v1/auctions/{code}/dkg")).await?;
+    let sealed = hex::decode(
+        state
+            .escrow_view_secret_for_me
+            .ok_or_else(|| anyhow!("the coordinator sent no escrow view secret for {code}"))?,
+    )?;
+    let identity = store.trustee_identity(code)?;
+    let view_secret: [u8; 64] = identity
+        .enc_secret()?
+        .unseal(&sealed)
+        .map_err(|_| anyhow!("could not open the escrow view secret"))?
+        .try_into()
+        .map_err(|_| anyhow!("the escrow view secret has the wrong length"))?;
+    let (_, pubkeys) = key_share(store, code)?;
+    let fvk = address::escrow_fvk_from_parts(&dkg::group_key_bytes(&pubkeys)?, &view_secret)?;
+    let network = [NetworkType::Main, NetworkType::Test, NetworkType::Regtest]
+        .into_iter()
+        .find(|n| address::escrow_address(&fvk, &EncodingParams(*n)).is_ok_and(|ua| ua == attested))
+        .ok_or_else(|| {
+            anyhow!(
+                "ESCROW KEY MISMATCH for {code}: the viewing key the coordinator sent doesn't give \
+                 the address you attested. Don't sign; tell the organiser and the other trustees."
+            )
+        })?;
+    Ok(EscrowView { fvk, network })
+}
+
+/// Decode and check a batch's transaction before taking part in signing it
+/// (security review D1): the shared co-signer checks (frost-zec spec § 6)
+/// and sealForge's rule that every payment is owed. Returns what it checked.
+pub async fn check_batch(
+    coordinator: &str,
+    code: &str,
+    view: &EscrowView,
+    batch: &BatchView,
+) -> anyhow::Result<sealforge_verify::VerifiedBatch> {
+    use sealforge_verify::{BatchKind, BatchRules};
+
+    let pczt = hex::decode(batch.pczt.as_deref().ok_or_else(|| {
+        anyhow!(
+            "REFUSED batch {}: the coordinator sent no transaction to check",
+            batch.id
+        )
+    })?)?;
+    let kind = BatchKind::parse(&batch.kind).ok_or_else(|| {
+        anyhow!(
+            "REFUSED batch {}: unknown batch kind {}",
+            batch.id,
+            batch.kind
+        )
+    })?;
+    let refund_total_due_zat = if kind == BatchKind::Refund {
+        let result: sealforge_api::types::PublishedResult = Client::new(coordinator, None)
+            .get(&format!("/v1/auctions/{code}/result"))
+            .await
+            .with_context(|| {
+                format!(
+                    "REFUSED batch {}: no published result to check refunds against",
+                    batch.id
+                )
+            })?;
+        Some(result.bids.iter().map(|b| b.refund_due_zat).sum())
+    } else {
+        None
+    };
+    let rules = BatchRules {
+        kind,
+        refund_total_due_zat,
+        payout_ua: batch.payout_ua.clone(),
+    };
+    let spends = batch
+        .spends
+        .iter()
+        .map(|s| Ok((s.action_index as usize, hex32(&s.alpha)?)))
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    sealforge_verify::verify_batch(
+        &pczt,
+        &view.fvk,
+        view.network,
+        now,
+        &hex32(&batch.sighash)?,
+        &spends,
+        &rules,
+    )
+    .map_err(|refusal| {
+        anyhow!(
+            "REFUSED batch {} ({}): {}. Don't sign; tell the organiser and the other trustees.",
+            batch.id,
+            refusal.class,
+            refusal.message
+        )
+    })
 }
 
 /// Before co-signing money out of an escrow: the public page bidders paid from
@@ -725,11 +851,42 @@ pub async fn sign_step_with(
     let batches: Vec<BatchView> = client.get(&format!("/v1/auctions/{code}/batches")).await?;
     let me = identity.slot;
     let mut out = Vec::new();
+    // The escrow's viewing key, rebuilt once and only when there is something
+    // to check. Auctions from before attestations have none.
+    let mut view: Option<EscrowView> = None;
+    let checks = !policy.skip_transaction_checks_for_tests;
 
     for batch in batches {
         if batch.status != "awaiting_signatures" {
             out.push(SignProgress::Done { batch: batch.id });
             continue;
+        }
+        // Check the transaction before committing nonces and before signing.
+        let will_act = !batch.i_committed
+            || (batch.signer_slots.contains(&me)
+                && !batch.i_shared
+                && batch.signer_commitments.len() >= 2);
+        if checks && will_act && store.read(code, &signed_file(&batch.id))?.is_none() {
+            if view.is_none() {
+                view = match escrow_view(store, &client, code).await {
+                    Ok(v) => Some(v),
+                    Err(e)
+                        if policy.allow_unattested_escrow
+                            && store.read(code, ESCROW_ATTESTED)?.is_none() =>
+                    {
+                        eprintln!(
+                            "WARNING: {code} has no attested escrow, so batch {} is signed without \
+                             checking its transaction ({e}).",
+                            batch.id
+                        );
+                        None
+                    }
+                    Err(e) => return Err(e),
+                };
+            }
+            if let Some(view) = &view {
+                check_batch(coordinator, code, view, &batch).await?;
+            }
         }
         if !batch.i_committed {
             // Round 1: fresh nonces per spend, saved (owner-only) before anything is sent.

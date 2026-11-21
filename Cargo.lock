@@ -3279,6 +3279,7 @@ dependencies = [
  "crypto_box",
  "ed25519-dalek",
  "hex",
+ "orchard",
  "pasta_curves 0.6.1",
  "rand 0.8.8",
  "reqwest",
@@ -3287,6 +3288,7 @@ dependencies = [
  "sealforge-coordinator",
  "sealforge-core",
  "sealforge-escrow",
+ "sealforge-verify",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -3395,14 +3397,40 @@ dependencies = [
 name = "sealforge-signer-wasm"
 version = "0.1.0"
 dependencies = [
+ "crypto_box",
  "getrandom 0.2.17",
+ "getrandom 0.4.3",
  "hex",
+ "orchard",
  "pasta_curves 0.6.1",
  "rand 0.8.8",
+ "sealforge-api",
  "sealforge-escrow",
+ "sealforge-verify",
  "serde",
  "serde_json",
  "wasm-bindgen",
+ "zcash_protocol",
+]
+
+[[package]]
+name = "sealforge-verify"
+version = "0.1.0"
+dependencies = [
+ "ff 0.14.0",
+ "hex",
+ "orchard",
+ "pasta_curves 0.6.1",
+ "pczt",
+ "rand 0.8.8",
+ "sealforge-core",
+ "sealforge-escrow",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "zcash_address",
+ "zcash_primitives",
+ "zcash_protocol",
 ]
 
 [[package]]

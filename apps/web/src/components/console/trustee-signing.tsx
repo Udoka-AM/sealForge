@@ -12,8 +12,16 @@ import {
   loadTrusteeIdentity,
   type StoredSigner,
 } from "@/lib/sfsig";
-import { commitBatch, keyInfo, signBatch } from "@/lib/signer";
-import { type AuctionView, BATCH_KIND_LABEL, type Network, type TrusteeBatch } from "@/lib/types";
+import { commitBatch, keyInfo, signBatch, verifyBatch } from "@/lib/signer";
+import {
+  type AuctionView,
+  BATCH_KIND_LABEL,
+  type Network,
+  type PublishedResult,
+  type TrusteeBatch,
+  type TrusteeDkgState,
+  type VerifiedBatch,
+} from "@/lib/types";
 import { KeyLoader } from "./key-loader";
 import { usePolling, useSigner } from "./use-signer";
 
@@ -56,7 +64,7 @@ function base64ToHex(b64: string): string {
  * This trustee's own valid signature there proves it attested exactly that
  * address. Anything else throws, and nothing is signed.
  */
-async function requirePublicEscrow(code: string, signer: StoredSigner): Promise<void> {
+async function requirePublicEscrow(code: string, signer: StoredSigner): Promise<AuctionView> {
   let view: AuctionView;
   try {
     view = await api<AuctionView>("GET", `/v1/auctions/${code}`, null);
@@ -74,6 +82,45 @@ async function requirePublicEscrow(code: string, signer: StoredSigner): Promise<
     throw new Error(
       "Refusing to co-sign: the public auction page doesn't show the escrow address you attested, signed by every trustee. Tell the organiser and the other trustees.",
     );
+  return view;
+}
+
+/**
+ * Decode and check a batch's transaction in this browser before taking part in
+ * signing it (security review D1). The escrow's viewing key is rebuilt from
+ * this trustee's own key share and must give the address on the public page,
+ * which `requirePublicEscrow` checked carries this trustee's own attestation.
+ */
+async function checkTransaction(
+  code: string,
+  signer: StoredSigner,
+  keyHex: string,
+  b: TrusteeBatch,
+  view: AuctionView,
+): Promise<VerifiedBatch> {
+  if (!signer.encSecret)
+    throw new Error(
+      "Load identity.json again: this browser needs it to check each transaction before signing.",
+    );
+  const dkg = await api<TrusteeDkgState>("GET", `/v1/auctions/${code}/dkg`, signer);
+  if (!dkg.escrow_view_secret_for_me || !view.escrow_ua)
+    throw new Error(
+      "Refusing to co-sign: the coordinator sent no escrow viewing key to check with.",
+    );
+  let refundTotalDueZat: number | null = null;
+  if (b.kind === "refund") {
+    const result = await api<PublishedResult>("GET", `/v1/auctions/${code}/result`, null);
+    refundTotalDueZat = result.bids.reduce((sum, bid) => sum + bid.refund_due_zat, 0);
+  }
+  return verifyBatch({
+    keyPackageHex: keyHex,
+    encSecretHex: signer.encSecret,
+    sealedViewSecretHex: dkg.escrow_view_secret_for_me,
+    escrowUa: view.escrow_ua,
+    network: view.network,
+    batch: b,
+    refundTotalDueZat,
+  });
 }
 
 /** S16: review escrow batches and co-sign them with this trustee's key share. */
@@ -93,6 +140,8 @@ export function TrusteeSigning({ code }: { code: string }) {
   // same nonces over different inputs would reveal this trustee's key share.
   const signed = useRef(new Map<string, SignedRecord>());
   const [approved, setApproved] = useState<Set<string>>(new Set());
+  // What this browser decoded in each batch's transaction, or why it refused.
+  const [checked, setChecked] = useState<Map<string, VerifiedBatch | string>>(new Map());
   const [busy, setBusy] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -135,11 +184,13 @@ export function TrusteeSigning({ code }: { code: string }) {
         setBusy((s) => new Set(s).add(b.id));
         (async () => {
           try {
-            await requirePublicEscrow(code, signer);
+            const view = await requirePublicEscrow(code, signer);
             let shares: string[];
             if (record) {
               shares = record.shares;
             } else if (mine) {
+              // Check the transaction again right before signing it.
+              await checkTransaction(code, signer, keyHex, b, view);
               shares = await signBatch(
                 keyHex,
                 b.sighash,
@@ -174,7 +225,8 @@ export function TrusteeSigning({ code }: { code: string }) {
     setApproved((s) => new Set(s).add(b.id));
     setBusy((s) => new Set(s).add(b.id));
     try {
-      await requirePublicEscrow(code, signer);
+      const view = await requirePublicEscrow(code, signer);
+      await checkTransaction(code, signer, keyHex, b, view);
       const round1 = await commitBatch(keyHex, b.spends.length);
       // A fresh round: shares from an earlier, reset round are void.
       signed.current.delete(b.id);
@@ -194,6 +246,26 @@ export function TrusteeSigning({ code }: { code: string }) {
       });
     }
   }
+
+  // Check each batch waiting for this trustee as soon as it appears, so the
+  // decoded payments are on screen before "Approve and sign".
+  useEffect(() => {
+    if (!signer || !keyHex || !batches) return;
+    for (const b of batches) {
+      if (b.status !== "awaiting_signatures" || b.i_committed || checked.has(b.id)) continue;
+      setChecked((m) => new Map(m).set(b.id, "Checking the transaction\u2026"));
+      (async () => {
+        let outcome: VerifiedBatch | string;
+        try {
+          const view = await requirePublicEscrow(code, signer);
+          outcome = await checkTransaction(code, signer, keyHex, b, view);
+        } catch (e) {
+          outcome = e instanceof Error ? e.message : String(e);
+        }
+        setChecked((m) => new Map(m).set(b.id, outcome));
+      })();
+    }
+  }, [batches, keyHex, signer, checked, code]);
 
   function phase(b: TrusteeBatch, me: number | undefined): Phase {
     if (b.status !== "awaiting_signatures") return b.i_shared ? "signed" : "done";
@@ -309,11 +381,17 @@ export function TrusteeSigning({ code }: { code: string }) {
               return (
                 <li key={b.id} className={`${card} space-y-4`}>
                   <BatchSummary b={b} network={network} />
+                  {p === "review" ? <CheckedTransaction outcome={checked.get(b.id)} /> : null}
                   <div aria-live="polite" className="text-sm">
                     <PhaseLine phase={p} />
                   </div>
                   {p === "review" ? (
-                    <Button disabled={!keyHex || approved.has(b.id)} onClick={() => approve(b)}>
+                    <Button
+                      disabled={
+                        !keyHex || approved.has(b.id) || typeof checked.get(b.id) !== "object"
+                      }
+                      onClick={() => approve(b)}
+                    >
                       Approve and sign
                     </Button>
                   ) : null}
@@ -343,6 +421,32 @@ export function TrusteeSigning({ code }: { code: string }) {
         The CLI does the same:{" "}
         <code className="num text-text">sealforge trustee sign {code} --wait</code>
       </p>
+    </div>
+  );
+}
+
+/** What this browser found in the transaction, before the trustee approves. */
+function CheckedTransaction({ outcome }: { outcome: VerifiedBatch | string | undefined }) {
+  if (outcome === undefined) return null;
+  if (typeof outcome === "string")
+    return (
+      <p
+        role={outcome.startsWith("Checking") ? undefined : "alert"}
+        className={`text-sm ${outcome.startsWith("Checking") ? "text-muted" : "text-danger"}`}
+      >
+        {outcome}
+      </p>
+    );
+  return (
+    <div className="space-y-1.5 rounded-[var(--radius-control)] bg-surface-2 p-3 text-[13px]">
+      <p className="inline-flex items-center gap-1.5 font-medium text-success">
+        <ShieldCheck size={15} aria-hidden="true" /> Transaction checked in this browser
+      </p>
+      <ul className="num space-y-0.5 break-all text-muted">
+        {outcome.lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
     </div>
   );
 }

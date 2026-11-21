@@ -2,8 +2,10 @@
 # Build the trustee signer (crates/sealforge-signer-wasm) for the browser.
 # Output: apps/web/public/signer/{sealforge_signer_wasm.js, sealforge_signer_wasm_bg.wasm, BUILD.json}
 #
-# Requires: the toolchain from rust-toolchain.toml and wasm-bindgen-cli at the
-# same version as the wasm-bindgen crate in Cargo.lock.
+# Requires: the toolchain from rust-toolchain.toml, wasm-bindgen-cli at the
+# same version as the wasm-bindgen crate in Cargo.lock, and an LLVM clang with the
+# wasm32 target for the C code the PCZT crates pull in (secp256k1)
+# (macOS: brew install llvm).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -14,6 +16,9 @@ if [[ "$have" != "$want" ]]; then
   echo "Install it with: cargo install wasm-bindgen-cli --version $want --locked" >&2
   exit 1
 fi
+
+LLVM=${LLVM_BIN:-$(brew --prefix llvm 2>/dev/null)/bin}
+export CC_wasm32_unknown_unknown="$LLVM/clang" AR_wasm32_unknown_unknown="$LLVM/llvm-ar"
 
 out=apps/web/public/signer
 # Strip local paths from the binary so builds don't depend on where the repo lives.

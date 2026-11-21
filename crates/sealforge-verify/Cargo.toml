@@ -1,0 +1,28 @@
+[package]
+name = "sealforge-verify"
+description = "Trustee-side checks of an escrow transaction (PCZT) before signing: the shared frost-zec signer checks plus sealForge's refund plan"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+sealforge-core.workspace = true
+ff = "0.14"
+orchard = { workspace = true }
+pasta_curves.workspace = true
+pczt = { workspace = true, features = ["orchard", "signer", "tx-extractor"] }
+zcash_address = { version = "=0.14.0-pre.2" }
+zcash_primitives = { version = "=0.31.0-pre.2", default-features = false }
+zcash_protocol.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hex = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+sealforge-escrow = { workspace = true, features = ["address"] }
+rand.workspace = true
+sha2.workspace = true
+zcash_protocol.workspace = true

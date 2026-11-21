@@ -11,6 +11,7 @@
       "!**/migrations/meta",
       "!**/public/artifacts",
       "!**/tests/fixtures",
+      "!**/tests/vectors",
       "!**/public/auditor",
       "!**/public/signer",
       "!**/public/scanner",

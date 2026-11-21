@@ -24,6 +24,23 @@ use sqlx::PgPool;
 const TESTNET_UA: &str = "utest10wa7f6qs6jevt8pl9vezqtrnm9qdkcccdyjtsam4sqgyq4mwvnvxaen2nnsd0yu47qh6a6s0payftzz4h86c6caev4qguam3huf3z7yu";
 const DATA_KEY: &str = "e2e-data-key";
 
+/// The protocol tests below drive signing with fake batches (a made-up sighash,
+/// no transaction). Real trustees refuse those; these tests turn the
+/// transaction checks off to exercise the nonce and share handling alone. The
+/// checks themselves are tested on real PCZTs in sealforge-verify.
+async fn sign_fake(store: &Keystore, url: &str, code: &str) -> anyhow::Result<Vec<SignProgress>> {
+    trustee::sign_step_with(
+        store,
+        url,
+        code,
+        trustee::SignPolicy {
+            skip_transaction_checks_for_tests: true,
+            ..Default::default()
+        },
+    )
+    .await
+}
+
 async fn start_coordinator(db: PgPool) -> (String, AppState) {
     let state = AppState::new(
         db,
@@ -283,6 +300,7 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     );
     let allowed = trustee::SignPolicy {
         allow_unattested_escrow: true,
+        skip_transaction_checks_for_tests: true,
     };
     assert!(trustee::sign_step_with(&trustees[0], &url, &code, allowed)
         .await
@@ -313,30 +331,36 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     .unwrap();
     let batch = batch_id.to_string();
 
+    // A real trustee refuses to take part: there is no transaction to check (D1).
+    let err = trustee::sign_step(&trustees[1], &url, &code)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("no transaction to check"), "{err}");
+
     // Trustees 2 and 3 commit first, so they are the signers; trustee 1 is not needed.
     for i in [1, 2] {
         assert_eq!(
-            trustee::sign_step(&trustees[i], &url, &code).await.unwrap(),
+            sign_fake(&trustees[i], &url, &code).await.unwrap(),
             vec![SignProgress::Committed {
                 batch: batch.clone()
             }]
         );
     }
-    let first = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    let first = sign_fake(&trustees[0], &url, &code).await.unwrap();
     assert!(
         matches!(&first[..], [SignProgress::Committed { .. }]),
         "{first:?}"
     );
     assert_eq!(
-        trustee::sign_step(&trustees[0], &url, &code).await.unwrap(),
+        sign_fake(&trustees[0], &url, &code).await.unwrap(),
         vec![SignProgress::NotSelected {
             batch: batch.clone()
         }]
     );
     // Both signers post their shares at the same moment; the batch must still become `signed`.
     let (s1, s2) = tokio::join!(
-        trustee::sign_step(&trustees[1], &url, &code),
-        trustee::sign_step(&trustees[2], &url, &code),
+        sign_fake(&trustees[1], &url, &code),
+        sign_fake(&trustees[2], &url, &code),
     );
     for (i, progress) in [(1, s1), (2, s2)] {
         assert_eq!(
@@ -430,7 +454,7 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     .await
     .unwrap();
     for i in [0, 1, 0] {
-        trustee::sign_step(&trustees[i], &url, &code).await.unwrap();
+        sign_fake(&trustees[i], &url, &code).await.unwrap();
     }
     // Trustee 2 committed and was chosen, then went quiet for an hour.
     sqlx::query(
@@ -448,7 +472,7 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     .unwrap();
     assert_eq!(reset, 1);
     for i in [2, 1, 2, 1] {
-        trustee::sign_step(&trustees[i], &url, &code).await.unwrap();
+        sign_fake(&trustees[i], &url, &code).await.unwrap();
     }
     let (status, slots): (String, Vec<i16>) =
         sqlx::query_as("SELECT status::text, signer_slots FROM tx_batches WHERE id = $1")
@@ -473,7 +497,7 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
     .unwrap();
     let replayed_id = replayed.to_string();
     for i in [0, 1] {
-        let progress = trustee::sign_step(&trustees[i], &url, &code).await.unwrap();
+        let progress = sign_fake(&trustees[i], &url, &code).await.unwrap();
         assert!(
             progress.contains(&SignProgress::Committed {
                 batch: replayed_id.clone()
@@ -481,7 +505,7 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
             "{progress:?}"
         );
     }
-    let progress = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    let progress = sign_fake(&trustees[0], &url, &code).await.unwrap();
     assert!(
         progress.contains(&SignProgress::Signed {
             batch: replayed_id.clone()
@@ -511,7 +535,7 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .execute(&db)
         .await
         .unwrap();
-    let progress = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    let progress = sign_fake(&trustees[0], &url, &code).await.unwrap();
     assert!(
         progress.contains(&SignProgress::InputsChanged {
             batch: replayed_id.clone()
@@ -526,7 +550,7 @@ async fn three_trustees_run_the_dkg_through_the_coordinator(db: PgPool) {
         .execute(&db)
         .await
         .unwrap();
-    let progress = trustee::sign_step(&trustees[0], &url, &code).await.unwrap();
+    let progress = sign_fake(&trustees[0], &url, &code).await.unwrap();
     assert!(
         progress.contains(&SignProgress::Signed {
             batch: replayed_id.clone()
