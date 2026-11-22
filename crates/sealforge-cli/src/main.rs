@@ -48,7 +48,7 @@ enum Command {
     /// Trustee operations.
     #[command(subcommand)]
     Trustee(TrusteeCommand),
-    /// Escrow tooling for the FROST spike (task 1.5).
+    /// Escrow tooling: key-generation drills, backups and the coordinator-less sweep.
     #[command(subcommand)]
     Escrow(EscrowCommand),
 }

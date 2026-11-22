@@ -1,4 +1,4 @@
-//! Task 2.5: recording escrow payments found by the scanner.
+//! Recording escrow payments found by the scanner.
 
 use sealforge_api::types::AuctionStatus;
 use sealforge_chain::ReceivedPayment;

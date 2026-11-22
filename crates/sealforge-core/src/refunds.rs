@@ -1,4 +1,4 @@
-//! Refund planner (Milestone 3, task 3.8). Denomination-based refund privacy
+//! Refund planner. Denomination-based refund privacy
 //! (see `denominations` for how this relates to ZIP 318).
 //!
 //! - Each refund is split into canonical notes ({1, 2, 5} × 10^k zat) only.
@@ -136,7 +136,7 @@ pub fn batch_due_notes<Id: Clone + Ord>(
 }
 
 /// Whether an auction's due notes should be batched now, or held so more
-/// bidders' notes can share the transaction (task 3.9: batches mix at least
+/// bidders' notes can share the transaction (batches mix at least
 /// `min_owners_per_batch` bidders when that many are available).
 ///
 /// Batch when enough distinct owners are due, when the oldest due note has

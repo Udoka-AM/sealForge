@@ -1,0 +1,55 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      # The librustzcash crates move together; update them as one PR.
+      zcash:
+        patterns:
+          - "zcash_*"
+          - "orchard"
+          - "sapling-crypto"
+          - "pczt"
+          - "zip32"
+          - "zip321"
+      frost:
+        patterns:
+          - "frost-*"
+          - "reddsa"
+      minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, rust]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, javascript]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [dependencies, ci]
+
+  - package-ecosystem: docker
+    # infra/wasm-build stays pinned by digest on purpose: changing it changes
+    # the committed WebAssembly modules, so it is updated by hand.
+    directory: /infra
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, docker]

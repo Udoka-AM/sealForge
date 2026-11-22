@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { acceptingBids, CoordinatorUnavailable, getAuction, getChainTip } from "@/lib/coordinator";
 
 /**
- * Public card data for the embeddable widget (public/embed.js, task 4.4).
+ * Public card data for the embeddable widget (public/embed.js).
  * Only fields already shown on the public auction page. CORS is open so any
  * organiser's site can render the card; nothing here is per-user.
  */

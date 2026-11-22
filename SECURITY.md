@@ -16,12 +16,26 @@ Plain English is fine; short sentences help if you use a translation tool.
 
 ## What to expect
 
-- An acknowledgement within 3 days.
-- A first assessment (confirmed or not, and severity) within 7 days.
-- Fixes are developed in public pull requests once the issue is safe to disclose, or right away when it can't be exploited on a live network. Each finding gets an entry in [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md).
-- Credit in SECURITY-REVIEW.md under the name or handle you choose, or none if you prefer.
+| Step | Target |
+|---|---|
+| Acknowledgement of your report | within 3 days |
+| First assessment: confirmed or not, and a severity | within 7 days |
+| Fix for a Critical or High finding | within 30 days of confirmation |
+| Fix for a Medium or Low finding | within 90 days, or the next release |
 
-There is no paid bug bounty yet. The grant proposal plans "Audit this auction" bounties for published figures that don't match the chain.
+Severity follows the impact on funds and privacy: **Critical** lets someone move or freeze escrowed funds, or forge a result the auditor accepts; **High** breaks a stated privacy property or a trustee check; **Medium** and **Low** cover the rest.
+
+We keep you updated while we work on it. Fixes for anything exploitable on a live network are developed privately and published once deployed; the rest are fixed in public pull requests. Every finding gets an entry in [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md) and, when it affects a release, a GitHub security advisory.
+
+## Coordinated disclosure
+
+We ask you to keep a finding private until it is fixed and deployed, or for 90 days from your report, whichever comes first. If a fix needs longer we'll explain why and agree a date with you. Credit goes in SECURITY-REVIEW.md and the advisory under the name or handle you choose, or none if you prefer.
+
+## Safe harbour
+
+We won't pursue or support legal action against research done in good faith under this policy: on testnet or your own regtest chain, without touching other people's funds, data or auctions, without degrading the public service, and reported to us privately. If you're unsure whether something is in bounds, ask through the private report first.
+
+There is no paid bug bounty yet.
 
 ## Scope
 

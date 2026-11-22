@@ -1,4 +1,4 @@
-//! The bidder's in-browser wallet (task 4.7, PRD F8 / App Flow S12).
+//! The bidder's in-browser wallet.
 //!
 //! Everything here is librustzcash: BIP-39 and ZIP 32 keys (`zcash_keys`),
 //! trial decryption (`orchard`, `zcash_note_encryption`), note commitment

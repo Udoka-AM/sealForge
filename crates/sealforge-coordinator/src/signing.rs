@@ -1,4 +1,4 @@
-//! Aggregating trustees' FROST shares for an escrow batch (task 3.9).
+//! Aggregating trustees' FROST shares for an escrow batch.
 
 use std::collections::BTreeMap;
 

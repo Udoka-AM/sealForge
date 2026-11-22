@@ -1,4 +1,4 @@
-//! `SF-Sig` request authentication (task 2.2). The signing scheme lives in
+//! `SF-Sig` request authentication. The signing scheme lives in
 //! `sealforge_api::auth`; this module adds the server clock, nonce replay
 //! protection and role lookups.
 

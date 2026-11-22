@@ -1,5 +1,7 @@
 # sealForge: Product Description
 
+> **Design history.** Written in October 2026 to plan the first build, and kept as it was. Current behaviour is specified in the [documentation site](https://sealforge.mintlify.app) and the code; where this document differs, they are right.
+
 > Extracted from the Zecathon build plan (prepared 2026-10-05). The plan called this product **SEALED + ShieldRamp**. It ships as **sealForge**, and **ShieldRamp** stays the name of its cross-chain bidding widget.
 
 *Prepared 2026-10-05. Build window: **3 weeks (Mon Oct 6 to Sun Oct 26, 2026)**, plus 2 buffer days before the **Oct 28, 23:59 UTC** deadline. Zcon7 runs Oct 27–29.*

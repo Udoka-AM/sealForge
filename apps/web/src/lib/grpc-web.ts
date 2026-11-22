@@ -2,7 +2,7 @@
 
 /**
  * Minimal gRPC-web client for the lightwalletd calls the browser needs: the
- * audit (task 3.5) uses GetBlockRange and GetTransaction; the wallet (task 4.7)
+ * audit uses GetBlockRange and GetTransaction; the wallet
  * also uses GetLatestBlock, GetTreeState and SendTransaction. Messages are
  * tiny, so they're encoded and decoded by hand; CompactBlock and TreeState
  * bytes go straight to WebAssembly, which decodes them.

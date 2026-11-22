@@ -1,4 +1,4 @@
-//! `SF-Sig` request signing (docs/05-BACKEND-SCHEMA.md §5.5, task 2.2).
+//! `SF-Sig` request signing (docs/05-BACKEND-SCHEMA.md §5.5).
 //!
 //! Organisers and trustees sign every API request with an Ed25519 key that
 //! never leaves their machine. The server stores only public keys.

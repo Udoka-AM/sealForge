@@ -1,4 +1,4 @@
-//! Public results (task 3.3, PRD AC6/AC7).
+//! Public results.
 
 use axum::{
     extract::{Path, State},

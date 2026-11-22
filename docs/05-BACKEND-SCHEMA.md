@@ -235,7 +235,7 @@ PK `(batch_id, trustee_id)`.
 
 | Step | Flow |
 |---|---|
-| **Sign up (organiser)** | `sealforge init` generates an Ed25519 keypair locally → `POST /v1/organisers {display_name, pubkey, invite_code}` signed with the new key → row created. The hackathon instance is invite-only |
+| **Sign up (organiser)** | `sealforge init` generates an Ed25519 keypair locally → `POST /v1/organisers {display_name, pubkey, invite_code}` signed with the new key → row created. The hosted instance accepts organisers by invite code (`SF_INVITE_CODES`) |
 | **Sign up (trustee)** | Organiser adds trustee slots with labels → one-time invite codes are shared out of band → `sealforge trustee join <code>` generates a keypair and registers `pubkey` on the slot |
 | **Sign in** | Stateless. Every request carries `Authorization: SF-Sig keyId=<b64 pubkey>, ts=<unix>, nonce=<b64 16 bytes>, sig=<b64 ed25519 sig>`. The signed message is `"SF-Sig-v1\n" + METHOD + "\n" + path_and_query + "\n" + ts + "\n" + nonce_b64 + "\n" + hex(sha256(body))` (implemented in `crates/sealforge-api/src/auth.rs`). The server checks the signature, a ±60 s window and nonce uniqueness. Unknown or other organisers' auctions return 404, so codes can't be probed |
 | **Reset / lost key** | Organiser: the operator re-binds a new pubkey after out-of-band verification (logged in `audit_log`). Trustee: losing one share doesn't block signing (2-of-3). The auction settles and a new DKG is run for future auctions |

@@ -1,4 +1,4 @@
-//! Browser bindings (task 4.7). The page runs these in a Web Worker: it
+//! Browser bindings. The page runs these in a Web Worker: it
 //! fetches compact blocks and tree states over gRPC-web, passes the raw
 //! protobuf bytes in, and broadcasts the transactions that come out.
 

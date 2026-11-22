@@ -1,4 +1,4 @@
-//! Bid Merkle tree and inclusion proofs (Milestone 3, task 3.2).
+//! Bid Merkle tree and inclusion proofs.
 //!
 //! - Leaf = BLAKE2b-256(personal = "sealforge_leaf1", txid ‖ output_index_le32 ‖ amount_le64 ‖ commitment).
 //! - Leaves are sorted ascending and must be unique, so the root does not
@@ -156,7 +156,7 @@ pub fn verify_proof(root: &Hash, leaf: &Hash, proof: &InclusionProof) -> bool {
     let mut index = proof.index;
     let mut acc = *leaf;
     for sibling in &proof.siblings {
-        acc = if index % 2 == 0 {
+        acc = if index.is_multiple_of(2) {
             node_hash(&acc, sibling)
         } else {
             node_hash(sibling, &acc)

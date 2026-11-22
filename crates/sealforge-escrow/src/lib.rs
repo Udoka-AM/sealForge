@@ -1,4 +1,4 @@
-//! FROST 2-of-3 threshold escrow (Milestone 1, task 1.5, critical path).
+//! FROST 2-of-3 threshold escrow.
 //!
 //! - [`dkg`]: the three DKG rounds each trustee runs locally. The coordinator
 //!   only relays packages, and signing shares never leave a trustee's machine.

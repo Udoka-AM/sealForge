@@ -1,0 +1,54 @@
+# Dependency policy, checked in CI by cargo-deny (.github/workflows/security.yml).
+# Run locally: cargo deny check
+
+[graph]
+all-features = true
+
+[advisories]
+# Every advisory in the RustSec database fails the check unless it is listed
+# here with the reason it doesn't apply, and the issue that tracks removing it.
+ignore = [
+    # SQLite before 3.54 can return stale page-cache bytes when it opens a
+    # database together with a crafted WAL file of another page size. Local
+    # only: an attacker must plant both files where our process opens them.
+    # Our SQLite files are escrow wallets the coordinator creates and opens in
+    # its own directory. Fixed in rusqlite 0.41, which we can take only when
+    # zcash_client_sqlite moves to it.
+    { id = "RUSTSEC-2026-0459", reason = "local-only; waits on zcash_client_sqlite moving to rusqlite 0.41" },
+    # Unsound AsyncFd constructors, which we don't call; no semver-compatible
+    # tokio release fixes it yet.
+    { id = "RUSTSEC-2026-0386", reason = "tokio AsyncFd constructors, not used by us" },
+    { id = "RUSTSEC-2026-0543", reason = "chrono marked unmaintained; transitive, no replacement upstream yet" },
+]
+yanked = "warn"
+
+[licenses]
+confidence-threshold = 0.9
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "BSL-1.0",
+]
+
+[[licenses.clarify]]
+crate = "ring"
+expression = "Apache-2.0 AND ISC"
+license-files = [{ path = "LICENSE", hash = 0 }]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

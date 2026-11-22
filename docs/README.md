@@ -7,7 +7,9 @@ The public documentation site is published with Mintlify at <https://sealforge.m
 | Doc | Purpose |
 |---|---|
 | [THREAT-MODEL.md](THREAT-MODEL.md) | Trust assumptions, adversaries, protections, where each is enforced, known limits |
-| [SECURITY-REVIEW.md](SECURITY-REVIEW.md) | Security review (task 5.1): AC14 checks, findings F1–F8, key handling, open items |
+| [SECURITY-REVIEW.md](SECURITY-REVIEW.md) | Security review: every finding (F1–F17) with its fix, tests and credit, key handling, open items |
+| [05-BACKEND-SCHEMA.md](05-BACKEND-SCHEMA.md) | Tables, auth flow, validation, retention, migrations |
+| [DEPLOY-VPS.md](DEPLOY-VPS.md) | Hosting the stack on one server: layout, deploys, rollback, fee and admin configuration |
 | [VERSIONS.md](VERSIONS.md) | Pinned dependency versions and when each was verified |
 | [QUICKSTART.md](QUICKSTART.md) | Run your own auction, from clone to open |
 | [WALLET-INTEGRATION.md](WALLET-INTEGRATION.md) | The in-browser wallet and the bidder journey (compatibility contract) |
@@ -30,7 +32,7 @@ The public documentation site is published with Mintlify at <https://sealforge.m
 
 ## Design history
 
-Written before or during the build. Kept as they were; where they disagree with the code, the code and the current reference above win.
+Written to plan the first build in October 2026. Kept as they were; where they disagree with the code, the code and the current reference above win.
 
 | Doc | Purpose |
 |---|---|
@@ -39,6 +41,5 @@ Written before or during the build. Kept as they were; where they disagree with 
 | [02-TRD.md](02-TRD.md) | Technical requirements: stack, hosting, auth, architecture, security |
 | [03-APP-FLOW.md](03-APP-FLOW.md) | Screens, journeys, per-action states |
 | [04-UI-UX-BRIEF.md](04-UI-UX-BRIEF.md) | Visual direction |
-| [05-BACKEND-SCHEMA.md](05-BACKEND-SCHEMA.md) | Tables, auth flow, validation, retention, migrations |
 | [06-IMPLEMENTATION-PLAN.md](06-IMPLEMENTATION-PLAN.md) | Milestones and tasks |
-| [submission/WRITEUP.md](submission/WRITEUP.md), [submission/DEMO-SCRIPT.md](submission/DEMO-SCRIPT.md) | Hackathon submission |
+| [history/zecathon-2026/](history/zecathon-2026/) | The Zecathon 2026 submission write-up and demo script, where the project started |

@@ -1,5 +1,7 @@
 # 6. Implementation Plan: sealForge
 
+> **Design history.** Written in October 2026 to plan the first build, and kept as it was. Current behaviour is specified in the [documentation site](https://sealforge.mintlify.app) and the code; where this document differs, they are right.
+
 **Purpose:** Give the AI agent an ordered build sequence with checkpoints.
 
 **Owners:** **A** = Zcash/Rust (escrow, FROST, refunds). **B** = Frontend + ShieldRamp/Intents. **C** = Auditor, clearing engine, QA/threat model, demo. "Agent" = AI coding agent working under that owner's review.

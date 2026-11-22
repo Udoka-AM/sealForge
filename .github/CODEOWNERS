@@ -1,0 +1,14 @@
+# Reviewers requested automatically for changes to these paths.
+# The escrow, signing, verification and auditing code moves or proves funds:
+# changes there need a maintainer's review.
+
+*                              @Udoka-AM
+
+/crates/sealforge-escrow/      @Udoka-AM
+/crates/sealforge-verify/      @Udoka-AM
+/crates/sealforge-chain/       @Udoka-AM
+/crates/sealforge-auditor/     @Udoka-AM
+/crates/sealforge-signer-wasm/ @Udoka-AM
+/migrations/                   @Udoka-AM
+/infra/                        @Udoka-AM
+/.github/                      @Udoka-AM

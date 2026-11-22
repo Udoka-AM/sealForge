@@ -1,9 +1,9 @@
-//! Chain access for sealForge (task 2.5).
+//! Chain access for sealForge.
 //!
 //! Each auction escrow gets its own `zcash_client_sqlite` wallet, imported from
 //! the escrow UFVK as a view-only account and synced from a lightwalletd-compatible
 //! server (Zaino). The same wallet later provides note witnesses and PCZTs for
-//! refunds (task 3.9).
+//! refunds.
 
 pub mod audit;
 pub mod cache;
