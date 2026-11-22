@@ -126,8 +126,9 @@ proceeds, so a refunded or losing bid never pays it.
 
 Stated plainly, because the same honesty is what makes the audit claim credible:
 
-- **Mainnet, with guardrails.** Per-auction caps, genuinely independent
-  trustees, and an external review of the escrow signing path before real funds.
+- **Mainnet, with guardrails.** Genuinely independent trustees, each vouched
+  for by a long-term key, and an external review of the escrow signing path
+  before real funds.
 - **One real seller in one vertical.** The mechanism is proven; the demand is
   not. A first paying auction matters more than a second feature.
 - **ShieldRamp swap economics.** Fees and slippage on the cross-chain leg have

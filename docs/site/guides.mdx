@@ -24,7 +24,7 @@ Choosing a mode: deposit mode is simpler for bidders (one payment) but the coord
 
 Status: `Testnet`. Code: `crates/sealforge-cli/src/trustee.rs`, browser `/trustee/<CODE>` (`crates/sealforge-signer-wasm`).
 
-0. **Once, before your first auction:** `sealforge trustee identity --published-at <URL or handle>` makes your long-term trustee key. Post the line it prints at that place (your website, GitHub profile, X bio) and leave it there. In every auction you join, this key vouches for your key, so bidders can tell you from a stand-in.
+0. **Once, before your first auction:** `sealforge trustee identity --published-at <URL or handle>` makes your long-term trustee key. On mainnet it is required: an auction won't open until all three trustees are certified. Post the line it prints at that place (your website, GitHub profile, X bio) and leave it there. In every auction you join, this key vouches for your key, so bidders can tell you from a stand-in.
 1. `sealforge trustee join <invite>` (your long-term key vouches for you automatically; if you joined without one, run `sealforge trustee certify <CODE>` later), then `sealforge trustee dkg <CODE> --wait`. Your key share is written to your disk (owner-only).
 2. **Compare the fingerprint** with the other two trustees on a call or in person. If they differ, stop.
 3. **Back up:** `sealforge trustee backup <CODE> > backup.txt` prints one string with your key share and the escrow's viewing key. Keep it offline (paper or an encrypted drive), never in chat or email, then `sealforge trustee check-backup <CODE> backup.txt` and delete the file from the machine. With a second trustee's string it can spend the escrow even if the coordinator is gone; `sealforge escrow recover-check <backup> <backup>` drills that.

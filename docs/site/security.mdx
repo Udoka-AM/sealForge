@@ -77,10 +77,10 @@ Found while writing these docs (2026-11-13), not yet fixed:
 
 ## Mainnet gate checklist
 
-This is the canonical list; [10 Roadmap](/roadmap) links here. Each item MUST be done before an auction holds mainnet funds.
+This is the canonical list; [10 Roadmap](/roadmap) links here. Each item MUST be done before an auction holds mainnet funds. Per-auction value caps were considered and decided against (#55): the trustee checks, the external review and independent trustees bound what a fault can do, and a cap would only limit the size of sale sealForge can serve.
 
 - [ ] **Trustee-side transaction verification (D1).** Done for the transaction itself: trustees receive the PCZT, compute the sighash, run the shared frost-zec checks and sealForge's batch rules, and refuse otherwise (regtest evidence: every real consolidation, refund and payout checked and signed). Refund notes are tied to their bids on chain and double payment is refused (CLI; regtest evidence). Remaining: the external audit of these checks.
-- [ ] **Per-auction value caps**, enforced by the coordinator at creation and shown on the auction page.
+- [x] **Long-term trustee keys required on mainnet** (#67): the coordinator won't open a mainnet auction until all three trustees are certified, and the browser and the auditor fail the escrow check otherwise.
 - [ ] **Independent trustees**: three different operators on separate infrastructure, not one operator's machines.
 - [ ] **External review** of the escrow signing path (FROST over PCZT α, `apply_signatures`) and the DKG relay.
 - [ ] **Rate limiting** on public endpoints (Caddy).

@@ -614,3 +614,49 @@ async fn admin_endpoints_are_off_without_a_token(db: PgPool) {
         .unwrap();
     assert_eq!(api.send(req).await.0, StatusCode::NOT_FOUND);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn mainnet_auctions_open_only_with_certified_trustees(db: PgPool) {
+    let api = Api::new(db.clone());
+    let k = key(1);
+    api.register(&k).await;
+    let code = api.create_auction(&k).await.auction.code;
+    let path = format!("/v1/auctions/{code}/open");
+    // Stand in for a mainnet auction (creating one needs mainnet addresses).
+    sqlx::query("UPDATE auctions SET network = 'mainnet' WHERE code = $1")
+        .bind(&code)
+        .execute(&db)
+        .await
+        .unwrap();
+    mark_ready(&db, &code).await;
+    api.state.set_chain_tip(3_900_000);
+
+    let (status, body) = api.signed(&k, Method::POST, &path, None).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(body["code"], "trustees_uncertified");
+
+    // Two of three certified is still not enough.
+    let certify = |slots: Vec<i16>| {
+        let db = db.clone();
+        let code = code.clone();
+        async move {
+            sqlx::query(
+                "UPDATE trustees SET identity_pubkey = decode(lpad(slot::text, 2, '0'), 'hex'), identity_published_at = 'x', \
+                 identity_cert = '\\x02' WHERE slot = ANY($2) AND auction_id = \
+                 (SELECT id FROM auctions WHERE code = $1)",
+            )
+            .bind(&code)
+            .bind(slots)
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+    };
+    certify(vec![1, 2]).await;
+    let (status, body) = api.signed(&k, Method::POST, &path, None).await;
+    assert_eq!(body["code"], "trustees_uncertified", "{status} {body}");
+
+    certify(vec![3]).await;
+    let (status, body) = api.signed(&k, Method::POST, &path, None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}
