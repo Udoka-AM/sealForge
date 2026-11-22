@@ -1,10 +1,10 @@
 {
   "crate": "sealforge-scan",
   "version": "0.1.0",
-  "git_commit": "2c7c30b86d0fbe3667370d4704aac97d3ed089e8",
+  "git_commit": "7d6936bac6eb12407a52eb75cab5d27e7b9b00eb",
   "source_dirty": false,
   "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
   "clang": "Debian clang version 19.1.7 (3+b1)",
   "wasm_bindgen": "0.2.129",
-  "wasm_sha256": "a2e35488f7892725ac2cdedda8f96ab09200563c53878632bfbf1a44c19114e0"
+  "wasm_sha256": "576740cf68a48ffde7d07681da57518daad3b6e447867c9f4a5296d94be48f86"
 }
