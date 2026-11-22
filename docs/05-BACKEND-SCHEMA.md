@@ -65,7 +65,7 @@ Indexes: `UNIQUE (pubkey)`.
 | `escrow_group_key` | `BYTEA` | | `NULL` | FROST group verifying key (Orchard `ak`), 32 bytes, set when DKG completes |
 | `payout_ua` | `TEXT` | ✓ | — | Organiser payout address (Ironwood UA) |
 | `fee_buffer_zat` | `BIGINT` | ✓ | `0` | Funded by the organiser for ZIP-317 fees |
-| `fee_bps` | `SMALLINT` | ✓ | `0` | Protocol fee rate in basis points (0–1000), copied from `SF_FEE_BPS` at creation |
+| `fee_bps` | `SMALLINT` | ✓ | `0` | Protocol fee rate in basis points: 0, or 500–1500 (5–15%). Copied from `SF_FEE_BPS` at creation; the admin may change it until the auction opens (`PUT /v1/admin/auctions/{code}/fee`) |
 | `fee_ua` | `TEXT` | | `NULL` | Protocol fee address, copied from `SF_FEE_UA` at creation. Required when `fee_bps > 0` |
 | `status` | `auction_status` | ✓ | `'draft'` | See lifecycle below |
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | ✓ | `now()` | |

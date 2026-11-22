@@ -210,7 +210,7 @@ Before this fix, the run for the late-payment check (auction `E23XDR8JEB`) showe
 
 ## Protocol fee (#74)
 
-**Date:** 2026-11-22. Auction `KQRK67H8PH` on the local regtest chain (3 bids of 0.03, 0.05 and 0.2 ZEC, 1 lot), coordinator started with `SF_FEE_BPS=250` and `SF_FEE_UA` set to a regtest address.
+**Date:** 2026-11-22. Auction `KQRK67H8PH` on the local regtest chain (3 bids of 0.03, 0.05 and 0.2 ZEC, 1 lot), coordinator started with `SF_FEE_BPS=250` and `SF_FEE_UA` set to a regtest address. (The drill ran before rates were limited to 0 or 5–15%; 2.5% is no longer an allowed rate, and the checks are the same at any rate.)
 
 | Step | What happened | Result |
 |---|---|---|

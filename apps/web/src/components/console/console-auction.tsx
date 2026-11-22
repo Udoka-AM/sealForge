@@ -110,6 +110,13 @@ export function ConsoleAuction({ code }: { code: string }) {
               (now <span className="num">{tip.toLocaleString("en-US")}</span>)
             </>
           ) : null}
+          {auction.fee_bps ? (
+            <>
+              {" "}
+              · sealForge fee <span className="num">{(auction.fee_bps / 100).toFixed(2)}%</span> of
+              proceeds
+            </>
+          ) : null}
         </p>
       </header>
 

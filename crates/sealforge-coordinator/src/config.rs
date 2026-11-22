@@ -54,9 +54,11 @@ pub struct Config {
     #[arg(long, env = "SF_MAX_NOTES_PER_TX")]
     pub max_notes_per_tx: Option<usize>,
 
-    /// sealForge's fee on new auctions' proceeds, in basis points (100 = 1%,
-    /// at most 1000). 0, the default, means no fee. Recorded on each auction
-    /// when it is created; changing it doesn't affect existing auctions.
+    /// sealForge's default fee on new auctions' proceeds, in basis points
+    /// (100 = 1%): 0, the default, for no fee, or 500 to 1500 (5% to 15%).
+    /// Recorded on each auction when it is created; the admin can set an
+    /// auction's own rate before it opens. Changing this doesn't affect
+    /// existing auctions.
     #[arg(long, env = "SF_FEE_BPS", default_value_t = 0)]
     pub fee_bps: u16,
 
@@ -64,6 +66,11 @@ pub struct Config {
     /// this network. Required when SF_FEE_BPS is above 0.
     #[arg(long, env = "SF_FEE_UA")]
     pub fee_ua: Option<String>,
+
+    /// Bearer token for the operator's admin endpoints (setting an auction's
+    /// fee rate). Unset: the admin endpoints are off.
+    #[arg(long, env = "SF_ADMIN_TOKEN", hide_env_values = true)]
+    pub admin_token: Option<String>,
 
     /// Development only: pretend the chain tip is at this height (when no node is available).
     #[arg(long, env = "SF_DEV_CHAIN_HEIGHT")]

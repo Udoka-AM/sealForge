@@ -25,15 +25,22 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("running migrations")?;
 
-    let state = AppState::new(
-        db,
-        Settings {
-            invite_codes: config.invite_codes(),
-            data_key: config.data_key.clone().filter(|k| !k.is_empty()),
-            fee_bps: config.fee_bps,
-            fee_ua: config.fee_ua.clone().filter(|u| !u.is_empty()),
-        },
-    );
+    let state =
+        AppState::new(
+            db,
+            Settings {
+                invite_codes: config.invite_codes(),
+                data_key: config.data_key.clone().filter(|k| !k.is_empty()),
+                fee_bps: config.fee_bps,
+                fee_ua: config.fee_ua.clone().filter(|u| !u.is_empty()),
+                admin_token_sha256: config.admin_token.as_deref().filter(|t| !t.is_empty()).map(
+                    |t| {
+                        use sha2::Digest;
+                        sha2::Sha256::digest(t.as_bytes()).into()
+                    },
+                ),
+            },
+        );
     if let Some(height) = config.dev_chain_height {
         tracing::warn!(
             height,
@@ -60,10 +67,17 @@ async fn main() -> anyhow::Result<()> {
         ));
     }
     anyhow::ensure!(
-        config.fee_bps <= sealforge_core::fee::MAX_FEE_BPS,
-        "SF_FEE_BPS is at most {}",
+        sealforge_core::fee::fee_rate_allowed(config.fee_bps),
+        "SF_FEE_BPS must be 0 (no fee) or from {} to {}",
+        sealforge_core::fee::MIN_FEE_BPS,
         sealforge_core::fee::MAX_FEE_BPS
     );
+    if let Some(token) = config.admin_token.as_deref().filter(|t| !t.is_empty()) {
+        anyhow::ensure!(
+            token.len() >= 32,
+            "SF_ADMIN_TOKEN must be at least 32 characters"
+        );
+    }
     if config.fee_bps > 0 {
         let ua = state
             .settings

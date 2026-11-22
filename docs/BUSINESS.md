@@ -93,9 +93,12 @@ has no test network to exercise them against.
 
 **Status: the take rate is `Built`; the other models are `Specified`.** The
 coordinator charges a protocol fee in basis points of the clearing proceeds,
-set by `SF_FEE_BPS` (default 0, capped at 1000) and paid to `SF_FEE_UA`. Each
-auction records the rate in force when it is created, so a later change never
-applies to an auction already running.
+paid to `SF_FEE_UA`. A rate is either 0 (no fee) or from 5% to 15%. New
+auctions take the default `SF_FEE_BPS` (0 unless set), and the operator's admin
+can set any auction's own rate, within that range, until it opens (for a
+partner rate or a free first auction). Once the auction opens, its rate is
+fixed and shown on its page, so bidders and the organiser always see the terms
+before money moves.
 
 | Model | Status | Mechanics |
 |---|---|---|

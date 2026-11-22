@@ -26,6 +26,7 @@ Status: `Testnet`. Router: `crates/sealforge-coordinator/src/routes/mod.rs`. Req
 | `POST /v1/auctions/{code}/open` | organiser | → `AuctionView` | `409 dkg_incomplete`; `422` if `close_height < tip + 144` |
 | `POST /v1/auctions/{code}/cancel` | organiser | → `AuctionView` | `409 already_open` once open: open auctions run to close |
 | `POST /v1/auctions/{code}/publish` | organiser | → `AuctionView` | `closed → published`; releases the UIVK |
+| `PUT /v1/admin/auctions/{code}/fee` | admin (`Authorization: Bearer $SF_ADMIN_TOKEN`) | `{ "fee_bps": 750 }` → `AuctionView` | Sets the auction's protocol fee rate: 0, or 500 to 1500 (5% to 15%), paid to `SF_FEE_UA`. Only before the auction opens (`409 not_editable` after). `404` when `SF_ADMIN_TOKEN` isn't set. Audit-logged as `auction.fee_set` |
 | `GET /v1/auctions/{code}/result` | public | → `PublishedResult` | [2.3](/protocol/wire-formats#published-result). Also carries `escrow_ua` and `trustees[]` (`slot`, `label`, `pubkey`, `signature`) so the auditor can check the escrow |
 | `GET /v1/auctions/{code}/refunds` | public | → refund progress | Aggregate counts only, never per bid |
 | `GET /v1/console/auctions` | organiser | → `[AuctionView]` with `owner` fields | |

@@ -40,6 +40,10 @@ pub struct Settings {
     /// it is paid. Recorded on each auction at creation (issue #74).
     pub fee_bps: u16,
     pub fee_ua: Option<String>,
+    /// SHA-256 of the admin bearer token (`SF_ADMIN_TOKEN`); `None` turns the
+    /// admin endpoints off. Only the digest is kept, and compared, so the
+    /// comparison's timing says nothing about the token.
+    pub admin_token_sha256: Option<[u8; 32]>,
 }
 
 impl AppState {
