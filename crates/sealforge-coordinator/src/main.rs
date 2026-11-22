@@ -2,7 +2,7 @@ use anyhow::Context;
 use clap::Parser;
 use sealforge_api::types::Network;
 use sealforge_coordinator::{
-    auth, closer, config::Config, refunds, routes, scanner, AppState, Settings,
+    auth, closer, config::Config, ratelimit, refunds, routes, scanner, AppState, Settings,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -16,7 +16,7 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::parse();
 
     let db = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(20)
         .connect(&config.database_url)
         .await
         .context("connecting to Postgres")?;
@@ -117,13 +117,38 @@ async fn main() -> anyhow::Result<()> {
     }
     tokio::spawn(refunds::run(state.clone(), config.refunds_paused, policy));
 
-    let app = routes::router(state);
+    // Per-client limits run first, so a refused request never waits for a slot
+    // under the in-flight cap (#58).
+    let limits = config.rate_limits()?;
+    anyhow::ensure!(
+        (1..20).contains(&config.http_max_in_flight),
+        "SF_HTTP_MAX_IN_FLIGHT must be from 1 to 19, below the database pool size"
+    );
+    let limiter = std::sync::Arc::new(ratelimit::Limiter::new(&limits));
+    tokio::spawn(ratelimit::run_pruner(limiter.clone()));
+    let app = routes::router(state)
+        .layer(tower::limit::ConcurrencyLimitLayer::new(
+            config.http_max_in_flight,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            limiter,
+            ratelimit::limit,
+        ));
     let listener = tokio::net::TcpListener::bind(&config.listen_addr).await?;
-    tracing::info!(addr = %config.listen_addr, network = %config.network, "coordinator listening");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await?;
+    tracing::info!(
+        addr = %config.listen_addr,
+        network = %config.network,
+        reads_per_min = limits.reads_per_minute,
+        writes_per_min = limits.writes_per_minute,
+        "coordinator listening"
+    );
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(async {
+        let _ = tokio::signal::ctrl_c().await;
+    })
+    .await?;
     Ok(())
 }

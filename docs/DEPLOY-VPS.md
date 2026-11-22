@@ -21,7 +21,8 @@ Keep secrets outside the checkout:
 /opt/sealforge/.env               POSTGRES_PASSWORD, SF_COORDINATOR_ENV, SF_LWD_HOST, SF_CLOUDFLARED_DIR  (600)
 /opt/sealforge/coordinator.env    SF_DATA_KEY, SF_INVITE_CODES, SF_NETWORK=testnet, SF_ZAINO_URL,
                                   SF_WALLET_DIR=/data/wallets, SF_LISTEN_ADDR=0.0.0.0:8080,
-                                  SF_FEE_BPS, SF_FEE_UA, SF_ADMIN_TOKEN ...  (600)
+                                  SF_FEE_BPS, SF_FEE_UA, SF_ADMIN_TOKEN,
+                                  SF_CLIENT_IP_HEADER=x-forwarded-for ...  (600)
 /opt/sealforge/cloudflared/       config.yml (from infra/vps/cloudflared.example.yml) + credentials.json
                                   (600, owned by 65532)
 /var/lib/sealforge/wallets/       escrow-<auction id>.sqlite  (700, owned by 10001)
@@ -40,6 +41,10 @@ curl -X PUT https://sealforge.udokaam.dev/api/coordinator/v1/admin/auctions/<COD
 ```
 
 The rate shows on the auction page and is fixed when the auction opens.
+
+## Rate limits
+
+The coordinator limits each client's reads and writes (`SF_RATE_LIMIT_READS_PER_MIN`, `SF_RATE_LIMIT_WRITES_PER_MIN`). It only sees the web container, so the web app's proxy passes the visitor's address (Cloudflare's `CF-Connecting-IP`) in `x-forwarded-for`, and `SF_CLIENT_IP_HEADER=x-forwarded-for` tells the coordinator to use it. The address is hashed with a key drawn at startup and never stored or logged. The coordinator isn't published on any port, so only the proxy can set that header.
 
 ## Deploy a new version
 

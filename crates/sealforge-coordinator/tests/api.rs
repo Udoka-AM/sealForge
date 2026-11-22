@@ -614,3 +614,46 @@ async fn admin_endpoints_are_off_without_a_token(db: PgPool) {
         .unwrap();
     assert_eq!(api.send(req).await.0, StatusCode::NOT_FOUND);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn clients_over_their_budget_get_429_with_retry_after(db: PgPool) {
+    use sealforge_coordinator::ratelimit::{limit, Limiter, RateLimits};
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let state = AppState::new(db, Settings::default());
+    state.set_chain_tip(3_900_000);
+    let limiter = Arc::new(Limiter::new(&RateLimits {
+        reads_per_minute: 8, // a burst of 2
+        writes_per_minute: 4,
+        client_header: Some(header::HeaderName::from_static("x-forwarded-for")),
+    }));
+    let app = routes::router(state).layer(axum::middleware::from_fn_with_state(limiter, limit));
+    let get = |client: &str| {
+        Request::get("/v1/chain")
+            .header("x-forwarded-for", client)
+            .body(Body::empty())
+            .unwrap()
+    };
+
+    for _ in 0..2 {
+        let res = app.clone().oneshot(get("203.0.113.9")).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+    let res = app.clone().oneshot(get("203.0.113.9")).await.unwrap();
+    assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+    let retry: u64 = res.headers()[header::RETRY_AFTER]
+        .to_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!((1..=8).contains(&retry), "{retry}");
+    // Another visitor, and the web app's own server-side requests, still pass.
+    let res = app.clone().oneshot(get("198.51.100.4")).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let internal = Request::get("/v1/chain").body(Body::empty()).unwrap();
+    assert_eq!(
+        app.clone().oneshot(internal).await.unwrap().status(),
+        StatusCode::OK
+    );
+}
