@@ -207,3 +207,19 @@ Before this fix, the run for the late-payment check (auction `E23XDR8JEB`) showe
 | Redirected refund | The 0.03 ZEC bid's refund address edited in the coordinator's database before the batch was built | **Browser refused**, class `payment`: "the transaction's refund outputs aren't the claimed notes, each to its bid's refund address". The CLI refused the same batch with the same class |
 | Honest refund | Address restored, batch rebuilt | The browser decoded it (3 refunds to each bid's own address, change back to the escrow), committed, stated its round 2 inputs and signed; B signed with the CLI. Confirmed. The browser's IndexedDB ledger holds the batch, its txid equal to the mined txid (`a88b7a65…`) |
 | Duplicate note | The coordinator, with its database guard off, planned a 0.01 ZEC note for the same bid again | **Browser refused** from its ledger: "is owed 3000000 zat as notes [2000000, 1000000]; with what you already signed, this batch would pay [1000000, 2000000, 1000000]" |
+
+## Protocol fee (#74)
+
+**Date:** 2026-11-22. Auction `KQRK67H8PH` on the local regtest chain (3 bids of 0.03, 0.05 and 0.2 ZEC, 1 lot), coordinator started with `SF_FEE_BPS=250` and `SF_FEE_UA` set to a regtest address.
+
+| Step | What happened | Result |
+|---|---|---|
+| Create | The auction recorded `fee_bps = 250` and the fee address; both show on the auction page and in `/v1/auctions/{code}` | ✓ |
+| Publish | Proceeds 0.2 ZEC, `fee_zat = 500000` (2.5%) in the published result | `sealforge-audit` recomputed `fee_zat` from the chain: match, exit 0 |
+| Refunds | 3 notes, 0.08 ZEC to the two losing bids | Confirmed |
+| Payout, first build | 2 payments (0.005 ZEC fee, 0.19465 ZEC to the organiser) plus the zero-value change note the wallet adds when change is exactly zero: 3 actions. The trustee check refused it as padding | Fixed: one zero-value change note to the escrow's own address, read with its internal incoming key, is allowed. Regression test `crates/sealforge-verify/tests/zero_change.rs` uses this payout |
+| Tamper: rate | The published rate changed to 300 bps after the payout was built | `REFUSED (payment)`: neither output is the 600000 zat fee the result now implies. Nothing signed |
+| Tamper: address | The fee address changed to another address after the payout was built | `REFUSED (payment)`. Nothing signed |
+| Payout | Signed by trustees A and B (both with `--lightwalletd`) | Confirmed in `0750d9ae…`; auction `settled`. Each signing trustee's ledger records `fee_zat: 500000` against that transaction, so a second payout paying the fee again is refused (`fee_signed_before`, unit-tested in `sealforge-verify`) |
+
+Escrow arithmetic: 0.28 ZEC in, 0.08 ZEC refunded, 0.005 ZEC fee, 0.19465 ZEC to the organiser, the rest in network fees.
