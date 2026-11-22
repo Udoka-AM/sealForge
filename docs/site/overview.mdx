@@ -27,7 +27,7 @@ One row per component. Labels are defined in the [docs index](/#status-labels). 
 | Embed widget (`apps/web/public/embed.js`) | `Tested` (manual) | No automated test |
 | ShieldRamp Linkability Score (`packages/shieldramp/src/score.ts`) | `Tested` | 2 unit tests |
 | ShieldRamp quote, swap leg and delayed bid | `Specified` | `/api/shieldramp/quote` returns 501/503 |
-| Protocol fee / take rate | `Specified` | No fee in code ([09 Product](/product#revenue-models)) |
+| Protocol fee / take rate (0 or 5–15%, set per auction before it opens) | `Tested` | Unit and API tests; regtest drill `KQRK67H8PH` ([regtest evidence](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/regtest-e2e.md#protocol-fee-74)). Off (0) on the hosted testnet site |
 | Mainnet operation | `Not built` (gated) | [10 Roadmap](/roadmap) |
 
 ## The three guarantees

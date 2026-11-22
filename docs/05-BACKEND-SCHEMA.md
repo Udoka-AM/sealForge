@@ -65,6 +65,8 @@ Indexes: `UNIQUE (pubkey)`.
 | `escrow_group_key` | `BYTEA` | | `NULL` | FROST group verifying key (Orchard `ak`), 32 bytes, set when DKG completes |
 | `payout_ua` | `TEXT` | ✓ | — | Organiser payout address (Ironwood UA) |
 | `fee_buffer_zat` | `BIGINT` | ✓ | `0` | Funded by the organiser for ZIP-317 fees |
+| `fee_bps` | `SMALLINT` | ✓ | `0` | Protocol fee rate in basis points: 0, or 500–1500 (5–15%). Copied from `SF_FEE_BPS` at creation; the admin may change it until the auction opens (`PUT /v1/admin/auctions/{code}/fee`) |
+| `fee_ua` | `TEXT` | | `NULL` | Protocol fee address, copied from `SF_FEE_UA` at creation. Required when `fee_bps > 0` |
 | `status` | `auction_status` | ✓ | `'draft'` | See lifecycle below |
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | ✓ | `now()` | |
 | `published_at` / `settled_at` | `TIMESTAMPTZ` | | `NULL` | |
@@ -156,6 +158,7 @@ Indexes: `UNIQUE (txid, output_index)`, `(auction_id, status)`, `(auction_id, co
 | `pczt` | `BYTEA` | | `NULL` | Serialized PCZT |
 | `signing_package_hash` | `BYTEA` | | `NULL` | Shown to trustees for review |
 | `fee_zat` | `BIGINT` | | `NULL` | ZIP-317 fee |
+| `protocol_fee_zat` | `BIGINT` | ✓ | `0` | Payout only: the protocol fee this batch pays as its extra output (0 if none) |
 | `txid` | `BYTEA` | | `NULL` | After broadcast |
 | `confirmed_height` | `INTEGER` | | `NULL` | |
 | `created_at` / `broadcast_at` | `TIMESTAMPTZ` | | `now()` / `NULL` | |

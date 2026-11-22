@@ -132,6 +132,13 @@ export default async function AuctionPage({ params }: Props) {
               />
             </dl>
             <p className="text-sm text-muted">{modeExplainer(auction.mode, auction.quantity)}</p>
+            {auction.fee_bps ? (
+              <p className="text-sm text-muted">
+                Protocol fee: <span className="num">{(auction.fee_bps / 100).toFixed(2)}%</span> of
+                what winners pay, taken from the organiser&apos;s payout. Bidders pay nothing extra.
+                The trustees check the amount before they sign.
+              </p>
+            ) : null}
           </Reveal>
 
           <Reveal as="section" className="space-y-4">

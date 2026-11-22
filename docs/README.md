@@ -11,7 +11,7 @@ The public documentation site is published with Mintlify at <https://sealforge.m
 | [VERSIONS.md](VERSIONS.md) | Pinned dependency versions and when each was verified |
 | [QUICKSTART.md](QUICKSTART.md) | Run your own auction, from clone to open |
 | [WALLET-INTEGRATION.md](WALLET-INTEGRATION.md) | The in-browser wallet and the bidder journey (compatibility contract) |
-| [BUSINESS.md](BUSINESS.md) | The business case: problem, verticals, revenue models (all `Specified`) |
+| [BUSINESS.md](BUSINESS.md) | The business case: problem, verticals, revenue models (the take rate built, the rest `Specified`) |
 | [spikes/frost-pczt.md](spikes/frost-pczt.md) | FROST 2-of-3 escrow spike for Ironwood spends |
 
 ## Evidence

@@ -20,13 +20,26 @@ Keep secrets outside the checkout:
 /root/sealForge/                  git checkout of main
 /opt/sealforge/.env               POSTGRES_PASSWORD, SF_COORDINATOR_ENV, SF_LWD_HOST, SF_CLOUDFLARED_DIR  (600)
 /opt/sealforge/coordinator.env    SF_DATA_KEY, SF_INVITE_CODES, SF_NETWORK=testnet, SF_ZAINO_URL,
-                                  SF_WALLET_DIR=/data/wallets, SF_LISTEN_ADDR=0.0.0.0:8080 ...  (600)
+                                  SF_WALLET_DIR=/data/wallets, SF_LISTEN_ADDR=0.0.0.0:8080,
+                                  SF_FEE_BPS, SF_FEE_UA, SF_ADMIN_TOKEN ...  (600)
 /opt/sealforge/cloudflared/       config.yml (from infra/vps/cloudflared.example.yml) + credentials.json
                                   (600, owned by 65532)
 /var/lib/sealforge/wallets/       escrow-<auction id>.sqlite  (700, owned by 10001)
 ```
 
 `SF_DATA_KEY` also goes in the team password manager. Without it no backup can spend from an escrow.
+
+## Protocol fee and admin token
+
+`SF_FEE_UA` is the shielded address that receives the protocol fee. `SF_FEE_BPS` is the default rate for new auctions: 0 (no fee) or 500 to 1500 (5% to 15%). The hosted testnet site runs at 0. `SF_ADMIN_TOKEN` (32+ characters, `openssl rand -hex 32`) turns on the admin endpoints; keep it in the password manager with `SF_DATA_KEY`. To set one auction's rate before it opens:
+
+```bash
+curl -X PUT https://sealforge.udokaam.dev/api/coordinator/v1/admin/auctions/<CODE>/fee \
+  -H "Authorization: Bearer $SF_ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"fee_bps": 750}'
+```
+
+The rate shows on the auction page and is fixed when the auction opens.
 
 ## Deploy a new version
 

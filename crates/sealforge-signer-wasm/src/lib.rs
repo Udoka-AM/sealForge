@@ -506,21 +506,53 @@ fn verify_batch_inner(
     let kind = BatchKind::parse(&batch.kind).ok_or("REFUSED: unknown batch kind")?;
     // Refund notes are tied to their bidders through the chain (security
     // review D1, second part): no chain reads, no refund signature.
-    let refund_chain: Option<RefundChain> = if kind == BatchKind::Refund {
-        if refund_chain_json.trim().is_empty() {
-            return Err(
-                "REFUSED: refund batches are checked against the chain. Set a lightwallet server you trust on this page first."
-                    .into(),
-            );
-        }
-        Some(serde_json::from_str(refund_chain_json).map_err(err)?)
-    } else {
+    let chain: Option<RefundChain> = if refund_chain_json.trim().is_empty() {
         None
+    } else {
+        Some(serde_json::from_str(refund_chain_json).map_err(err)?)
+    };
+    if kind == BatchKind::Refund && chain.is_none() {
+        return Err(
+            "REFUSED: refund batches are checked against the chain. Set a lightwallet server you trust on this page first."
+                .into(),
+        );
+    }
+    let refuse = |r: sealforge_verify::Refusal| {
+        format!(
+            "REFUSED ({}): {}. Don't sign; tell the organiser and the other trustees.",
+            r.class, r.message
+        )
+    };
+    // The protocol fee (issue #74), from the published result the page read
+    // with the chain context. Without it, a payout with a fee output is refused.
+    let (fee, fee_already_signed) = match (&chain, kind) {
+        (Some(c), BatchKind::Payout) => {
+            let fee = sealforge_verify::fee_rule(
+                c.result.fee_bps,
+                c.result.fee_ua.as_deref(),
+                c.result.fee_zat,
+                c.result.bids.iter().map(|b| b.price_paid_zat),
+            )
+            .map_err(refuse)?;
+            let already = fee.is_some() && {
+                let ledger: Vec<_> = c
+                    .ledger
+                    .iter()
+                    .map(|l| (l.entry.clone(), l.on_chain))
+                    .collect();
+                let txid = sealforge_verify::batch_txid(&pczt).map_err(refuse)?;
+                sealforge_verify::refunds::fee_signed_before(&ledger, c.tip, &txid)
+            };
+            (fee, already)
+        }
+        _ => (None, false),
     };
     let rules = BatchRules {
         kind,
         refund_total_due_zat: (refund_total_due_zat >= 0.0).then_some(refund_total_due_zat as u64),
         payout_ua: batch.payout_ua.clone(),
+        fee,
+        fee_already_signed,
     };
     let spends = batch
         .spends
@@ -536,17 +568,19 @@ fn verify_batch_inner(
         &spends,
         &rules,
     )
-    .map_err(|r| {
-        format!(
-            "REFUSED ({}): {}. Don't sign; tell the organiser and the other trustees.",
-            r.class, r.message
-        )
-    })?;
-    let ledger_entry = match refund_chain {
-        Some(chain) => Some(check_refunds(
+    .map_err(refuse)?;
+    let ledger_entry = match (chain, kind) {
+        (Some(chain), BatchKind::Refund) => Some(check_refunds(
             &batch, &pczt, &fvk, network, &verified, chain,
         )?),
-        None => None,
+        // A payout that pays the fee goes in the ledger too.
+        _ if verified.protocol_fee_zat > 0 => Some(sealforge_verify::refunds::LedgerEntry {
+            batch_txid: sealforge_verify::batch_txid(&pczt).map_err(refuse)?,
+            expiry_height: verified.expiry_height,
+            notes: Vec::new(),
+            fee_zat: verified.protocol_fee_zat,
+        }),
+        _ => None,
     };
     serde_json::to_string(&Checked {
         verified,

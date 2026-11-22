@@ -33,6 +33,7 @@ impl Api {
             Settings {
                 invite_codes: vec![INVITE.into()],
                 data_key: Some("test-data-key".into()),
+                ..Default::default()
             },
         );
         Self {
@@ -510,4 +511,106 @@ async fn readiness_reports_chain_and_scanner_lag(db: PgPool) {
     let (status, body) = api.send(get()).await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(body["scanner_lag_blocks"], 10);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn admin_sets_the_fee_rate_before_the_auction_opens(db: PgPool) {
+    const TOKEN: &str = "test-admin-token-0123456789abcdef0123";
+    let state = AppState::new(
+        db.clone(),
+        Settings {
+            invite_codes: vec![INVITE.into()],
+            data_key: Some("test-data-key".into()),
+            fee_ua: Some(TESTNET_UA.into()),
+            admin_token_sha256: Some({
+                use sha2::Digest;
+                sha2::Sha256::digest(TOKEN.as_bytes()).into()
+            }),
+            ..Default::default()
+        },
+    );
+    let api = Api {
+        app: routes::router(state.clone()),
+        state,
+    };
+    let k = key(1);
+    api.register(&k).await;
+    let code = api.create_auction(&k).await.auction.code;
+    let path = format!("/v1/admin/auctions/{code}/fee");
+    let put = |token: Option<&str>, bps: u16| {
+        let mut req = Request::builder()
+            .method(Method::PUT)
+            .uri(&path)
+            .header(header::CONTENT_TYPE, "application/json");
+        if let Some(t) = token {
+            req = req.header(header::AUTHORIZATION, format!("Bearer {t}"));
+        }
+        req.body(Body::from(json!({ "fee_bps": bps }).to_string()))
+            .unwrap()
+    };
+
+    // No token, or the wrong one: refused. The organiser's own signature
+    // doesn't help either.
+    assert_eq!(api.send(put(None, 750)).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        api.send(put(Some("wrong-token-0123456789abcdef0123456"), 750))
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    // Out of range: under 5% (but not 0) or over 15%.
+    for bps in [1, 499, 1_501, 10_000] {
+        let (status, body) = api.send(put(Some(TOKEN), bps)).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{bps}: {body}");
+    }
+    // 7.5%, recorded with the fee address.
+    let (status, body) = api.send(put(Some(TOKEN), 750)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["fee_bps"], 750);
+    assert_eq!(body["fee_ua"], TESTNET_UA);
+    let (bps, actor): (i16, String) = sqlx::query_as(
+        "SELECT a.fee_bps, l.actor_kind FROM auctions a JOIN audit_log l ON l.auction_id = a.id \
+         WHERE a.code = $1 AND l.action = 'auction.fee_set'",
+    )
+    .bind(&code)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!((bps, actor.as_str()), (750, "admin"));
+    // Back to no fee.
+    let (status, body) = api.send(put(Some(TOKEN), 0)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body.get("fee_bps").is_none() || body["fee_bps"] == 0,
+        "{body}"
+    );
+
+    // Once open, the terms are fixed.
+    sqlx::query("UPDATE auctions SET status = 'open' WHERE code = $1")
+        .bind(&code)
+        .execute(&db)
+        .await
+        .unwrap();
+    let (status, body) = api.send(put(Some(TOKEN), 1_000)).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(body["code"], "not_editable");
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn admin_endpoints_are_off_without_a_token(db: PgPool) {
+    let api = Api::new(db);
+    let k = key(1);
+    api.register(&k).await;
+    let code = api.create_auction(&k).await.auction.code;
+    let req = Request::builder()
+        .method(Method::PUT)
+        .uri(format!("/v1/admin/auctions/{code}/fee"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(
+            header::AUTHORIZATION,
+            "Bearer anything-at-all-0123456789abcdef",
+        )
+        .body(Body::from(json!({ "fee_bps": 750 }).to_string()))
+        .unwrap();
+    assert_eq!(api.send(req).await.0, StatusCode::NOT_FOUND);
 }

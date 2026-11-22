@@ -55,6 +55,53 @@ pub struct BatchRules {
     /// Payouts: the organiser's payout address.
     #[serde(default)]
     pub payout_ua: Option<String>,
+    /// Payouts: sealForge's fee, when the auction has one ([`fee_rule`]). A
+    /// payout may then carry one more output, to exactly this address and amount.
+    #[serde(default)]
+    pub fee: Option<FeeRule>,
+    /// Payouts: this trustee already signed a payout that pays the fee, and it
+    /// is (or may still be) on chain. Another fee output is refused.
+    #[serde(default)]
+    pub fee_already_signed: bool,
+}
+
+/// The fee a payout may pay: to this address, exactly this amount.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeeRule {
+    pub ua: String,
+    pub zat: u64,
+}
+
+/// The fee rule for a payout, from the published result: the fee recomputed
+/// from every bid's `price_paid_zat` at the published rate
+/// (`sealforge_core::fee`), which must equal the fee the result states.
+/// `None` when the auction has no fee.
+pub fn fee_rule(
+    fee_bps: u16,
+    fee_ua: Option<&str>,
+    published_fee_zat: u64,
+    prices_paid: impl IntoIterator<Item = u64>,
+) -> Result<Option<FeeRule>, Refusal> {
+    let proceeds: u64 = prices_paid.into_iter().sum();
+    let fee = sealforge_core::fee::protocol_fee_zat(proceeds, fee_bps);
+    if fee != published_fee_zat {
+        return Err(refuse(
+            "payment",
+            format!(
+                "the result states a fee of {published_fee_zat} zat, but {fee_bps} bps of the \
+                 {proceeds} zat paid is {fee}"
+            ),
+        ));
+    }
+    if fee == 0 {
+        return Ok(None);
+    }
+    let ua =
+        fee_ua.ok_or_else(|| refuse("payment", "the result states a fee but no fee address"))?;
+    Ok(Some(FeeRule {
+        ua: ua.to_owned(),
+        zat: fee,
+    }))
 }
 
 /// Why a trustee refuses, with the shared refusal class
@@ -93,6 +140,9 @@ pub struct VerifiedBatch {
     pub payments: Vec<(String, u64)>,
     pub fee_zat: u64,
     pub expiry_height: u32,
+    /// Payouts: the protocol fee this transaction pays (0 if none).
+    #[serde(default)]
+    pub protocol_fee_zat: u64,
 }
 
 /// The Orchard receiver of a unified address, to compare payments by what is
@@ -184,6 +234,7 @@ pub fn verify_batch(
         .map(|p| (p.address.clone(), p.zat))
         .collect();
 
+    let mut protocol_fee_zat = 0;
     match rules.kind {
         BatchKind::Consolidate => {
             if !payments.is_empty() {
@@ -197,22 +248,67 @@ pub fn verify_batch(
             }
         }
         BatchKind::Payout => {
-            let [(address, _)] = payments.as_slice() else {
-                return Err(refuse(
-                    "payment",
-                    format!("a payout pays exactly one output, not {}", payments.len()),
-                ));
-            };
             let expected = rules.payout_ua.as_deref().ok_or_else(|| {
                 refuse("payment", "no payout address to check the payout against")
             })?;
-            if orchard_receiver(address).is_none()
-                || orchard_receiver(address) != orchard_receiver(expected)
-            {
-                return Err(refuse(
-                    "payment",
-                    format!("the payout goes to {address}, not the payout address {expected}"),
-                ));
+            let to = |address: &str, want: &str| {
+                orchard_receiver(address).is_some()
+                    && orchard_receiver(address) == orchard_receiver(want)
+            };
+            match payments.as_slice() {
+                [(address, _)] if to(address, expected) => {}
+                [(address, _)] => {
+                    return Err(refuse(
+                        "payment",
+                        format!("the payout goes to {address}, not the payout address {expected}"),
+                    ))
+                }
+                // The organiser's payout plus sealForge's fee (issue #74).
+                [_, _] => {
+                    let fee = rules.fee.as_ref().ok_or_else(|| {
+                        refuse(
+                            "payment",
+                            "a payout pays exactly one output: this auction has no fee",
+                        )
+                    })?;
+                    let fee_out = payments
+                        .iter()
+                        .position(|(a, v)| to(a, &fee.ua) && *v == fee.zat);
+                    let Some(i) = fee_out else {
+                        return Err(refuse(
+                            "payment",
+                            format!(
+                                "neither output is the fee the published result implies ({} zat to {})",
+                                fee.zat, fee.ua
+                            ),
+                        ));
+                    };
+                    let (payout_address, _) = &payments[1 - i];
+                    if !to(payout_address, expected) {
+                        return Err(refuse(
+                            "payment",
+                            format!(
+                                "the payout goes to {payout_address}, not the payout address {expected}"
+                            ),
+                        ));
+                    }
+                    if rules.fee_already_signed {
+                        return Err(refuse(
+                            "payment",
+                            "the fee was already paid in a payout you signed",
+                        ));
+                    }
+                    protocol_fee_zat = fee.zat;
+                }
+                _ => {
+                    return Err(refuse(
+                        "payment",
+                        format!(
+                            "a payout pays one output, or two with the fee, not {}",
+                            payments.len()
+                        ),
+                    ))
+                }
             }
         }
         BatchKind::Refund => {
@@ -256,6 +352,7 @@ pub fn verify_batch(
         payments,
         fee_zat: report.fee_zat,
         expiry_height: report.expiry_height,
+        protocol_fee_zat,
     })
 }
 
@@ -299,6 +396,8 @@ mod tests {
             kind,
             refund_total_due_zat: Some(10_000_000),
             payout_ua: None,
+            fee: None,
+            fee_already_signed: false,
         }
     }
 
@@ -436,6 +535,57 @@ mod tests {
         ))
         .unwrap();
         assert_ne!(a, batch_txid(&other).unwrap());
+    }
+
+    #[test]
+    fn the_fee_rule_follows_from_the_published_result() {
+        let prices = [10_000_000u64, 10_000_000, 0];
+        // 2.5% of 0.2 ZEC.
+        assert_eq!(
+            fee_rule(250, Some("utest1fee"), 500_000, prices).unwrap(),
+            Some(FeeRule {
+                ua: "utest1fee".into(),
+                zat: 500_000
+            })
+        );
+        // No fee: no rule, whatever the address.
+        assert_eq!(fee_rule(0, None, 0, prices).unwrap(), None);
+        // A result that states another fee than its own bids give is refused.
+        assert_eq!(
+            fee_rule(250, Some("utest1fee"), 600_000, prices)
+                .unwrap_err()
+                .class,
+            "payment"
+        );
+        assert_eq!(fee_rule(0, None, 1, prices).unwrap_err().class, "payment");
+        // A fee with nowhere to go is refused.
+        assert!(fee_rule(250, None, 500_000, prices).is_err());
+    }
+
+    #[test]
+    fn a_payout_without_the_fee_output_still_passes() {
+        // The fee rides in the first payout sweep; a payout without it (a
+        // later sweep, or one too small to carry it) is still the payout.
+        let (pczt, fvk, now, sighash, paid) = fixture();
+        let rules = BatchRules {
+            payout_ua: Some(paid),
+            fee: Some(FeeRule {
+                ua: "u1unused".into(),
+                zat: 1,
+            }),
+            ..rules(BatchKind::Payout)
+        };
+        let ok = verify_batch(
+            &pczt,
+            &fvk,
+            NetworkType::Main,
+            now,
+            &sighash,
+            &spends(&pczt),
+            &rules,
+        )
+        .unwrap();
+        assert_eq!(ok.protocol_fee_zat, 0);
     }
 
     #[test]

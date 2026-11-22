@@ -140,6 +140,9 @@ pub struct Sweep {
     /// The escrow held more notes than one transaction may spend, so this sweep
     /// took only the oldest ones and another is needed for the rest.
     pub more_left: bool,
+    /// The extra output (the protocol fee) is in this sweep. It is left out
+    /// when the notes swept can't cover it; the next sweep then pays it.
+    pub extra_paid: bool,
 }
 
 /// `(commitment tree position, value)` of every note a proposal spends.
@@ -318,46 +321,71 @@ impl EscrowWallet {
     /// leave the escrow except the fee.
     pub fn build_consolidation(&mut self, max_notes: usize) -> anyhow::Result<Sweep> {
         let address = self.internal_address()?;
-        self.build_sweep(&address, 0, max_notes)
+        self.build_sweep(&address, 0, max_notes, None)
     }
 
     /// Pay everything in the escrow to `address` except `keep_zat`, net of the
     /// ZIP-317 fee (the organiser payout), spending at most `max_notes` notes.
     /// If the escrow holds more, this sends what its oldest `max_notes` notes
     /// hold and sets [`Sweep::more_left`]; sweep again once it confirms.
+    /// Sweep the escrow to `address`, keeping `keep_zat`. With `extra` (the
+    /// protocol fee), that output is paid first at its exact amount and
+    /// `address` gets the rest; it rides along only if the notes swept cover it.
     pub fn build_sweep(
         &mut self,
         address: &str,
         keep_zat: u64,
         max_notes: usize,
+        extra: Option<&PaymentOut>,
     ) -> anyhow::Result<Sweep> {
         let available = self.spendable_zat()?;
-        let out = |amount_zat| PaymentOut {
-            address: address.to_owned(),
-            amount_zat,
-            memo: None,
+        let extra_zat = extra.map_or(0, |e| e.amount_zat);
+        // The outputs for a sweep moving `total` out of the escrow: the extra
+        // output at its amount, the rest to `address`.
+        let outs = |total: u64, with_extra: bool| -> Option<(Vec<PaymentOut>, u64)> {
+            let main = if with_extra {
+                total.checked_sub(extra_zat)?
+            } else {
+                total
+            };
+            if main == 0 {
+                return None;
+            }
+            let mut v = vec![PaymentOut {
+                address: address.to_owned(),
+                amount_zat: main,
+                memo: None,
+            }];
+            if with_extra {
+                v.extend(extra.cloned());
+            }
+            Some((v, main))
         };
         // Everything: the fee depends on the notes selected, so learn it from
         // the shortfall the proposal reports.
         let mut fee = sweep_fee(2);
         let mut full = None;
         for _ in 0..5 {
-            let amount = available
+            let total = available
                 .checked_sub(keep_zat + fee)
                 .filter(|a| *a > 0)
                 .ok_or_else(|| anyhow!("escrow holds {available} zat: nothing left to sweep"))?;
-            match self.propose(std::slice::from_ref(&out(amount))) {
+            let with_extra = extra.is_some() && total > extra_zat;
+            let (outputs, main) = outs(total, with_extra)
+                .ok_or_else(|| anyhow!("escrow holds {available} zat: nothing left to sweep"))?;
+            match self.propose(&outputs) {
                 Ok(proposal) => {
-                    full = Some((proposal, amount));
+                    full = Some((proposal, main, with_extra));
                     break;
                 }
                 Err(ProposeFail::Insufficient { required, .. }) => {
-                    fee = required.saturating_sub(amount).max(fee + 5_000);
+                    fee = required.saturating_sub(total).max(fee + 5_000);
                 }
                 Err(ProposeFail::Other(e)) => return Err(e),
             }
         }
-        let (proposal, amount) = full.ok_or_else(|| anyhow!("couldn't size the sweep"))?;
+        let (proposal, amount, extra_paid) =
+            full.ok_or_else(|| anyhow!("couldn't size the sweep"))?;
         let notes = spent_notes(&proposal);
         if notes.len() <= max_notes {
             return Ok(Sweep {
@@ -365,36 +393,41 @@ impl EscrowWallet {
                 amount_zat: amount,
                 notes: notes.len(),
                 more_left: false,
+                extra_paid,
             });
         }
 
         // Too many notes for one transaction: send what the oldest `max_notes`
         // hold. The wallet spends oldest first, so a target just under their
         // total selects exactly those. Anything to keep stays in the newer notes.
-        let total = available;
         let mut fee = sweep_fee(max_notes);
         for _ in 0..10 {
             let (target, _) = oldest_notes_target(&notes, max_notes, fee);
-            let amount = target.min(total.saturating_sub(keep_zat + fee));
-            if amount == 0 {
+            let total = target.min(available.saturating_sub(keep_zat + fee));
+            if total == 0 {
                 break;
             }
-            match self.propose(std::slice::from_ref(&out(amount))) {
+            let with_extra = extra.is_some() && total > extra_zat;
+            let Some((outputs, main)) = outs(total, with_extra) else {
+                break;
+            };
+            match self.propose(&outputs) {
                 Ok(proposal) => {
                     let spent = spent_notes(&proposal).len();
                     if spent <= max_notes {
                         return Ok(Sweep {
                             payment: self.prove(&proposal)?,
-                            amount_zat: amount,
+                            amount_zat: main,
                             notes: spent,
                             more_left: true,
+                            extra_paid: with_extra,
                         });
                     }
                     // The fee ran past the oldest notes' total: leave more room.
                     fee += 5_000 * (spent - max_notes) as u64;
                 }
                 Err(ProposeFail::Insufficient { required, .. }) => {
-                    fee = required.saturating_sub(amount).max(fee + 5_000);
+                    fee = required.saturating_sub(total).max(fee + 5_000);
                 }
                 Err(ProposeFail::Other(e)) => return Err(e),
             }

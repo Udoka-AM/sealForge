@@ -1,7 +1,7 @@
 ---
 title: "Product and economics"
 sidebarTitle: "Product"
-description: "The problem, why Zcash, verticals, revenue models (all specified, none built) and unit economics from measured testnet costs."
+description: "The problem, why Zcash, verticals, revenue models (the take rate built, the rest specified) and unit economics from measured testnet costs."
 keywords: ["product", "economics", "verticals", "unit economics"]
 ---
 
@@ -49,11 +49,11 @@ Before mainnet caps are lifted, any auction is bounded by the per-auction cap (a
 
 ## Revenue models
 
-**Every model here is `Specified`. None is in the code.** The payout today sends the whole remaining escrow balance, minus ZIP 317 fees, to the organiser (`EscrowWallet::build_sweep`, `crates/sealforge-chain/src/spend.rs`).
+**The take rate is built (`Tested`: unit and API tests plus a regtest drill). The other models are `Specified`.** An auction's rate is 0 (no fee) or 5% to 15% of the settled proceeds. New auctions take the operator's default (`SF_FEE_BPS`, 0 on the hosted testnet site), and the operator's admin can set an auction's own rate until it opens; from then it is fixed and shown on the auction page. The fee is paid to `SF_FEE_UA` as one extra output of the first payout sweep (`EscrowWallet::build_sweep`, `crates/sealforge-chain/src/spend.rs`), out of the organiser's proceeds: bidders pay nothing extra.
 
 | Model | Status | How it would work |
 |---|---|---|
-| Take rate on settled proceeds | `Specified` | One extra output in the payout sweep. It MUST appear in the published result so the auditor can check it |
+| Take rate on settled proceeds | `Tested` | One extra output in the payout sweep, at `floor(Σ price_paid × bps / 10000)` (`sealforge_core::fee`). Published as `fee_bps`, `fee_ua`, `fee_zat` ([2.3](/protocol/wire-formats#published-result)). Trustees refuse a payout with the wrong amount or address, or that pays the fee twice; the auditor recomputes it |
 | Hosted coordinator | `Specified` | Run the coordinator for organisers |
 | White label | `Specified` | Embed card (built) plus a branded audit page (not built) |
 | Trustee as a service | `Specified` | Act as one of the three trustees, for a fee |
@@ -77,7 +77,7 @@ From the per-wallet table in [evidence/testnet-genesis.md](https://github.com/Ud
 
 ```text
 revenue = (b / 10,000) × V
-  b = take rate in basis points
+  b = take rate in basis points (500 to 1,500, or 0)
   V = settled proceeds in ZEC (uniform price: clearing_price × winner_count)
 net = revenue − escrow_fees − hosting − trustee costs
 ```
@@ -86,9 +86,9 @@ net = revenue − escrow_fees − hosting − trustee costs
 
 | Scenario | V (ZEC, settled proceeds) | b (bps) | Revenue (ZEC) | Escrow fees (ZEC, at the measured ~0.000075/refund note) |
 |---|---|---|---|---|
-| Small community drop: 25 bidders | 1 | 100 | 0.01 | ~0.0055 (as `K7GHHBC4GP`) |
-| Mid-size: 200 bidders, ~600 refund notes | 50 | 100 | 0.5 | ~0.045 |
-| Large: 2,000 bidders, ~6,000 refund notes | 500 | 50 | 2.5 | ~0.45 |
+| Small community drop: 25 bidders | 1 | 1,500 | 0.15 | ~0.0055 (as `K7GHHBC4GP`) |
+| Mid-size: 200 bidders, ~600 refund notes | 50 | 1,000 | 5 | ~0.045 |
+| Large: 2,000 bidders, ~6,000 refund notes | 500 | 500 | 25 | ~0.45 |
 
 Note counts assume about 3 refund notes per bidder, as measured in `K7GHHBC4GP` (73 notes for 25 bidders). The linkability simulation, with larger and more varied bids, averages 6.8 notes per refund ([evidence/linkability.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/linkability.md)), which would roughly double the fee column. The fee column scales the measured per-note figure linearly. That's an assumption: real fees depend on note counts per bid and batch packing.
 

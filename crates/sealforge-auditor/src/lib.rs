@@ -269,6 +269,17 @@ fn compare(
                 "0".into(),
                 mismatched.to_string(),
             );
+            // sealForge's fee (issue #74): the published rate applied to the
+            // recomputed proceeds. Shown only for auctions that have a fee.
+            if published.fee_bps > 0 || published.fee_zat > 0 {
+                let proceeds: u64 = c.outcomes.iter().map(|o| o.price_paid.0).sum();
+                check(
+                    &mut fields,
+                    "fee_zat",
+                    published.fee_zat.to_string(),
+                    sealforge_core::fee::protocol_fee_zat(proceeds, published.fee_bps).to_string(),
+                );
+            }
         }
     }
     AuditReport {
@@ -578,6 +589,9 @@ mod tests {
             })
             .collect();
         PublishedResult {
+            fee_bps: 0,
+            fee_ua: None,
+            fee_zat: 0,
             auction_code: CODE.into(),
             network: Network::Testnet,
             rules: ResultRules {
@@ -619,6 +633,27 @@ mod tests {
             escrow_ua: None,
             trustees: vec![],
         }
+    }
+
+    #[test]
+    fn the_fee_is_recomputed_from_the_proceeds() {
+        let mut p = honest();
+        let proceeds: u64 = p.bids.iter().map(|b| b.price_paid_zat).sum();
+        p.fee_bps = 250;
+        p.fee_ua = Some("utest1fee".into());
+        p.fee_zat = sealforge_core::fee::protocol_fee_zat(proceeds, 250);
+        assert!(p.fee_zat > 0);
+        assert!(audit(&p, &payments()).matches);
+        // A coordinator that publishes a bigger fee than the rate gives is caught.
+        p.fee_zat += 1;
+        let report = audit(&p, &payments());
+        assert!(!report.matches);
+        assert!(report.fields.iter().any(|f| f.field == "fee_zat" && !f.ok));
+        // Auctions without a fee don't show the field at all.
+        assert!(audit(&honest(), &payments())
+            .fields
+            .iter()
+            .all(|f| f.field != "fee_zat"));
     }
 
     #[test]
@@ -730,6 +765,9 @@ mod commit_reveal_tests {
             reserve: Zatoshi(1_000_000),
         };
         let mut p = PublishedResult {
+            fee_bps: 0,
+            fee_ua: None,
+            fee_zat: 0,
             auction_code: CODE.into(),
             network: Network::Testnet,
             rules: ResultRules {

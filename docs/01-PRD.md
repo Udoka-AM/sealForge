@@ -79,7 +79,7 @@
 - Fiat on-ramps and KYC flows.
 - Native mobile apps. The web app is responsive and the bid itself happens in the user's existing mobile wallet.
 - Hosted multi-tenant SaaS (accounts, billing, white-label theming). v1 is self-hosted per organiser.
-- Protocol fees and the ShieldRamp routing fee. The revenue model stays documented but is switched off for the hackathon.
+- The ShieldRamp routing fee. (The protocol fee is now built, 0 or 5–15% per auction, and runs at 0 on the hosted testnet site.)
 - Governance or trustee rotation after DKG. A new auction means a new DKG.
 - Transparent (t-addr) bids. They are rejected in the UI and ignored by the scanner.
 

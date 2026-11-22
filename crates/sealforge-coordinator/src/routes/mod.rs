@@ -1,3 +1,4 @@
+mod admin;
 mod auctions;
 pub mod batches;
 mod dkg;
@@ -7,7 +8,7 @@ mod results;
 use axum::{
     extract::State,
     http::StatusCode,
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde_json::{json, Value};
@@ -51,6 +52,7 @@ pub fn router(state: AppState) -> Router {
             post(dkg::verify_escrow),
         )
         .route("/v1/auctions/{code}/publish", post(auctions::publish))
+        .route("/v1/admin/auctions/{code}/fee", put(admin::set_fee))
         .route("/v1/auctions/{code}/result", get(results::result))
         .route("/v1/auctions/{code}/refunds", get(results::refund_progress))
         .route("/v1/auctions/{code}/batches", get(batches::list))

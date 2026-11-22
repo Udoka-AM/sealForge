@@ -54,6 +54,7 @@ async fn records_payments_with_memo_level_checks(db: PgPool) {
         Settings {
             invite_codes: vec![],
             data_key: Some(KEY.into()),
+            ..Default::default()
         },
     );
     sqlx::query("INSERT INTO organisers (display_name, pubkey) VALUES ('Org', $1)")

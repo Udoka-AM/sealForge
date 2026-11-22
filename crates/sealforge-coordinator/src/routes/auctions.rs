@@ -95,6 +95,19 @@ pub async fn create(
     let organiser = organiser_id(&state.db, &req.pubkey).await?;
     let input: CreateAuction = req.json()?;
     validate::create_auction(&input)?;
+    // The operator's fee, fixed for this auction from now on (issue #74).
+    let (fee_bps, fee_ua) = match (state.settings.fee_bps, state.settings.fee_ua.as_deref()) {
+        (0, _) | (_, None) => (0i16, None),
+        (bps, Some(ua)) => {
+            validate::shielded_ua(ua, input.network).map_err(|_| {
+                ApiError::Internal(anyhow::anyhow!(
+                    "SF_FEE_UA isn't a shielded address on {:?}",
+                    input.network
+                ))
+            })?;
+            (bps as i16, Some(ua.to_owned()))
+        }
+    };
 
     let mut tx = state.db.begin().await?;
     // Retry on the (astronomically unlikely) code collision.
@@ -103,8 +116,8 @@ pub async fn create(
         let code = codes::auction_code();
         let id: Option<Uuid> = sqlx::query_scalar(
             "INSERT INTO auctions (code, organiser_id, title, description, lot_image_url, network, mode, bid_mode, \
-             quantity, reserve_zat, close_height, payout_ua, reveal_close_height) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
+             quantity, reserve_zat, close_height, payout_ua, reveal_close_height, fee_bps, fee_ua) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) \
              ON CONFLICT (code) DO NOTHING RETURNING id",
         )
         .bind(&code)
@@ -120,6 +133,8 @@ pub async fn create(
         .bind(input.close_height as i32)
         .bind(&input.payout_ua)
         .bind(input.reveal_close_height.map(|h| h as i32))
+        .bind(fee_bps)
+        .bind(&fee_ua)
         .fetch_optional(&mut *tx)
         .await?;
         if let Some(id) = id {

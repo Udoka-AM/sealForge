@@ -26,7 +26,7 @@ Related: [01-PRD.md](01-PRD.md), [05-BACKEND-SCHEMA.md](05-BACKEND-SCHEMA.md), [
 | Wallets | **WebZjs** (ChainSafe) for the ephemeral Zcash wallet. **wagmi 3 + viem 2** for EVM (MetaMask, Rabby, WalletConnect). Solana wallet adapter (stretch) |
 | Local storage | IndexedDB (via `idb-keyval`) for receipts and the encrypted ephemeral-wallet seed. Nothing is sent to the server |
 | Runtime | Node 22 LTS for build and SSR. The audit page is fully static + WASM |
-| Deployment | **Vercel** for `apps/web` (preview per PR, production on `main`). The audit page is also exported as a static bundle and attached to each GitHub release so it can be hosted anywhere (IPFS mirror is a stretch) |
+| Deployment | **As built:** the whole stack (web, coordinator, Postgres, Envoy) runs in Docker on one server behind a Cloudflare tunnel ([DEPLOY-VPS.md](DEPLOY-VPS.md)). **Original plan:** Vercel for `apps/web` (preview per PR, production on `main`). The audit page is also exported as a static bundle and attached to each GitHub release so it can be hosted anywhere (IPFS mirror is a stretch) |
 | Package manager | **pnpm 9** workspaces |
 
 ## 2.3 Backend and database

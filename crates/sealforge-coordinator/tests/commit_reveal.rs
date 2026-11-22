@@ -76,6 +76,7 @@ async fn deposits_are_budgets_and_reveals_set_prices(db: PgPool) {
         Settings {
             invite_codes: vec![],
             data_key: Some(KEY.into()),
+            ..Default::default()
         },
     );
     sqlx::query("INSERT INTO organisers (display_name, pubkey) VALUES ('Org', $1)")

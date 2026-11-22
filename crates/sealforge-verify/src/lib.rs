@@ -16,7 +16,8 @@ pub mod plan;
 pub mod refunds;
 
 pub use plan::{
-    batch_txid, orchard_receiver, verify_batch, BatchKind, BatchRules, Refusal, VerifiedBatch,
+    batch_txid, fee_rule, orchard_receiver, verify_batch, BatchKind, BatchRules, FeeRule, Refusal,
+    VerifiedBatch,
 };
 
 /// The shared refusal class (frost-zec `vectors/tamper/classes.md`) of an error

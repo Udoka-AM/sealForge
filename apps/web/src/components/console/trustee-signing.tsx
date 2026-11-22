@@ -165,6 +165,18 @@ async function checkTransaction(
     const result = await api<PublishedResult>("GET", `/v1/auctions/${code}/result`, null);
     refundTotalDueZat = result.bids.reduce((sum, bid) => sum + bid.refund_due_zat, 0);
     chain = await refundChain(lightwalletd, code, signer.keyId, b, result);
+  } else if (b.kind === "payout") {
+    // An auction with a fee: the payout may carry it, once (issue #74). The
+    // fee is recomputed from the result, and this trustee's ledger is checked
+    // against the chain so it never signs the fee twice.
+    const result = await api<PublishedResult>("GET", `/v1/auctions/${code}/result`, null);
+    if ((result.fee_zat ?? 0) > 0) {
+      if (!lightwalletd)
+        throw new Error(
+          "This auction has a fee, which is checked against what you signed before through the chain. Set a lightwallet server you trust above, then check again.",
+        );
+      chain = await refundChain(lightwalletd, code, signer.keyId, b, result);
+    }
   }
   return verifyBatch({
     keyPackageHex: keyHex,

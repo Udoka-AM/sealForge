@@ -53,6 +53,10 @@ export interface AuctionView {
   bid_count: number | null;
   /** Only in the organiser's own view (GET /v1/console/...). */
   owner?: { payout_ua: string; fee_buffer_zat: number };
+  /** sealForge's fee on proceeds, in basis points (absent: none). */
+  fee_bps?: number;
+  /** Where the fee is paid. */
+  fee_ua?: string | null;
 }
 
 export interface TrusteeInvite {
@@ -144,7 +148,9 @@ export interface VerifiedBatch {
   payments: [string, number][];
   fee_zat: number;
   expiry_height: number;
-  /** Refund batches: what to add to this trustee's ledger before its share leaves. */
+  /** Payouts: the protocol fee this transaction pays (0 if none). */
+  protocol_fee_zat?: number;
+  /** Refund batches, and payouts that pay the fee: what to add to this trustee's ledger before its share leaves. */
   ledger_entry?: RefundLedgerEntry;
 }
 
@@ -153,6 +159,8 @@ export interface RefundLedgerEntry {
   batch_txid: string;
   expiry_height: number;
   notes: { bid_txid: string; bid_output_index: number; value_zat: number }[];
+  /** Payouts: the protocol fee it paid. */
+  fee_zat?: number;
 }
 
 export interface TrusteeBatch {
@@ -221,6 +229,10 @@ export interface PublishedResult {
   merkle_root: string;
   bids: ResultBid[];
   /** The escrow address bidders paid. */
+  /** sealForge's fee rate (basis points), its address, and the fee owed (absent: none). */
+  fee_bps?: number;
+  fee_ua?: string | null;
+  fee_zat?: number;
   escrow_ua?: string;
   /** Each trustee's attestation over escrow_ua. */
   trustees?: {
