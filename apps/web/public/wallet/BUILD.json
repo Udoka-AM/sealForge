@@ -1,10 +1,10 @@
 {
   "crate": "sealforge-wallet",
   "version": "0.1.0",
-  "git_commit": "2c7c30b86d0fbe3667370d4704aac97d3ed089e8",
+  "git_commit": "fa9d6ada458314d8f7f0a1f17eecfa6b9096977c",
   "source_dirty": false,
   "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
   "clang": "Debian clang version 19.1.7 (3+b1)",
   "wasm_bindgen": "0.2.129",
-  "wasm_sha256": "abccd6d0eda97cfb1417ba30db43173bddea254079d542b75542a07bcfc8aa1d"
+  "wasm_sha256": "c66c8229301c99a9f2839dcdfff72f6081644c4de0f9e37774c6d093e9806976"
 }
