@@ -150,7 +150,7 @@ Opens the public audit page → pastes the IVK → watches the chain rescan → 
 ## 7. Expected volume and ARR (estimates)
 
 **Revenue model (post-hackathon):**
-- **Protocol fee** on cleared volume (0.5–1%), charged to the organiser, not the bidders. Keep bidder-side fees at 0: fees on bidders are the first thing a sale gets criticised for.
+- **Protocol fee** on cleared volume (5–15%, set per auction before it opens; built, default 0), charged to the organiser, not the bidders. Keep bidder-side fees at 0: fees on bidders are the first thing a sale gets criticised for.
 - **ShieldRamp routing fee** of 15–25 bps on routed volume. Use the Intents app-fee field if it is available; otherwise set it per integration.
 - **Hosted/managed auctions** (trustee service, white-label page): $2–10K per launch.
 

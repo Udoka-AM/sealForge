@@ -41,15 +41,12 @@ Built for the [Zecathon](https://thezecathon.com) **Private Markets** track (Oct
 
 ### Where to reach it
 
-Two instances run the same build. **The primary carries the auction history.**
-
 | | | |
 |---|---|---|
-| **Primary** | [sealforge.udokaam.dev](https://sealforge.udokaam.dev) | Full history: every settled auction and its audit page. Self-hosted, so it can be briefly offline |
-| **Mirror** | [sealforge.84-247-183-185.sslip.io](https://sealforge.84-247-183-185.sslip.io) | Always-on VPS, same build. **Auction history not migrated yet**, so the audit links below resolve only on the primary |
-| **Always available** | this repository | Every auction's full record is in [docs/evidence](docs/evidence), and the results are permanent on chain — see [Verify it yourself](#verify-it-yourself). **Neither site has to be up for you to check our claims** |
+| **The site** | [sealforge.udokaam.dev](https://sealforge.udokaam.dev) | Every settled auction and its audit page. Runs on a single server in Docker behind a Cloudflare tunnel ([docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md)) |
+| **Always available** | this repository | Every auction's full record is in [docs/evidence](docs/evidence), and the results are permanent on chain — see [Verify it yourself](#verify-it-yourself). **The site doesn't have to be up for you to check our claims** |
 
-If the primary is down, the auction records and the independent audit path are
+If the site is down, the auction records and the independent audit path are
 still here, in the repo and on the chain. That is the point of publishing the
 viewing key: the evidence does not depend on our servers.
 
@@ -92,7 +89,7 @@ Everything below ran on real Zcash chains with real shielded transactions and re
 2. **Key generation.** Each trustee runs a FROST DKG on their own machine. The coordinator only relays packages; key shares never leave the trustees. The escrow address is derived from the group key.
 3. **Bid.** Bidders pay the escrow from any Zcash wallet. The scanner records each payment from the shielded memo.
 4. **Close and publish.** At the close height (plus 10 confirmations) the result is computed with the same code the auditor runs. Publishing releases the viewing key and the Merkle root.
-5. **Refund and pay out.** Refund notes are batched across bidders; any two trustees co-sign each batch (CLI or browser). After the last refund, the rest of the escrow is swept to the organiser.
+5. **Refund and pay out.** Refund notes are batched across bidders; any two trustees co-sign each batch (CLI or browser), after checking every output against the published result and the chain. After the last refund, the rest of the escrow is swept to the organiser, less the protocol fee if the auction carries one.
 
 ## Verify it yourself
 
@@ -131,7 +128,7 @@ To run the whole thing locally, on a private chain: [docs/QUICKSTART.md](docs/QU
 | Coordinator during bidding | ⚠️ in deposit mode · ✅ in sealed-reveal mode | Deposit mode: the coordinator holds the escrow viewing key and sees bid amounts live (stated on the auction page). Trustees can see them too: they hold the viewing key to check the escrow address and every transaction they sign. Sealed-reveal: they see only budget deposits until bidders reveal |
 | A rogue trustee | ✅ | FROST 2-of-3: one share can't sign |
 | A dishonest coordinator, the result | ✅ detectable | Any result that doesn't follow from the chain fails the public audit |
-| A dishonest coordinator, refunds and payout | ✅ checked by trustees, not yet audited | It holds no key share, and trustees decode every transaction before signing (CLI and browser): each output must be owed, each refund goes to its bid's own refund address read from the chain, no note is paid twice, and the two signers confirm they saw the same commitments. These checks are part of the external audit still to come |
+| A dishonest coordinator, refunds and payout | ✅ checked by trustees, not yet audited | It holds no key share, and trustees decode every transaction before signing (CLI and browser): each output must be owed, each refund goes to its bid's own refund address read from the chain, no note is paid twice, the payout goes only to the organiser plus at most the exact protocol fee the result implies, and the two signers confirm they saw the same commitments. These checks are part of the external audit still to come |
 | Refund correlation (amount + timing) | ✅ mitigated | Standard denominations, random delays, cross-bidder batches. In simulation an observer links 0.1% of refunded bids by value; timing isn't modelled ([evidence](docs/evidence/linkability.md)) |
 
 Full version, including what is **not** protected: [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md).
@@ -146,6 +143,16 @@ console · browser trustee signing · sealed-reveal mode · built-in shielded
 wallet (create, or link an existing 24-word phrase) · embeddable auction card ·
 security review, accessibility, performance and backup drills · two auctions
 settled end to end (7 and 25 bids) · hosted instance · release v0.1.0.
+
+**Added since v0.1.0** (on `main`, exercised on regtest and the hosted
+testnet site). Trustees check every escrow transaction before signing (CLI and
+browser): each refund is matched to its bid on chain, nothing is paid twice,
+and co-signers compare what they were shown · trustees vouched for by
+published long-term keys · trustee key backups and a sweep that needs no
+coordinator · reproducible WASM builds, byte-checked in CI · a protocol fee of
+0 or 5–15% of proceeds, set per auction before it opens, paid by the organiser
+out of the payout and checked by trustees and the auditor (0 on the hosted
+site).
 
 **Sequenced next, and why.**
 

@@ -66,6 +66,7 @@ docker compose -f infra/docker-compose.yml --profile node --profile app up -d
 | Escrow wallet files (`SF_WALLET_DIR`) | Same script, tarball | Same | 14 days |
 | `SF_DATA_KEY` | Never in a backup. Team password manager, plus a paper copy with the organiser | Offline | Forever |
 | Backup encryption | `AGE_RECIPIENT` (age public key). The private key is held like `SF_DATA_KEY` | Offline | Forever |
+| `SF_ADMIN_TOKEN` | Never in a backup. Team password manager. Rotate by replacing it in `coordinator.env` and restarting the coordinator | Offline | Until rotated |
 
 ```bash
 # /etc/cron.d/sealforge-backup
