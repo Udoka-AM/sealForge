@@ -6,7 +6,7 @@ In short: be respectful and constructive, assume good faith, welcome people of e
 
 ## Reporting
 
-Report unacceptable behaviour privately to the maintainers at **CONDUCT_CONTACT**. Every report is reviewed and investigated promptly and fairly, and the reporter's privacy is respected.
+Report unacceptable behaviour privately to the maintainers at [udoka.am@gmail.com](mailto:udoka.am@gmail.com). Every report is reviewed and investigated promptly and fairly, and the reporter's privacy is respected.
 
 Security vulnerabilities are not conduct matters: report them as described in [SECURITY.md](SECURITY.md).
 

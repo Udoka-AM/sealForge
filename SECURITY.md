@@ -4,7 +4,7 @@ sealForge holds bidders' funds in a 2-of-3 FROST escrow, so we take reports seri
 
 ## Reporting a vulnerability
 
-**Report privately** through GitHub: [Report a vulnerability](https://github.com/Udoka-AM/sealForge/security/advisories/new) (the repository's Security tab). Only the maintainers see it. Please don't open a public issue, pull request or forum post for anything that could put funds or bidder privacy at risk before it's fixed.
+**Report privately** through GitHub: [Report a vulnerability](https://github.com/Udoka-AM/sealForge/security/advisories/new) (the repository's Security tab). Only the maintainers see it. If you can't use GitHub, email [udoka.am@gmail.com](mailto:udoka.am@gmail.com) with "sealForge security" in the subject, and we'll move the report to a private advisory. Please don't open a public issue, pull request or forum post for anything that could put funds or bidder privacy at risk before it's fixed.
 
 Helpful to include:
 

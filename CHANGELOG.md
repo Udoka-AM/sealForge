@@ -30,6 +30,7 @@ All notable changes to sealForge are recorded here. The format follows [Keep a C
 
 ### Security
 
+- Dependency updates for RUSTSEC-2026-0385 (`ctutils`), RUSTSEC-2026-0382 (`rustls-webpki`) and RUSTSEC-2026-0381 (`webpki-roots`), and Next.js 16.4.6 for seven advisories, including cross-client response injection in self-hosted deployments. (#76)
 - Next.js 16.4.2 for that release's advisories. (#24)
 
 ## [0.1.0] - 2026-10-22
