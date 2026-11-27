@@ -62,7 +62,7 @@ tower = { version = "0.5", features = ["util", "limit"] }
 governor = "0.10"
 http-body-util = "0.1"
 crypto_box = { version = "0.9", features = ["seal"] }
-toml = "0.8"
+toml = "1.2"
 sealforge-coordinator = { path = "crates/sealforge-coordinator" }
 
 # Zcash and FROST crates, upgraded together; see docs/VERSIONS.md. librustzcash
