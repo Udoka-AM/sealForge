@@ -86,7 +86,7 @@ reddsa = "0.6.1"
 # that ships it (frost-rerandomized 3.0.0 underneath). Renamed to avoid clashing with reddsa 0.6.
 reddsa-frost = { package = "reddsa", version = "=0.5.2", features = ["frost"] }
 frost-rerandomized = "=3.0.0"
-rand = "0.8"
+rand = "0.10"
 
 [profile.release]
 lto = "thin"
