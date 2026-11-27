@@ -1,4 +1,4 @@
-import { bytesToHex } from "@noble/hashes/utils";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { describe, expect, it } from "vitest";
 import shared from "../../../crates/sealforge-core/tests/fixtures/vectors.json";
 import {

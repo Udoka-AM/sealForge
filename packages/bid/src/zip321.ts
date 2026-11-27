@@ -1,4 +1,4 @@
-import { utf8ToBytes } from "@noble/hashes/utils";
+import { utf8ToBytes } from "@noble/hashes/utils.js";
 import { formatZec } from "./amount";
 
 /** Base64url without padding, as ZIP-321 requires for memos. */

@@ -30,7 +30,7 @@ zcash_client_sqlite = { workspace = true, features = ["orchard", "transparent-in
 zcash_keys = { workspace = true, features = ["default", "unstable-frost"] }
 zcash_primitives = { workspace = true, features = ["default"] }
 zcash_proofs = { workspace = true, features = ["bundled-prover"], optional = true }
-secrecy = "0.8"
+secrecy = "0.10"
 zip32 = "0.3"
 zcash_note_encryption = "0.5"
 zcash_protocol.workspace = true

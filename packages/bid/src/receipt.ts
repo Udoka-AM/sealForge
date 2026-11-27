@@ -1,4 +1,4 @@
-import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { bidCommitment, bidMemo, priceCommitment, revealMemo } from "./memo";
 import { paymentUri } from "./zip321";
 

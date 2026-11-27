@@ -34,7 +34,7 @@ cargo deny check
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
-The browser runs four WebAssembly modules (auditor, signer, scanner, wallet) that are committed to `apps/web/public/`. If you change any crate they include, rebuild them in the pinned container and commit the result: `scripts/build-wasm.sh`. CI rebuilds them and fails unless the committed bytes match.
+The browser runs four WebAssembly modules (auditor, signer, scanner, wallet) that are committed to `apps/web/public/`. If you change any crate they include, rebuild them in the pinned container and commit the result: `scripts/build-wasm.sh`. CI rebuilds them and fails unless the committed bytes match. That includes Dependabot updates to a crate inside a module: a maintainer runs `scripts/build-wasm.sh` and pushes the rebuilt modules to the update's branch before merging.
 
 ## Privacy and correctness rules
 
