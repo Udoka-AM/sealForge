@@ -31,7 +31,7 @@ tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
-zcash_keys.workspace = true
+zcash_keys = { workspace = true, features = ["default", "unstable-frost"] }
 zcash_protocol.workspace = true
 governor.workspace = true
 tower.workspace = true

@@ -15,7 +15,7 @@ Precise questions where outside review would change the design. Each says what w
    - (c) keep the coordinator.
 
    For a view-only escrow wallet that must build PCZTs, the coordinator needs the FVK anyway at spend time. Does (a) or (b) buy anything beyond hiding deposit-mode bids from the coordinator *before close*? Is there a construction you'd recommend, and does anything in the Orchard key-component requirements (`FullViewingKey::from_bytes` validity) make joint derivation awkward?
-2. **Trustee-side PCZT verification (D1).** Answered in part: trustees now receive the PCZT and run the shared frost-zec co-signer checks (spec § 6), and the shielded sighash is recomputed through pczt's Signer role in `pczt 0.10.0-pre.2`. Open: the cheapest sound way for a trustee to tie each refund output to its bidder's memo without a full escrow sync ([5 Security](/security#trust-assumptions)).
+2. **Trustee-side PCZT verification (D1).** Answered in part: trustees now receive the PCZT and run the shared frost-zec co-signer checks (spec § 6), and the shielded sighash is recomputed through pczt's Signer role in `pczt 0.10`. Open: the cheapest sound way for a trustee to tie each refund output to its bidder's memo without a full escrow sync ([5 Security](/security#trust-assumptions)).
 3. **Fixed α through the deprecated `frost_rerandomized::sign`.** Orchard fixes α in the PCZT, so we can't use the seed-derived randomizer API ([3 upstream risk](/zcash-integration#dependencies-and-upstream-risk)). Is signing with a fixed, coordinator-supplied α acceptable until the ZF RedPallas ciphersuite ships? Should we switch to `zakura-reddsa-frost`, or wait for upstream?
 
 ## Commitments and identifiers
