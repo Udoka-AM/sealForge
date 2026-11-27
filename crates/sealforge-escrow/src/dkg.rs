@@ -1,8 +1,8 @@
 //! Distributed key generation, run locally by each trustee.
 //!
 //! Round 1 packages are broadcast; round 2 packages are sent to one recipient
-//! each and must be encrypted to that trustee before the coordinator relays them
-//! (task 2.4). `finish` returns the trustee's key package (secret, stays on the
+//! each and must be encrypted to that trustee before the coordinator relays them.
+//! `finish` returns the trustee's key package (secret, stays on the
 //! trustee's machine) and the public key package (shared with the coordinator).
 
 use std::collections::BTreeMap;

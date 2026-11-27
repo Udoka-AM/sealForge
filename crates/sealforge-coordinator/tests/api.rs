@@ -138,7 +138,7 @@ fn auction_input() -> Value {
     })
 }
 
-/// Stand-in for DKG completion (task 2.4). Trustees have not yet verified the
+/// Stand-in for DKG completion. Trustees have not yet verified the
 /// escrow address; see [`mark_escrow_verified`].
 async fn mark_ready_unverified(db: &PgPool, code: &str) {
     sqlx::query("UPDATE auctions SET status = 'ready', escrow_ua = $1 WHERE code = $2")

@@ -1,4 +1,4 @@
-//! Browser bindings (task 3.5). JS fetches compact blocks and raw transactions
+//! Browser bindings. JS fetches compact blocks and raw transactions
 //! over gRPC-web from a lightwallet server the auditor chooses; the scanning
 //! and decryption happen here, with only the published viewing key.
 

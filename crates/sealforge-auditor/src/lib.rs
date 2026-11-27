@@ -400,7 +400,7 @@ pub fn verify_receipt(published: &PublishedResult, receipt: &Receipt) -> Receipt
     check
 }
 
-/// JSON in, JSON out bindings for the web app (task 3.5).
+/// JSON in, JSON out bindings for the web app.
 #[cfg(feature = "wasm")]
 mod wasm {
     use wasm_bindgen::prelude::*;

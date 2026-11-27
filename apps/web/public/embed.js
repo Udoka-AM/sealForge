@@ -1,4 +1,4 @@
-/*! sealForge auction card (task 4.4). MIT OR Apache-2.0.
+/*! sealForge auction card. MIT OR Apache-2.0.
  *
  * <script src="https://<sealforge-site>/embed.js" data-auction="AUCTIONCODE" async></script>
  *

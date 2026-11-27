@@ -18,10 +18,14 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+# The toolchain CI builds and tests with (rust-toolchain.toml). Dependencies
+# alone need 1.94 or later.
+rust-version = "1.99"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Udoka-AM/sealForge"
 authors = ["Udoka-AM"]
+# Not published to crates.io yet; see the roadmap for the packages planned.
+publish = false
 
 [workspace.dependencies]
 sealforge-core = { path = "crates/sealforge-core" }
@@ -61,7 +65,7 @@ crypto_box = { version = "0.9", features = ["seal"] }
 toml = "0.8"
 sealforge-coordinator = { path = "crates/sealforge-coordinator" }
 
-# Zcash / FROST (task 1.2, verified 2026-10-14; see docs/VERSIONS.md).
+# Zcash and FROST crates, pinned together; see docs/VERSIONS.md.
 # Pre-releases are pinned exactly: they are the first with Ironwood (NU6.3) and NU7 support.
 zcash_protocol = { version = "=0.11.0-pre.1", features = ["local-consensus"] }
 zcash_client_backend = "=0.25.0-pre.2"

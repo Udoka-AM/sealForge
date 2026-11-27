@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
     if let Some(height) = config.dev_chain_height {
         tracing::warn!(
             height,
-            "using SF_DEV_CHAIN_HEIGHT; the scanner will replace this (task 2.5)"
+            "using SF_DEV_CHAIN_HEIGHT: the chain scanner is off"
         );
         state.set_chain_tip(height);
     }

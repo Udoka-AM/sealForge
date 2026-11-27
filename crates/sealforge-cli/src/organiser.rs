@@ -1,4 +1,4 @@
-//! Organiser commands (task 2.6).
+//! Organiser commands.
 
 use std::path::Path;
 

@@ -12,7 +12,7 @@ import { ReportView } from "./audit-runner";
 const STORAGE_KEY = "sealforge:lightwalletd-grpcweb";
 
 /**
- * Independent audit in the browser (task 3.5, AC7): fetch the escrow's blocks
+ * Independent audit in the browser: fetch the escrow's blocks
  * from a lightwallet server the auditor picks, decrypt payments with the
  * published viewing key (WebAssembly), and recompute the result. Nothing
  * comes from the sealForge server except the published result being checked.

@@ -1,4 +1,4 @@
-//! On-chain FROST 2-of-3 spend from an escrow (task 1.5's on-chain step).
+//! On-chain FROST 2-of-3 spend from an escrow.
 //!
 //! escrow_spend <escrow.sqlite> <keys-dir from `sealforge escrow local-dkg`> <to-ua> <zat> <signer-slots e.g. 1,3>
 

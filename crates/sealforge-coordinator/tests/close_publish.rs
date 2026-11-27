@@ -1,4 +1,4 @@
-//! Task 3.3: close at the close height, then publish (PRD AC3, AC4, AC5, AC6).
+//! Close at the close height, then publish.
 
 use axum::{
     body::Body,
@@ -137,7 +137,7 @@ async fn closes_at_close_height_and_publishes_an_auditable_result(db: PgPool) {
     assert_eq!(status, StatusCode::CREATED, "{created}");
     let code = created["auction"]["code"].as_str().unwrap().to_owned();
 
-    // Stand-in for the DKG (task 2.4 covers it end to end): a real escrow with an encrypted UFVK.
+    // Stand-in for the DKG (dkg_e2e covers it end to end): a real escrow with an encrypted UFVK.
     let (_, pubkeys) = dkg::run_local(Threshold::default(), &mut OsRng).unwrap();
     let fvk = address::escrow_fvk(&dkg::group_key_bytes(&pubkeys).unwrap(), &mut OsRng).unwrap();
     let ua = address::escrow_address(&fvk, &TEST_NETWORK).unwrap();
@@ -413,7 +413,7 @@ async fn closes_at_close_height_and_publishes_an_auditable_result(db: PgPool) {
     let recomputed = compute_result(&rules, &included).unwrap();
     assert_eq!(published.merkle_root, hex::encode(recomputed.merkle_root));
 
-    // ---- Refund planning (task 3.9). The scanner stores each memo's refund
+    // ---- Refund planning. The scanner stores each memo's refund
     // address; bid G (wrong auction) stands in for one we couldn't read.
     sqlx::query(
         "UPDATE bids SET refund_ua_enc = pgp_sym_encrypt('utest1refund', $1) WHERE txid <> $2",

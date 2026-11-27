@@ -4,6 +4,11 @@
 
 # sealForge
 
+[![CI](https://github.com/Udoka-AM/sealForge/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Udoka-AM/sealForge/actions/workflows/ci.yml)
+[![Security](https://github.com/Udoka-AM/sealForge/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/Udoka-AM/sealForge/actions/workflows/security.yml)
+[![Licence: MIT or Apache-2.0](https://img.shields.io/badge/licence-MIT%20or%20Apache--2.0-blue)](#licence)
+[![Docs](https://img.shields.io/badge/docs-sealforge.mintlify.app-informational)](https://sealforge.mintlify.app)
+
 **Live on Zcash testnet: [sealforge.udokaam.dev](https://sealforge.udokaam.dev)** · **Docs: [sealforge.mintlify.app](https://sealforge.mintlify.app)** · Release: [v0.1.0](https://github.com/Udoka-AM/sealForge/releases/tag/v0.1.0)
 
 **Sealed-bid auctions on Zcash. The clearing price is public. The bidders aren't. And you don't have to trust us for the result: anyone can recompute it from the chain.**
@@ -37,7 +42,6 @@ underneath](#the-primitives-underneath), and
 | **Anyone can check the result** | After close, the escrow's incoming viewing key and a Merkle root of every bid are published. The Audit page (in the browser) or `sealforge-audit` (CLI) rescans the chain with that key, through any lightwallet server, and recomputes price, volume, winners, each bidder's outcome and the root |
 | **Refunds can't be traced back to bids** | Refunds are split into standard denominations, sent after random delays, and batched with other bidders' refunds. Measured: **0.1%** of refunds linkable at the exit, against 100% for naive refunds |
 
-Built for the [Zecathon](https://thezecathon.com) **Private Markets** track (Oct 6–28, 2026).
 
 ### Where to reach it
 
@@ -59,7 +63,6 @@ viewing key: the evidence does not depend on our servers.
 | **Audit a real auction** | [25 bids, 10 units](https://sealforge.udokaam.dev/audit/K7GHHBC4GP) · [7 bids, 4 winners](https://sealforge.udokaam.dev/audit/KE5DFF4PDA) — press **Rescan the chain in my browser** and recompute it yourself |
 | **Why it matters commercially** | [docs/BUSINESS.md](docs/BUSINESS.md) |
 | **What it does, in product terms** | [docs/PRODUCT.md](docs/PRODUCT.md) |
-| **Zecathon write-up** | [docs/submission/WRITEUP.md](docs/submission/WRITEUP.md) |
 | **What is shipped, and what is sequenced** | [Status](#status) |
 | **Is it safe?** | [Threat model](docs/THREAT-MODEL.md) · [Security review](docs/SECURITY-REVIEW.md) · [Report a vulnerability](SECURITY.md) |
 | **Run your own auction** | [docs/QUICKSTART.md](docs/QUICKSTART.md) |
@@ -282,6 +285,14 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 | [Pinned versions](docs/VERSIONS.md) | [Quickstart](docs/QUICKSTART.md) |
 | [Threat model](docs/THREAT-MODEL.md) | [Security review](docs/SECURITY-REVIEW.md) |
 | [Deploy on a VPS](docs/DEPLOY-VPS.md) | [Wallet integration](docs/WALLET-INTEGRATION.md) |
+
+## Contributing and security
+
+Contributions are welcome: start with [CONTRIBUTING.md](CONTRIBUTING.md), and follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+
+## History
+
+sealForge started at the [Zecathon](https://thezecathon.com) in October 2026, in the Private Markets track; the original write-up is kept in [docs/history/zecathon-2026](docs/history/zecathon-2026/WRITEUP.md). It has been developed since as an open-source project for the Zcash ecosystem.
 
 ## Licence
 

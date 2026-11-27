@@ -1,5 +1,7 @@
 # 2. Technical Requirements Document (TRD): sealForge
 
+> **Design history.** Written in October 2026 to plan the first build, and kept as it was. Current behaviour is specified in the [documentation site](https://sealforge.mintlify.app) and the code; where this document differs, they are right.
+
 **Purpose:** Make technical choices explicit so the build does not rely on guesses.
 
 Related: [01-PRD.md](01-PRD.md), [05-BACKEND-SCHEMA.md](05-BACKEND-SCHEMA.md), [06-IMPLEMENTATION-PLAN.md](06-IMPLEMENTATION-PLAN.md)

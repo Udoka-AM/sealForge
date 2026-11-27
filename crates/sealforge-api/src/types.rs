@@ -193,7 +193,7 @@ pub struct ApiErrorBody {
 }
 
 // ---------------------------------------------------------------------------
-// Trustees and DKG (task 2.4). Binary payloads are hex.
+// Trustees and DKG. Binary payloads are hex.
 
 /// `POST /v1/trustees/join`, signed with the trustee's new Ed25519 key.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -294,7 +294,7 @@ pub struct CompleteDkg {
 }
 
 // ---------------------------------------------------------------------------
-// Results (task 3.3). Public once an auction is published.
+// Results. Public once an auction is published.
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResultRules {
@@ -389,7 +389,7 @@ pub struct TrusteeAttestation {
 }
 
 // ---------------------------------------------------------------------------
-// Batch signing (task 3.9). Binary values are hex.
+// Batch signing. Binary values are hex.
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpendAuthView {

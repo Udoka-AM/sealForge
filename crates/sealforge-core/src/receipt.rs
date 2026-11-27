@@ -1,4 +1,4 @@
-//! Bidder receipts and bid commitments (Milestone 3, task 3.2).
+//! Bidder receipts and bid commitments.
 //!
 //! commitment = BLAKE2b-256(personal = "sealforge_bid_v1",
 //!                          auction_code ‖ 0x00 ‖ refund_ua ‖ 0x00 ‖ salt)

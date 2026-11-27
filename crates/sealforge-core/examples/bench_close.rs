@@ -1,4 +1,4 @@
-//! Close-pipeline timing for docs/evidence/perf.md (task 5.5):
+//! Close-pipeline timing for docs/evidence/perf.md:
 //! `cargo run --release -p sealforge-core --example bench_close`
 //!
 //! 20,000 bids through selection (memo checks, window, reserve, duplicates),

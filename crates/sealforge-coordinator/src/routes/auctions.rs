@@ -1,4 +1,4 @@
-//! Auction CRUD and organiser-driven lifecycle transitions (task 2.3).
+//! Auction CRUD and organiser-driven lifecycle transitions.
 
 use axum::{
     extract::{Path, Query, State},

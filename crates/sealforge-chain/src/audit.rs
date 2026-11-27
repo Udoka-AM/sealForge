@@ -1,8 +1,8 @@
-//! Independent escrow rescan for auditors (task 3.4).
+//! Independent escrow rescan for auditors.
 //!
 //! Uses only the escrow's published incoming viewing key (UIVK) and a public
 //! lightwallet server. The scanning itself is `sealforge-scan`, which the
-//! browser Audit page runs too (task 3.5); this module feeds it over gRPC.
+//! browser Audit page runs too; this module feeds it over gRPC.
 
 use std::collections::BTreeMap;
 

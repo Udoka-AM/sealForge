@@ -1,5 +1,5 @@
 /**
- * Linkability Score (PRD F9, implementation plan task 4.2).
+ * Linkability Score.
  *
  * Shown before the user signs. It estimates how easily a public observer could
  * link the source-chain deposit to the shielded bid. It is an honest estimate of
@@ -42,8 +42,8 @@ const WEIGHTS: Record<ScoreFactor["id"], number> = {
 };
 
 /**
- * First-pass scoring model. Task 4.2 calibrates thresholds against real
- * Intents flow data and the linkability harness (task 4.3).
+ * First-pass scoring model. The thresholds are to be calibrated against real
+ * Intents flow data and the linkability harness (tools/linkability-harness).
  */
 export function scoreLinkability(input: ScoreInputs): LinkabilityScore {
   const factors: ScoreFactor[] = [

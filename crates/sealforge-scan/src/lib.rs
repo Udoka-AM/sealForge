@@ -1,5 +1,5 @@
 //! Find and decrypt payments to an escrow with only its incoming viewing key
-//! (task 3.4 natively, task 3.5 in the browser).
+//! (natively, and in the browser through WebAssembly).
 //!
 //! No I/O, so the same code runs in `sealforge-audit` (blocks from tonic) and
 //! on the Audit page (blocks from gRPC-web, compiled to WebAssembly):

@@ -1,4 +1,4 @@
-//! Task 4.6: a commit-reveal auction from deposits and reveals to its result.
+//! A commit-reveal auction from deposits and reveals to its result.
 
 use std::collections::BTreeMap;
 

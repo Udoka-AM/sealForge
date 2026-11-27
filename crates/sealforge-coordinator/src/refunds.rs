@@ -1,4 +1,4 @@
-//! Refund planning and batching (task 3.9, off-chain half).
+//! Refund planning and batching (the off-chain half).
 //!
 //! 1. **Plan** (once per published auction): every bid with a refund of at
 //!    least 0.0001 ZEC and a known refund address gets canonical notes, each

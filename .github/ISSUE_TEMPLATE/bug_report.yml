@@ -1,0 +1,48 @@
+name: Bug report
+description: Something doesn't work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the bug could let someone move or freeze escrowed funds, change a result unnoticed, or link a bid to a bidder, **don't file it here**: report it privately through the Security tab.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Steps, commands or a test. Say which network (regtest, testnet) and, if relevant, the auction code.
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Web app (bidding, wallet, audit, console)
+        - Coordinator (API, scanner, refunds, payouts)
+        - Trustee CLI or browser signing
+        - Auditor (CLI or WebAssembly)
+        - Escrow, FROST or transaction checks
+        - Documentation
+        - Deployment and infrastructure
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit or release
+      description: The commit hash or release you ran (`git rev-parse --short HEAD`).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Remove secrets, seed phrases, key shares and refund addresses first.
+      render: text

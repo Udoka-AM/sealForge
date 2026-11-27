@@ -1,4 +1,4 @@
-//! Which escrow payments count as bids (task 3.3).
+//! Which escrow payments count as bids.
 //!
 //! The scanner, the coordinator at close, and the public auditor all classify
 //! payments with [`classify`], using only data visible through the published
@@ -146,7 +146,7 @@ pub fn classify(window: &BidWindow, payments: &[Payment]) -> Vec<BidClass> {
 }
 
 // ---------------------------------------------------------------------------
-// Commit-reveal mode (PRD F13, task 4.6).
+// Commit-reveal mode.
 //
 // During bidding, a deposit's memo commits to a hidden price (see
 // `receipt::price_commitment`) and its amount is only a budget. After the

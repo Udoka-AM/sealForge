@@ -1,4 +1,4 @@
-//! Trustee signing of escrow batches (task 3.9).
+//! Trustee signing of escrow batches.
 //!
 //! Round 1: each trustee posts one FROST commitment per escrow spend. The
 //! first two trustees to commit become the signer set. Round 2: those two post

@@ -1,4 +1,4 @@
-//! Trustee signing in the browser (`/trustee/{code}`, task 3.10, S16).
+//! Trustee signing in the browser (`/trustee/{code}`).
 //!
 //! The same batch helpers the CLI uses (`sealforge_escrow::signing`), exposed
 //! with hex/JSON strings. The page keeps the key package and nonces in memory

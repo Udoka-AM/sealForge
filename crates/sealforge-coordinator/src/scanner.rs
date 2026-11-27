@@ -1,4 +1,4 @@
-//! Escrow scanner (task 2.5).
+//! Escrow scanner.
 //!
 //! Every ~25 s (one NU7 block): read the chain tip from Zaino, then for each
 //! auction whose escrow can receive bids (`ready`, `open`), sync its escrow

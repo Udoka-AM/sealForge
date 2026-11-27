@@ -1,4 +1,4 @@
-//! Trustee commands (task 2.4): join with an invite, then run the DKG.
+//! Trustee commands: join with an invite, then run the DKG.
 //!
 //! `dkg_step` moves the local DKG forward by at most one round and is safe to
 //! re-run: every secret and outgoing package is saved before it is sent, so a
@@ -665,7 +665,7 @@ pub fn key_share(store: &Keystore, code: &str) -> anyhow::Result<(KeyPackage, Pu
 }
 
 // ---------------------------------------------------------------------------
-// Signing escrow batches (task 3.9).
+// Signing escrow batches.
 
 use sealforge_api::types::{BatchView, PostCommitments, PostInputs, PostShares};
 use sealforge_escrow::signing;

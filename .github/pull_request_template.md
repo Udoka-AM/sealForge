@@ -1,14 +1,21 @@
-## What
+## Summary
 
-<!-- One or two sentences. Link the implementation-plan task, e.g. "Task 3.1". -->
+<!-- What changes and why, in a few sentences. Link the issue it closes: "Closes #123". -->
 
-## Acceptance criteria
+## How it was tested
 
-<!-- Which PRD ACs (docs/01-PRD.md §1.8) this satisfies, and how you verified them. -->
+<!-- Commands run, tests added, and for changes that touch the chain, the regtest or testnet run and where its evidence is recorded (docs/evidence). -->
 
-## Privacy checklist
+## Checklist
+
+- [ ] `cargo fmt`, `cargo clippy -D warnings` and `cargo test --workspace` pass; `pnpm lint`, `pnpm typecheck` and `pnpm test` pass for web changes
+- [ ] WebAssembly modules rebuilt with `scripts/build-wasm.sh` if any crate they include changed
+- [ ] Docs updated in the same PR where behaviour, the API, the data model or a security property changed
+- [ ] `CHANGELOG.md` updated under "Unreleased" for user-visible changes
+
+## Privacy and security
 
 - [ ] No transparent hops added to bid, refund or payout flows
 - [ ] No address reuse
-- [ ] No PII in memos, logs or URLs
-- [ ] Threat model (docs/PRODUCT.md / docs/THREAT-MODEL.md) still accurate
+- [ ] Nothing new logged that identifies bidders (IPs, refund addresses, commitments, salts, seeds)
+- [ ] `docs/THREAT-MODEL.md` still accurate, or updated here

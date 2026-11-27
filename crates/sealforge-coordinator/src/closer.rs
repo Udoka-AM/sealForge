@@ -1,4 +1,4 @@
-//! Closing auctions at their close height (task 3.3).
+//! Closing auctions at their close height.
 //!
 //! An auction closes once the scanner has processed `close_height` plus
 //! [`CLOSE_CONFIRMATIONS`] blocks, so no in-range bid can still appear and a

@@ -28,13 +28,13 @@ use sqlx::PgPool;
 pub struct AppState {
     pub db: PgPool,
     pub settings: Arc<Settings>,
-    /// Latest known chain height, updated by the scanner (task 2.5). 0 = unknown.
+    /// Latest known chain height, updated by the scanner. 0 = unknown.
     pub chain_tip: Arc<AtomicU32>,
 }
 
 #[derive(Debug, Default)]
 pub struct Settings {
-    /// Invite codes accepted by `POST /v1/organisers` (the hackathon instance is invite-only).
+    /// Invite codes accepted by `POST /v1/organisers` (the hosted instance is invite-only).
     pub invite_codes: Vec<String>,
     /// Key for pgcrypto-encrypted columns (escrow UFVK). DKG can't complete without it.
     pub data_key: Option<String>,

@@ -1,4 +1,4 @@
-//! Linkability harness (task 4.3, PRD AC13).
+//! Linkability harness.
 //!
 //! **Threat modelled.** After close, the published viewing key reveals every
 //! bid's amount, so anyone can compute each bid's refund. The leak we measure

@@ -1,4 +1,4 @@
-//! Clearing engine (Milestone 3, task 3.1).
+//! Clearing engine.
 //!
 //! Rules (PRD AC5):
 //! - Only `valid` bids at or above the reserve take part. Bids below the

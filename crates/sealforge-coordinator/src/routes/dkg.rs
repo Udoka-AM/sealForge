@@ -1,4 +1,4 @@
-//! Trustee join and DKG relay (task 2.4).
+//! Trustee join and DKG relay.
 //!
 //! The coordinator relays packages but never sees secrets: round 1 packages
 //! are signed by the sending trustee, and round 2 packages are also sealed to
