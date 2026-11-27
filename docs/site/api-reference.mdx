@@ -55,6 +55,7 @@ Every non-2xx response has the body `ApiErrorBody { code, error }` (`crates/seal
 | 404 | `not_found` |
 | 409 | One of `already_registered`, `already_trustee`, `dkg_incomplete`, `dkg_mismatch`, `has_bids`, `invalid_transition`, `not_a_signer`, `not_draft`, `not_editable`, `not_in_dkg`, `not_signing`, `package_exists`, `status_changed` |
 | 422 | `validation_failed` |
+| 429 | `rate_limited`, with a `Retry-After` header in seconds. Each client has a budget for reads (`GET`) and one for writes (`SF_RATE_LIMIT_READS_PER_MIN`, default 600; `SF_RATE_LIMIT_WRITES_PER_MIN`, default 120), and may spend a quarter of it at once |
 | 503 | `unavailable` (e.g. chain height unknown) |
 | 500 | `internal` |
 
