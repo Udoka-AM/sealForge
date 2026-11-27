@@ -6,6 +6,8 @@ All notable changes to sealForge are recorded here. The format follows [Keep a C
 
 ### Added
 
+- Per-client API rate limits (GCRA) for reads and writes, keyed by a salted hash of the client address that is never stored or logged, plus a cap on requests in flight. Over-budget requests get `429` with `Retry-After`. (#77)
+- Retention: 30 days after an auction is settled or cancelled, its escrow viewing key, escrow wallet file and bidders' refund addresses are erased, with an audit-log entry recording counts only. (#80)
 - Protocol fee: an auction carries a rate of 0 or 5% to 15% of its proceeds, fixed before it opens and paid as a second output of the payout. Trustees refuse a payout with the wrong amount or address, or one that pays the fee twice; the auditor recomputes it. The operator sets an auction's rate through an admin endpoint (`SF_ADMIN_TOKEN`). (#75)
 - Trustees vouch for their per-auction keys with a published long-term key, shown on the auction page and checked in the browser and by `sealforge-audit`. (#53)
 - Trustee backups (`sealforge trustee backup`), and a sweep of an escrow from two trustees' backups with no coordinator (`sealforge escrow recover-start`, `recover-cosign`, `recover-finish`). (#52, #71)
@@ -17,6 +19,8 @@ All notable changes to sealForge are recorded here. The format follows [Keep a C
 
 ### Changed
 
+- Mainnet auctions open only when all three trustees have certified a long-term key, and the escrow check in browsers, the trustee CLI and `sealforge-audit` fails on mainnet otherwise. Per-auction value caps were decided against. (#78)
+- Strict nonce-based Content Security Policy: `'unsafe-inline'` is gone from `script-src`; pages render per request with a fresh nonce. (#79)
 - Escrow transactions stay under ZIP 218's per-block action limit: refunds wait behind a consolidation and large payouts split. (#43)
 - Late payments are refunded before the organiser is paid. (#49)
 - Batches that expire unmined are marked expired and rebuilt. (#50)
@@ -30,6 +34,7 @@ All notable changes to sealForge are recorded here. The format follows [Keep a C
 
 ### Security
 
+- `url` 2.5.9 for RUSTSEC-2026-0592 (stack overflow in `Url::origin` on nested `blob:` URLs).
 - Dependency updates for RUSTSEC-2026-0385 (`ctutils`), RUSTSEC-2026-0382 (`rustls-webpki`) and RUSTSEC-2026-0381 (`webpki-roots`), and Next.js 16.4.6 for seven advisories, including cross-client response injection in self-hosted deployments. (#76)
 - Next.js 16.4.2 for that release's advisories. (#24)
 
