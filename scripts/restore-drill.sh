@@ -47,5 +47,12 @@ refund_addrs=$(q "$scratch_url" "SELECT count(*) FROM bids WHERE refund_ua_enc I
 refund_ok=$(q "$scratch_url" "SELECT count(*) FROM bids WHERE refund_ua_enc IS NOT NULL \
   AND pgp_sym_decrypt(refund_ua_enc, '$SF_DATA_KEY') LIKE 'u%'")
 check "refund addresses decrypt" "$refund_ok" "$refund_addrs"
+# Auctions whose secrets retention erased (#65) must still carry what a public
+# audit needs: the published viewing key and the clearing result.
+erased=$(q "$scratch_url" "SELECT count(*) FROM auctions WHERE data_erased_at IS NOT NULL AND status = 'settled'")
+auditable=$(q "$scratch_url" "SELECT count(*) FROM auctions a WHERE a.data_erased_at IS NOT NULL \
+  AND a.status = 'settled' AND a.escrow_ivk IS NOT NULL \
+  AND EXISTS (SELECT 1 FROM clearing_results c WHERE c.auction_id = a.id)")
+check "erased settled auctions still audit from published data" "$auditable" "$erased"
 
 exit $fail

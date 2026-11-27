@@ -229,7 +229,7 @@ Postgres, forward-only migrations in `migrations/`, applied when the coordinator
 
 **Encrypted columns** (`pgp_sym_encrypt` with `SF_DATA_KEY`): `auctions.escrow_ufvk_enc`, `bids.refund_ua_enc`, `bids.memo_refund_ua_enc`.
 
-**Retention.** The documented policy keeps escrow UFVKs until settled + 30 days and refund addresses until refunds confirm + 30 days ([THREAT-MODEL.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/THREAT-MODEL.md#data-the-coordinator-holds)). **No code purges them yet** (`Specified`). Code does purge relayed DKG packages once the escrow exists, used signature shares on a reset, and API nonces after 10 minutes.
+**Retention.** Thirty days after an auction is settled or cancelled, the coordinator's retention job (`crates/sealforge-coordinator/src/retention.rs`, hourly) erases its escrow UFVK, deletes the escrow wallet file, and erases every bidder's encrypted refund address. It records `auctions.data_erased_at` and an audit-log entry with counts, never values ([THREAT-MODEL.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/THREAT-MODEL.md#data-the-coordinator-holds)). The published result, the bids without addresses, the batches and the audit log stay as evidence, and the restore drill checks that erased auctions still audit from published data. The coordinator also purges relayed DKG packages once the escrow exists, used signature shares on a reset, and API nonces after 10 minutes.
 
 ## Deployment
 

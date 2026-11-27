@@ -657,3 +657,116 @@ async fn clients_over_their_budget_get_429_with_retry_after(db: PgPool) {
         StatusCode::OK
     );
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn retention_erases_secrets_thirty_days_after_settlement(db: PgPool) {
+    use sealforge_coordinator::retention::{run_once, Pass};
+
+    let api = Api::new(db.clone());
+    let k = key(1);
+    api.register(&k).await;
+    let old = api.create_auction(&k).await.auction.code;
+    let recent = api.create_auction(&k).await.auction.code;
+    // One auction settled 31 days ago, one 10 days ago; both published with
+    // an escrow key and two bidders' refund addresses.
+    for (code, days) in [(&old, 31), (&recent, 10)] {
+        sqlx::query(
+            "UPDATE auctions SET status = 'settled', settled_at = now() - make_interval(days => $2), \
+             escrow_ufvk_enc = pgp_sym_encrypt('uviewtest1secret', 'k'), escrow_ivk = 'uivktest1public' \
+             WHERE code = $1",
+        )
+        .bind(code)
+        .bind(days)
+        .execute(&db)
+        .await
+        .unwrap();
+        for i in 0..2u8 {
+            sqlx::query(
+                "INSERT INTO bids (auction_id, txid, output_index, pool, block_height, block_time, \
+                 amount_zat, status, refund_ua_enc, refund_due_zat) \
+                 SELECT id, $2, 0, 'ironwood', 100, now(), 1000000, 'valid', \
+                 pgp_sym_encrypt('utest1refund', 'k'), 1000000 FROM auctions WHERE code = $1",
+            )
+            .bind(code)
+            .bind(vec![days as u8 + i; 32])
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+    }
+    let old_id: uuid::Uuid = sqlx::query_scalar("SELECT id FROM auctions WHERE code = $1")
+        .bind(&old)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let dir = std::env::temp_dir().join(format!("sf-retention-{old_id}"));
+    std::fs::create_dir_all(&dir).unwrap();
+    let wallet = dir.join(format!("escrow-{old_id}.sqlite"));
+    std::fs::write(&wallet, b"escrow wallet").unwrap();
+
+    let pass = run_once(&db, &dir, 30).await.unwrap();
+    // The old auction is erased.
+    assert_eq!(
+        pass,
+        Pass {
+            auctions: 1,
+            refund_addresses: 2,
+            wallet_files: 1
+        }
+    );
+    assert!(!wallet.exists());
+
+    let (ufvk_gone, erased, ivk): (bool, bool, Option<String>) = sqlx::query_as(
+        "SELECT escrow_ufvk_enc IS NULL, data_erased_at IS NOT NULL, escrow_ivk FROM auctions WHERE code = $1",
+    )
+    .bind(&old)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert!(ufvk_gone && erased);
+    assert_eq!(
+        ivk.as_deref(),
+        Some("uivktest1public"),
+        "the published key stays"
+    );
+    let (bids, with_address): (i64, i64) = sqlx::query_as(
+        "SELECT count(*), count(refund_ua_enc) FROM bids b JOIN auctions a ON a.id = b.auction_id WHERE a.code = $1",
+    )
+    .bind(&old)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        (bids, with_address),
+        (2, 0),
+        "bids stay as evidence, without addresses"
+    );
+    let detail: serde_json::Value = sqlx::query_scalar(
+        "SELECT detail FROM audit_log WHERE action = 'retention.erased' AND auction_id = $1",
+    )
+    .bind(old_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(detail["refund_addresses"], 2);
+    assert_eq!(detail["escrow_viewing_key"], true);
+    assert!(
+        !detail.to_string().contains("utest1"),
+        "no values in the log"
+    );
+
+    // The recent auction keeps its secrets until its own 30 days are up.
+    let (ufvk, addresses): (bool, i64) = sqlx::query_as(
+        "SELECT a.escrow_ufvk_enc IS NOT NULL, count(b.refund_ua_enc) FROM auctions a \
+         JOIN bids b ON b.auction_id = a.id WHERE a.code = $1 GROUP BY a.escrow_ufvk_enc",
+    )
+    .bind(&recent)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!((ufvk, addresses), (true, 2));
+
+    // A second pass has nothing left to do.
+    assert_eq!(run_once(&db, &dir, 30).await.unwrap(), Pass::default());
+    std::fs::remove_dir_all(&dir).ok();
+}
