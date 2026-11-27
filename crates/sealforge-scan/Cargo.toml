@@ -10,9 +10,9 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-zcash_client_backend = { version = "=0.25.0-pre.2", default-features = false, features = ["orchard"] }
-zcash_keys = { version = "=0.17.0-pre.2", default-features = false, features = ["orchard"] }
-zcash_primitives = { version = "=0.31.0-pre.2", default-features = false }
+zcash_client_backend = { workspace = true, features = ["orchard"] }
+zcash_keys.workspace = true
+zcash_primitives.workspace = true
 zcash_protocol.workspace = true
 zcash_note_encryption = "0.5"
 orchard = { workspace = true }

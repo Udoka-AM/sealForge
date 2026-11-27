@@ -26,5 +26,5 @@ rand.workspace = true
 reddsa.workspace = true
 reddsa-frost.workspace = true
 frost-rerandomized.workspace = true
-zcash_keys = { workspace = true, optional = true }
+zcash_keys = { workspace = true, optional = true, features = ["default", "unstable-frost"] }
 zcash_protocol = { workspace = true, optional = true }

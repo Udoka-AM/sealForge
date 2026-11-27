@@ -20,16 +20,16 @@ tracing.workspace = true
 tonic.workspace = true
 rusqlite = "0.37"
 rand10 = { package = "rand", version = "0.10", features = ["sys_rng"] }
-zcash_client_backend = { workspace = true, features = ["lightwalletd-tonic-transport", "lightwalletd-tonic-tls-webpki-roots", "sync", "orchard", "pczt"] }
+zcash_client_backend = { workspace = true, features = ["default", "lightwalletd-tonic-transport", "lightwalletd-tonic-tls-webpki-roots", "sync", "orchard", "pczt"] }
 pczt = { workspace = true, features = ["orchard", "io-finalizer", "prover", "signer", "spend-finalizer", "tx-extractor"] }
 orchard = { workspace = true, features = ["circuit"] }
 pasta_curves.workspace = true
-zip321 = { version = "=0.10.0-pre.2" }
-zcash_address = { version = "=0.14.0-pre.2" }
+zip321.workspace = true
+zcash_address.workspace = true
 zcash_client_sqlite = { workspace = true, features = ["orchard", "transparent-inputs", "serde"] }
-zcash_keys.workspace = true
-zcash_primitives = "=0.31.0-pre.2"
-zcash_proofs = { version = "=0.31.0-pre.2", features = ["bundled-prover"], optional = true }
+zcash_keys = { workspace = true, features = ["default", "unstable-frost"] }
+zcash_primitives = { workspace = true, features = ["default"] }
+zcash_proofs = { workspace = true, features = ["bundled-prover"], optional = true }
 secrecy = "0.8"
 zip32 = "0.3"
 zcash_note_encryption = "0.5"

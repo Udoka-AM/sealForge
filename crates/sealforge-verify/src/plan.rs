@@ -168,7 +168,8 @@ pub fn batch_txid(pczt_bytes: &[u8]) -> Result<[u8; 32], Refusal> {
         effects.version(),
         effects.consensus_branch_id(),
         &effects.digest(TxIdDigester),
-    );
+    )
+    .ok_or_else(|| refuse("structure", "transaction version has no ZIP 244 txid"))?;
     Ok(*txid.as_ref())
 }
 

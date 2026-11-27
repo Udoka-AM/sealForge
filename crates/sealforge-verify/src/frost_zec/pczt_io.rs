@@ -52,9 +52,9 @@ pub fn parse(bytes: &[u8]) -> Result<Pczt, Box<dyn Error>> {
 /// fine here and only fail at broadcast (see zcash-sign, frost-tools#593).
 ///
 /// sealForge: computed with pczt's Signer role (`shielded_sighash`), as
-/// sealforge-chain does when it builds the PCZT, instead of
-/// `PrecomputedSighashData`, which the pinned zcash_primitives pre-release
-/// doesn't expose. Both are the ZIP 244 shielded signature hash.
+/// sealforge-chain does when it builds the PCZT, rather than
+/// `PrecomputedSighashData`, so the trustee and the builder share one code
+/// path. Both are the ZIP 244 shielded signature hash.
 pub fn sighash(pczt: &Pczt) -> Result<[u8; 32], Box<dyn Error>> {
     if *pczt.global().tx_version() != V6_TX_VERSION {
         return Err("only v6 (NU6.3, Ironwood) transactions are supported".into());
