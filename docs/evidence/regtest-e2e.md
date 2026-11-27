@@ -223,3 +223,17 @@ Before this fix, the run for the late-payment check (auction `E23XDR8JEB`) showe
 | Payout | Signed by trustees A and B (both with `--lightwalletd`) | Confirmed in `0750d9ae…`; auction `settled`. Each signing trustee's ledger records `fee_zat: 500000` against that transaction, so a second payout paying the fee again is refused (`fee_signed_before`, unit-tested in `sealforge-verify`) |
 
 Escrow arithmetic: 0.28 ZEC in, 0.08 ZEC refunded, 0.005 ZEC fee, 0.19465 ZEC to the organiser, the rest in network fees.
+
+## librustzcash final releases (2026-11-27)
+
+After moving from the pre-release pins to `zcash_primitives` 0.31.1, `zcash_client_backend` 0.25.0, `zcash_client_sqlite` 0.23.0, `zcash_keys` 0.17.0, `zcash_protocol` 0.11.0 and `pczt` 0.10.0, on a fresh chain (Zebra 7.0.0-rc.0 regtest, Ironwood active, Zaino 0.10.2), release builds:
+
+| Step | What happened | Result |
+|---|---|---|
+| 1. Escrow | `sealforge escrow local-dkg --network regtest` | 2-of-3 FROST escrow |
+| 2. Deposits | The dev wallet paid the escrow 0.5 and 0.3 ZEC with memos | Mined at 111 and 112 |
+| 3. Scan | `scan_escrow` created the view-only escrow wallet (birthday 100) and synced | Both payments and memos found, 0.8 ZEC |
+| 4. Spend | `escrow_spend`: 0.7 ZEC to the dev wallet, signed by trustees 1 and 3 | PCZT built and proved in 2.8 s, 2 FROST signatures, broadcast |
+| 5. Confirm | Mined 1 block | Tx `ec32bd28…fa8b` confirmed at **114**: version 6, expiry height 154 (the 40-block pre-NU7 default) |
+
+Wallet files from the pre-releases open without new migrations: 0.23.0 has the same migration set as 0.23.0-pre.2.
