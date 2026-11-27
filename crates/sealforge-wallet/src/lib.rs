@@ -46,9 +46,6 @@ const DEPTH: u8 = 32;
 type Tree = CommitmentTree<MerkleHashOrchard, DEPTH>;
 type Witness = IncrementalWitness<MerkleHashOrchard, DEPTH>;
 
-/// Blocks a transaction can wait for before it expires (zcash_primitives' default).
-pub const EXPIRY_DELTA: u32 = 40;
-
 pub fn chain_params(network: &str) -> Result<ChainParams, String> {
     match network {
         "mainnet" => Ok(ChainParams::Mainnet),

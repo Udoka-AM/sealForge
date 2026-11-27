@@ -27,7 +27,7 @@ use zcash_protocol::{
     value::Zatoshis,
 };
 
-use crate::{Pool, SentTx, Wallet, EXPIRY_DELTA};
+use crate::{Pool, SentTx, Wallet};
 
 /// The circuit for current Orchard-shaped proofs (as `sealforge-chain::spend`).
 fn circuit() -> OrchardCircuitVersion {
@@ -260,7 +260,11 @@ impl Wallet {
         let mut raw = Vec::new();
         tx.write(&mut raw).map_err(|e| e.to_string())?;
         let txid = tx.txid().to_string();
-        let expiry_height = self.scanned_height + 1 + EXPIRY_DELTA;
+        // The builder's default for the branch: 40 blocks before NU7, 120
+        // from NU7 (ZIP 218), about 50 minutes either way. Read it back from
+        // the transaction so the wallet frees the notes exactly when the
+        // network stops accepting it.
+        let expiry_height = u32::from(tx.expiry_height());
         self.sent.push(SentTx {
             txid: txid.clone(),
             to: request.to.trim().to_owned(),

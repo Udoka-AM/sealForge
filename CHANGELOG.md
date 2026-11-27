@@ -19,7 +19,7 @@ All notable changes to sealForge are recorded here. The format follows [Keep a C
 
 ### Changed
 
-- librustzcash moved from pre-release pins to the final releases (`zcash_primitives` 0.31.1, `zcash_client_backend` 0.25.0, `zcash_client_sqlite` 0.23.0, `zcash_keys` 0.17.0, `zcash_protocol` 0.11.0, `pczt` 0.10.0), declared once in the workspace manifest. The WebAssembly modules are rebuilt against them.
+- librustzcash moved from pre-release pins to the final releases (`zcash_primitives` 0.31.1, `zcash_client_backend` 0.25.0, `zcash_client_sqlite` 0.23.0, `zcash_keys` 0.17.0, `zcash_protocol` 0.11.0, `pczt` 0.10.0), declared once in the workspace manifest. The WebAssembly modules are rebuilt against them. Under NU7 the default transaction expiry is now 120 blocks (ZIP 218, about 50 minutes at 25-second blocks); the browser wallet reads each payment's expiry from the transaction instead of assuming 40 blocks.
 - Mainnet auctions open only when all three trustees have certified a long-term key, and the escrow check in browsers, the trustee CLI and `sealforge-audit` fails on mainnet otherwise. Per-auction value caps were decided against. (#78)
 - Strict nonce-based Content Security Policy: `'unsafe-inline'` is gone from `script-src`; pages render per request with a fresh nonce. (#79)
 - Escrow transactions stay under ZIP 218's per-block action limit: refunds wait behind a consolidation and large payouts split. (#43)
