@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { headers } from "next/headers";
 import Script from "next/script";
 import { HomeChrome } from "@/components/landing/home-chrome";
 import { MotionProvider } from "@/components/motion/motion-provider";
@@ -60,7 +61,9 @@ export const metadata: Metadata = {
     "Sealed bids. Public price. Private bidders. Auditable sealed-bid auctions on Zcash.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // The per-response CSP nonce from src/proxy.ts (absent in development).
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     // The curtain gate adds a class to <html> before hydration.
     <html
@@ -69,7 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body className="min-h-dvh antialiased">
-        <Script id="sf-curtain-gate" strategy="beforeInteractive">
+        <Script id="sf-curtain-gate" strategy="beforeInteractive" nonce={nonce}>
           {CURTAIN_GATE}
         </Script>
         <MotionProvider>

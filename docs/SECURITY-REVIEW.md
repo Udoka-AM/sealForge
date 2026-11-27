@@ -53,7 +53,7 @@
 | Item | Why it's open | Owner |
 |---|---|---|
 | Rate limiting on public endpoints | Not needed on regtest. Add a Caddy rate limit before mainnet | Ops, task 6.2 |
-| Strict nonce-based CSP | Next's hydration needs `'unsafe-inline'` without per-request nonces. React escaping is the primary XSS defence, and there are no `dangerouslySetInnerHTML` sinks | Web |
+| Strict nonce-based CSP | Done (#59): pages get a per-response nonce and `'strict-dynamic'` instead of `'unsafe-inline'`, so an injected script or inline handler can't run (checked: an injected `onerror` handler is refused with a `script-src-attr` violation) | Web |
 | Coordinator sees bids before close | By design for v1: it holds the UFVK to scan. Commit-reveal mode (task 4.6) removes the amount from the memo | Product |
 | Browser trustee: the key share is in JS memory while the page is open | Same trust as the CLI on that machine. Recommend the CLI for large auctions | Docs |
 | Trustee keys reach bidders only through the coordinator (F10) | Attestations are checked, but a coordinator that invents trustees or serves split views is caught only by bidders comparing keys with the trustees' own channels. A key directory or trustee-signed announcements would make this routine | Product + web |

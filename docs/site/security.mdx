@@ -70,7 +70,7 @@ Found while writing these docs (2026-11-13), not yet fixed:
 | Item | Status |
 |---|---|
 | Rate limiting on public endpoints | Done (#58): per-client budgets for reads and writes, and a cap on requests in flight that keeps database connections free for the scanner and signing |
-| Strict nonce-based CSP (drop `'unsafe-inline'`) | Open. Decision needed before mainnet |
+| Strict nonce-based CSP (drop `'unsafe-inline'`) | Done (#59) |
 | Coordinator sees deposit-mode bids before close | By design. Sealed-reveal mode is the mitigation |
 | Browser trustee holds the key share in JS memory while the page is open | Documented. The CLI is recommended for large auctions ([7 Guides](/guides#trustee)) |
 | ShieldRamp transparent leg (PRD Q4) | Not built |
@@ -84,7 +84,7 @@ This is the canonical list; [10 Roadmap](/roadmap) links here. Each item MUST be
 - [ ] **Independent trustees**: three different operators on separate infrastructure, not one operator's machines.
 - [ ] **External review** of the escrow signing path (FROST over PCZT α, `apply_signatures`) and the DKG relay.
 - [x] **Rate limiting** on public endpoints (#58): per-client read and write budgets in the coordinator, keyed by a salted hash of the client address (never stored or logged), plus a cap on requests in flight.
-- [ ] **CSP decision**: nonce-based strict CSP, or a recorded acceptance of `'unsafe-inline'`.
+- [x] **Strict CSP** (#59): a per-response nonce with `'strict-dynamic'`; `'unsafe-inline'` is gone from `script-src`.
 - [ ] **FROST ciphersuite from an upstream-published crate**, replacing `reddsa =0.5.2` and the deprecated fixed-α `sign` ([3 upstream risk](/zcash-integration#dependencies-and-upstream-risk)).
 - [x] **Clean, reproducible WASM builds (D2)**: every `BUILD.json` with `"source_dirty": false`, reproduced by the CI `wasm` job (#61).
 - [ ] **Off-site encrypted backups drilled** on the production host ([evidence/backup-drill.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/backup-drill.md) lists what isn't drilled yet).
