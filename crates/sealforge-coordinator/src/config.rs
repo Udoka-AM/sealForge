@@ -72,6 +72,27 @@ pub struct Config {
     #[arg(long, env = "SF_ADMIN_TOKEN", hide_env_values = true)]
     pub admin_token: Option<String>,
 
+    /// Sustained API reads (GET) allowed per client per minute; 0 turns read
+    /// limits off. A quarter of it may arrive at once.
+    #[arg(long, env = "SF_RATE_LIMIT_READS_PER_MIN", default_value_t = 600)]
+    pub rate_limit_reads_per_min: u32,
+
+    /// Sustained API writes allowed per client per minute; 0 turns write
+    /// limits off.
+    #[arg(long, env = "SF_RATE_LIMIT_WRITES_PER_MIN", default_value_t = 120)]
+    pub rate_limit_writes_per_min: u32,
+
+    /// Header in which a trusted proxy passes the client's address (e.g.
+    /// `x-forwarded-for` behind the web app). Unset: the TCP peer address.
+    #[arg(long, env = "SF_CLIENT_IP_HEADER")]
+    pub client_ip_header: Option<String>,
+
+    /// Most API requests handled at once; more wait their turn. Kept below the
+    /// database pool size so the scanner, closer and signing always have
+    /// connections.
+    #[arg(long, env = "SF_HTTP_MAX_IN_FLIGHT", default_value_t = 12)]
+    pub http_max_in_flight: usize,
+
     /// Development only: pretend the chain tip is at this height (when no node is available).
     #[arg(long, env = "SF_DEV_CHAIN_HEIGHT")]
     pub dev_chain_height: Option<u32>,
@@ -96,6 +117,24 @@ impl Config {
         policy.max_delay_secs = max;
         policy.max_hold_secs = max;
         Ok(policy)
+    }
+
+    pub fn rate_limits(&self) -> anyhow::Result<crate::ratelimit::RateLimits> {
+        let client_header = self
+            .client_ip_header
+            .as_deref()
+            .map(str::trim)
+            .filter(|h| !h.is_empty())
+            .map(|h| {
+                axum::http::HeaderName::from_bytes(h.to_ascii_lowercase().as_bytes())
+                    .map_err(|_| anyhow::anyhow!("SF_CLIENT_IP_HEADER isn't a valid header name"))
+            })
+            .transpose()?;
+        Ok(crate::ratelimit::RateLimits {
+            reads_per_minute: self.rate_limit_reads_per_min,
+            writes_per_minute: self.rate_limit_writes_per_min,
+            client_header,
+        })
     }
 
     pub fn invite_codes(&self) -> Vec<String> {
