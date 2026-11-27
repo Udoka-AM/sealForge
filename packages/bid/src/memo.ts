@@ -1,5 +1,5 @@
-import { blake2b } from "@noble/hashes/blake2b";
-import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils";
+import { blake2b } from "@noble/hashes/blake2.js";
+import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 
 /** Mirrors sealforge-core::memo and ::receipt. Any change must keep the shared test vector passing. */
 
