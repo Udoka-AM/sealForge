@@ -63,6 +63,7 @@ Indexes: `UNIQUE (pubkey)`.
 | `escrow_ufvk_enc` | `BYTEA` | | `NULL` | `pgp_sym_encrypt` with `SF_DATA_KEY` |
 | `escrow_ivk` | `TEXT` | | `NULL` | Plaintext **only after publish** (it is public then) |
 | `escrow_group_key` | `BYTEA` | | `NULL` | FROST group verifying key (Orchard `ak`), 32 bytes, set when DKG completes |
+| `data_erased_at` | `TIMESTAMPTZ` | | `NULL` | When retention erased the escrow UFVK, wallet file and refund addresses (settled or cancelled + 30 days) |
 | `payout_ua` | `TEXT` | ✓ | — | Organiser payout address (Ironwood UA) |
 | `fee_buffer_zat` | `BIGINT` | ✓ | `0` | Funded by the organiser for ZIP-317 fees |
 | `fee_bps` | `SMALLINT` | ✓ | `0` | Protocol fee rate in basis points: 0, or 500–1500 (5–15%). Copied from `SF_FEE_BPS` at creation; the admin may change it until the auction opens (`PUT /v1/admin/auctions/{code}/fee`) |
@@ -283,9 +284,9 @@ Enforced in the coordinator handlers (role extractor + per-auction ownership che
 | Data | Kept | Purged / exported |
 |---|---|---|
 | Auctions, results, bids (minus refund UA), batches | Indefinitely. They're public audit evidence | Organiser can export `GET /v1/auctions/{id}/export` (JSON + CSV) |
-| `bids.refund_ua_enc` | Until all notes are confirmed + 30 days | Overwritten with `NULL` by a daily job |
-| `escrow_ufvk_enc` | Until settled + 30 days | Then `NULL` (IVK stays public) |
-| `dkg_packages` | Until DKG completes | Deleted at `ready` |
+| `bids.refund_ua_enc`, `bids.memo_refund_ua_enc` | Until settled (or cancelled) + 30 days | Set to `NULL` by the coordinator's retention job (`retention.rs`, hourly), which records `auctions.data_erased_at` and an audit-log entry `retention.erased` with counts, never values |
+| `escrow_ufvk_enc` and the escrow wallet file (`SF_WALLET_DIR/escrow-<id>.sqlite`) | Until settled (or cancelled) + 30 days | Set to `NULL` and the file deleted by the same job. The published IVK stays; two trustees' backups can still sweep anything paid to the escrow later |
+| `dkg_packages` | Until DKG completes | Deleted when the escrow is derived |
 | `api_nonces` | 10 minutes | Purged each minute |
 | Server request logs | 7 days, no IPs on bid routes | Rotated |
 | `audit_log` | Indefinitely | Export with the auction |

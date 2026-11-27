@@ -33,12 +33,13 @@ tracing-subscriber.workspace = true
 uuid.workspace = true
 zcash_keys.workspace = true
 zcash_protocol.workspace = true
+governor.workspace = true
+tower.workspace = true
 
 [dev-dependencies]
 sealforge-scan.workspace = true
 ed25519-dalek.workspace = true
 http-body-util.workspace = true
-tower.workspace = true
 rand.workspace = true
 sealforge-core.workspace = true
 uuid.workspace = true

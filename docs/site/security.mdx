@@ -63,28 +63,28 @@ Found while writing these docs (2026-11-13), not yet fixed:
 | D1 | **High** (fixed, pending audit) | Trustees signed a sighash without the PCZT. They now decode and check it (`sealforge-verify`, all 17 shared frost-zec tamper cases pass), tie every refund note to its bid's memo on chain, and keep a ledger against double payment (trust assumption 3). The browser trustee page has the same chain checks | `crates/sealforge-cli/src/trustee.rs` `sign_step`; `crates/sealforge-signer-wasm`; `BatchView` in `crates/sealforge-api/src/types.rs` |
 | D2 | Medium | Three of four committed WASM modules were built from a dirty tree (`source_dirty: true`), so they can't be reproduced from the recorded commit. **Fixed** (#61): all four are built in a pinned container (`scripts/build-wasm.sh`), and CI fails unless the committed modules are clean builds that match a fresh build byte for byte | `infra/wasm-build/Dockerfile`; `scripts/check-wasm-builds.sh`; CI job `wasm` |
 | D3 | Low | A transaction that expired unmined wasn't detected: the coordinator retried broadcasting it forever and every escrow scan failed meanwhile. **Fixed**: the batch is marked `expired` and rebuilt ([Batch states](/protocol/lifecycle#batch-states)); regtest: an unsigned refund past its expiry was replaced, signed and confirmed | `crates/sealforge-coordinator/src/scanner.rs` `expire_batches` |
-| D4 | Low | Documented retention (UFVK and refund addresses deleted 30 days after settlement) is not implemented | [4 Architecture §Data model](/architecture#data-model) |
+| D4 | Low | Documented retention (UFVK and refund addresses deleted 30 days after settlement) was not implemented | Fixed (#65): an hourly retention job erases them, and the escrow wallet file, 30 days after settlement ([4 Architecture §Data model](/architecture#data-model)) |
 
 ## Open items from the review
 
 | Item | Status |
 |---|---|
-| Rate limiting on public endpoints | Open. Mainnet gate |
-| Strict nonce-based CSP (drop `'unsafe-inline'`) | Open. Decision needed before mainnet |
+| Rate limiting on public endpoints | Done (#58): per-client budgets for reads and writes, and a cap on requests in flight that keeps database connections free for the scanner and signing |
+| Strict nonce-based CSP (drop `'unsafe-inline'`) | Done (#59) |
 | Coordinator sees deposit-mode bids before close | By design. Sealed-reveal mode is the mitigation |
 | Browser trustee holds the key share in JS memory while the page is open | Documented. The CLI is recommended for large auctions ([7 Guides](/guides#trustee)) |
 | ShieldRamp transparent leg (PRD Q4) | Not built |
 
 ## Mainnet gate checklist
 
-This is the canonical list; [10 Roadmap](/roadmap) links here. Each item MUST be done before an auction holds mainnet funds.
+This is the canonical list; [10 Roadmap](/roadmap) links here. Each item MUST be done before an auction holds mainnet funds. Per-auction value caps were considered and decided against (#55): the trustee checks, the external review and independent trustees bound what a fault can do, and a cap would only limit the size of sale sealForge can serve.
 
 - [ ] **Trustee-side transaction verification (D1).** Done for the transaction itself: trustees receive the PCZT, compute the sighash, run the shared frost-zec checks and sealForge's batch rules, and refuse otherwise (regtest evidence: every real consolidation, refund and payout checked and signed). Refund notes are tied to their bids on chain and double payment is refused (CLI; regtest evidence). Remaining: the external audit of these checks.
-- [ ] **Per-auction value caps**, enforced by the coordinator at creation and shown on the auction page.
+- [x] **Long-term trustee keys required on mainnet** (#67): the coordinator won't open a mainnet auction until all three trustees are certified, and the browser and the auditor fail the escrow check otherwise.
 - [ ] **Independent trustees**: three different operators on separate infrastructure, not one operator's machines.
 - [ ] **External review** of the escrow signing path (FROST over PCZT α, `apply_signatures`) and the DKG relay.
-- [ ] **Rate limiting** on public endpoints (Caddy).
-- [ ] **CSP decision**: nonce-based strict CSP, or a recorded acceptance of `'unsafe-inline'`.
+- [x] **Rate limiting** on public endpoints (#58): per-client read and write budgets in the coordinator, keyed by a salted hash of the client address (never stored or logged), plus a cap on requests in flight.
+- [x] **Strict CSP** (#59): a per-response nonce with `'strict-dynamic'`; `'unsafe-inline'` is gone from `script-src`.
 - [ ] **FROST ciphersuite from an upstream-published crate**, replacing `reddsa =0.5.2` and the deprecated fixed-α `sign` ([3 upstream risk](/zcash-integration#dependencies-and-upstream-risk)).
 - [x] **Clean, reproducible WASM builds (D2)**: every `BUILD.json` with `"source_dirty": false`, reproduced by the CI `wasm` job (#61).
 - [ ] **Off-site encrypted backups drilled** on the production host ([evidence/backup-drill.md](https://github.com/Udoka-AM/sealForge/blob/main/docs/evidence/backup-drill.md) lists what isn't drilled yet).

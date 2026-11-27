@@ -40,7 +40,7 @@ pub fn chain_params(network: &str) -> ChainParams {
     }
 }
 
-fn wallet_path(dir: &Path, auction_id: Uuid) -> PathBuf {
+pub(crate) fn wallet_path(dir: &Path, auction_id: Uuid) -> PathBuf {
     dir.join(format!("escrow-{auction_id}.sqlite"))
 }
 
