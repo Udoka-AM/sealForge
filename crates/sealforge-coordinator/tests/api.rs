@@ -659,7 +659,9 @@ async fn mainnet_auctions_open_only_with_certified_trustees(db: PgPool) {
     certify(vec![3]).await;
     let (status, body) = api.signed(&k, Method::POST, &path, None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
+}
 
+#[sqlx::test(migrations = "../../migrations")]
 async fn clients_over_their_budget_get_429_with_retry_after(db: PgPool) {
     use sealforge_coordinator::ratelimit::{limit, Limiter, RateLimits};
     use std::sync::Arc;
