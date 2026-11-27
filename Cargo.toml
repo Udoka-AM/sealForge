@@ -55,7 +55,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 wasm-bindgen = "0.2"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
-sha2 = "0.10"
+sha2 = "0.11"
 base64 = "0.22"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tower = { version = "0.5", features = ["util", "limit"] }
