@@ -6,7 +6,8 @@ use axum::{
     Json,
 };
 use sealforge_api::types::{
-    AuctionStatus, AuctionView, CreateAuction, CreatedAuction, TrusteeInvite, UpdateAuction,
+    AuctionStatus, AuctionView, CreateAuction, CreatedAuction, Network, TrusteeInvite,
+    UpdateAuction,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -338,6 +339,23 @@ pub async fn open(
             "escrow_unverified",
             "every trustee must verify the escrow address before the auction opens",
         ));
+    }
+    // On mainnet every trustee must be vouched for by a long-term key (#67),
+    // so a bidder can tell three independent trustees from one party holding
+    // every seat. Bidders' browsers and the auditor refuse the escrow otherwise.
+    if row.network == Network::Mainnet {
+        let uncertified: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM trustees WHERE auction_id = $1 AND identity_cert IS NULL",
+        )
+        .bind(row.id)
+        .fetch_one(&state.db)
+        .await?;
+        if uncertified > 0 {
+            return Err(ApiError::conflict(
+                "trustees_uncertified",
+                "on mainnet every trustee must certify a long-term key before the auction opens",
+            ));
+        }
     }
     // The fee buffer is optional (PRD Q8): fees come out of the escrow and the payout
     // sweep absorbs them. It only matters for an auction that may end with no winners.

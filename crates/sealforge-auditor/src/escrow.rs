@@ -25,7 +25,7 @@ use std::collections::BTreeSet;
 
 use sealforge_api::{
     auth::{verify_escrow_attestation, verify_trustee_cert},
-    types::{AuctionView, PublishedResult, TrusteeIdentityCert, TRUSTEE_SLOTS},
+    types::{AuctionView, Network, PublishedResult, TrusteeIdentityCert, TRUSTEE_SLOTS},
 };
 use serde::{Deserialize, Serialize};
 
@@ -264,6 +264,24 @@ pub fn require_identities(check: &mut EscrowCheck, expected: &[String]) {
     }
 }
 
+/// On mainnet every trustee must be vouched for by a long-term key (#67):
+/// without one, nothing ties a trustee seat to a person, so one party could
+/// hold all three. Fails `check` when any seat lacks a valid certificate.
+pub fn require_certified_on_mainnet(check: &mut EscrowCheck, network: Network) {
+    if network != Network::Mainnet {
+        return;
+    }
+    for t in &check.trustees {
+        if t.identity != IdentityVerdict::Certified {
+            check.problems.push(format!(
+                "slot {} has no valid long-term key; on mainnet every trustee must have one",
+                t.slot
+            ));
+            check.verdict = EscrowVerdict::Failed;
+        }
+    }
+}
+
 /// What is wrong with the trustee list itself, before any signature counts.
 fn list_problems(trustees: &[TrusteeClaim], pinned: &[(u16, String)]) -> Vec<String> {
     let mut problems = Vec::new();
@@ -307,7 +325,9 @@ pub fn check_escrow_view(view: &AuctionView, pinned: &[(u16, String)]) -> Escrow
             identity: t.identity.clone(),
         })
         .collect();
-    check_escrow(&view.code, view.escrow_ua.as_deref(), &trustees, pinned)
+    let mut check = check_escrow(&view.code, view.escrow_ua.as_deref(), &trustees, pinned);
+    require_certified_on_mainnet(&mut check, view.network);
+    check
 }
 
 /// [`check_escrow`] over a published result, after close.
@@ -323,12 +343,14 @@ pub fn check_escrow_result(published: &PublishedResult, pinned: &[(u16, String)]
             identity: t.identity.clone(),
         })
         .collect();
-    check_escrow(
+    let mut check = check_escrow(
         &published.auction_code,
         published.escrow_ua.as_deref(),
         &trustees,
         pinned,
-    )
+    );
+    require_certified_on_mainnet(&mut check, published.network);
+    check
 }
 
 /// [`check_escrow_view`] from the auction page's JSON. Extra fields are
@@ -434,6 +456,30 @@ mod tests {
         // ...but a known long-term key that isn't there fails.
         require_identities(&mut check, &[identity_hex(2)]);
         assert_eq!(check.verdict, EscrowVerdict::Failed);
+    }
+
+    #[test]
+    fn mainnet_requires_every_trustee_to_be_certified() {
+        let mut t = all_signed();
+        t[0] = certified(1, 1);
+        // Testnet: one certified trustee is enough to verify.
+        let mut check = check_escrow(CODE, Some(UA), &t, &[]);
+        require_certified_on_mainnet(&mut check, Network::Testnet);
+        assert_eq!(check.verdict, EscrowVerdict::Verified);
+        // Mainnet: the two uncertified seats fail it.
+        require_certified_on_mainnet(&mut check, Network::Mainnet);
+        assert_eq!(check.verdict, EscrowVerdict::Failed);
+        assert_eq!(check.problems.len(), 2, "{:?}", check.problems);
+        // All three certified: mainnet verifies.
+        let t = vec![certified(1, 1), certified(2, 2), certified(3, 3)];
+        let mut check = check_escrow(CODE, Some(UA), &t, &[]);
+        require_certified_on_mainnet(&mut check, Network::Mainnet);
+        assert_eq!(
+            check.verdict,
+            EscrowVerdict::Verified,
+            "{:?}",
+            check.problems
+        );
     }
 
     #[test]
