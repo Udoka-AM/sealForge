@@ -15,7 +15,9 @@
       "!**/public/auditor",
       "!**/public/signer",
       "!**/public/scanner",
-      "!**/public/wallet/sealforge_wallet.js"
+      "!**/public/wallet/sealforge_wallet.js",
+      "!**/*.md",
+      "!**/*.mdx"
     ]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },

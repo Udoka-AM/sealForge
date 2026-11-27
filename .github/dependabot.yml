@@ -22,6 +22,15 @@ updates:
           - "reddsa"
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # The FROST ciphersuite (reddsa 0.5 / frost-core 3) and ed25519-dalek 2
+      # are built on rand_core 0.6 and digest 0.10. A new major of these moves
+      # the RNG and hash traits under the signing code, so they are upgraded by
+      # hand together with the FROST crates (#60), not one at a time.
+      - dependency-name: rand
+        update-types: [version-update:semver-major]
+      - dependency-name: ed25519-dalek
+        update-types: [version-update:semver-major]
     labels: [dependencies, rust]
 
   - package-ecosystem: npm
@@ -33,6 +42,10 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Types follow the Node version in .nvmrc, which moves by hand.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
     labels: [dependencies, javascript]
 
   - package-ecosystem: github-actions
@@ -52,4 +65,9 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    ignore:
+      # The runtime image follows .nvmrc and CI; a new Node major moves all
+      # three together, by hand.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
     labels: [dependencies, docker]
