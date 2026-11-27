@@ -55,9 +55,9 @@ Stated first because every protection below depends on them.
 
 | Data | Protection | Retention |
 |---|---|---|
-| Escrow UFVK | `pgp_sym_encrypt` with `SF_DATA_KEY` | Until settled + 30 days |
+| Escrow UFVK | `pgp_sym_encrypt` with `SF_DATA_KEY`, and in the escrow wallet file | Until settled + 30 days, then erased with the wallet file (`retention.rs`) |
 | `nk`, `rivk` | Inside the UFVK above. Sampled by the coordinator, and sealed to each trustee so it can check the escrow address (trust assumption 2). Each trustee keeps the resulting FVK (`escrow-view.json`, owner-only) and puts it in its backup string | As the UFVK on the coordinator; trustees keep theirs |
-| Refund addresses (from memos) | Encrypted column. Also readable by anyone with the published UIVK after publish | Until refunds confirm + 30 days |
+| Refund addresses (from memos) | Encrypted column. Also readable by anyone with the published UIVK after publish | Until settled + 30 days, then erased (`retention.rs`). Erasing the column doesn't hide them from UIVK holders: the memos are on chain |
 | Organiser and trustee public keys | Public keys only | Life of the auction |
 | FROST key shares | **Never held.** They stay on trustee machines (owner-only files) or browser memory. Each trustee's backup (`sealforge trustee backup`: key share plus escrow FVK, one bech32m string) is theirs to keep offline | n/a |
 | Receipt salts | **Never held.** Browser only | n/a |

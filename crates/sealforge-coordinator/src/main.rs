@@ -2,7 +2,8 @@ use anyhow::Context;
 use clap::Parser;
 use sealforge_api::types::Network;
 use sealforge_coordinator::{
-    auth, closer, config::Config, ratelimit, refunds, routes, scanner, AppState, Settings,
+    auth, closer, config::Config, ratelimit, refunds, retention, routes, scanner, AppState,
+    Settings,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -116,6 +117,7 @@ async fn main() -> anyhow::Result<()> {
         );
     }
     tokio::spawn(refunds::run(state.clone(), config.refunds_paused, policy));
+    tokio::spawn(retention::run(state.db.clone(), config.wallet_dir.clone()));
 
     // Per-client limits run first, so a refused request never waits for a slot
     // under the in-flight cap (#58).

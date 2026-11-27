@@ -10,6 +10,7 @@ pub mod error;
 pub mod lifecycle;
 pub mod ratelimit;
 pub mod refunds;
+pub mod retention;
 pub mod routes;
 pub mod scanner;
 pub mod signing;
