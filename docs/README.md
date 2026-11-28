@@ -1,6 +1,6 @@
 # sealForge docs
 
-The public documentation site is published with Mintlify at <https://sealforge.mintlify.app>. Its source is [site/](site/) (MDX pages plus `docs.json`). The files below are the engineering record it cites.
+The public documentation site is published with Mintlify at <https://docs.sealforge.auction>. Its source is [site/](site/) (MDX pages plus `docs.json`). The files below are the engineering record it cites.
 
 ## Current reference
 

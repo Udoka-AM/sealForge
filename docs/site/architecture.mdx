@@ -233,7 +233,7 @@ Postgres, forward-only migrations in `migrations/`, applied when the coordinator
 
 ## Deployment
 
-Status: `Testnet` (hosted instance at `sealforge.udokaam.dev`).
+Status: `Testnet` (hosted instance at `sealforge.auction`).
 
 - **Compose:** `infra/docker-compose.yml`: Postgres; Zebra, Zaino and Envoy (profile `node`); coordinator and Caddy (profile `app`). Coordinator image: `infra/coordinator.Dockerfile`. Runbook: `infra/README.md`.
 - **Caddy** (`infra/Caddyfile`): TLS, and access logs with `remote_ip`, `client_ip` and `X-Forwarded-For` deleted. Caddy redacts `Authorization` by default (SECURITY-REVIEW AC14).
