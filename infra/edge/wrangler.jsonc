@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "sealforge-edge",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "sealforge.auction", "custom_domain": true },
+    { "pattern": "www.sealforge.auction", "custom_domain": true }
+  ],
+  "vars": {
+    "ORIGIN_HOST": "sealforge.udokaam.dev"
+  }
+  // EDGE_KEY is a secret: `wrangler secret put EDGE_KEY`
+}
