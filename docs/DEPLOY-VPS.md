@@ -60,3 +60,15 @@ Set both of these, or a lost server takes its backups with it:
 
 - `BACKUP_REMOTE`: an rsync target on another machine.
 - `AGE_RECIPIENT`: an age public key. Keep the private key offline, like `SF_DATA_KEY`.
+
+## Public domain (Cloudflare Worker)
+
+`sealforge.auction` is served by the `sealforge-edge` Worker in [infra/edge](../infra/edge). It forwards every request to the site on `sealforge.udokaam.dev`, sends `www` to the bare domain, and keeps redirects on the public domain. The server itself is unchanged, so the public domain can move again without a redeploy. Nothing is logged in the Worker.
+
+```bash
+cd infra/edge
+npx wrangler@4 secret put EDGE_KEY   # random value; marks requests that came through the Worker
+npx wrangler@4 deploy
+```
+
+`EDGE_KEY` lets a future redirect rule on `udokaam.dev` send direct visits to `sealforge.auction` without looping on the Worker's own requests. Both hostnames serve the site for now.
