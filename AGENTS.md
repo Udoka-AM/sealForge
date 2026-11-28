@@ -9,7 +9,7 @@ This file gives automated contributors (and people) the context they need to cha
 - `crates/sealforge-coordinator`: the API, chain scanner, closer and refund and payout worker.
 - `crates/sealforge-auditor`, `sealforge-scan`: recompute a published result from the chain (CLI and WebAssembly).
 - `crates/sealforge-cli`: the organiser and trustee command line. `apps/web`: the Next.js site.
-- Specification and security model: `docs/site` (published at sealforge.mintlify.app) and `docs/THREAT-MODEL.md`. Data model: `docs/05-BACKEND-SCHEMA.md`.
+- Specification and security model: `docs/site` (published at docs.sealforge.auction) and `docs/THREAT-MODEL.md`. Data model: `docs/05-BACKEND-SCHEMA.md`.
 
 ## Rules that are never relaxed
 

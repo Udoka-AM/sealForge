@@ -138,7 +138,7 @@ Stated plainly, because the same honesty is what makes the audit claim credible:
 
 | | |
 |---|---|
-| Try an auction, audit it yourself | [sealforge.udokaam.dev](https://sealforge.udokaam.dev) |
+| Try an auction, audit it yourself | [sealforge.auction](https://sealforge.auction) |
 | What it does, in product terms | [PRODUCT.md](PRODUCT.md) |
 | What is shipped and what is sequenced | [README › Status](../README.md#status) |
 | What it does not protect against | [THREAT-MODEL.md](THREAT-MODEL.md) |

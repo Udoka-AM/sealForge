@@ -7,7 +7,7 @@ Thanks for helping. sealForge holds bidders' funds in a threshold escrow, so cha
 ## Before you start
 
 - For anything beyond a small fix, open an issue first so the approach can be agreed before you write it.
-- Read [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) and the [protocol specification](https://sealforge.mintlify.app) for the part you're changing. The privacy rules below are not negotiable.
+- Read [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) and the [protocol specification](https://docs.sealforge.auction) for the part you're changing. The privacy rules below are not negotiable.
 
 ## Development setup
 

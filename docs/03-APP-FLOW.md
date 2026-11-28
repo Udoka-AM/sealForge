@@ -1,6 +1,6 @@
 # 3. App Flow: sealForge
 
-> **Design history.** Written in October 2026 to plan the first build, and kept as it was. Current behaviour is specified in the [documentation site](https://sealforge.mintlify.app) and the code; where this document differs, they are right.
+> **Design history.** Written in October 2026 to plan the first build, and kept as it was. Current behaviour is specified in the [documentation site](https://docs.sealforge.auction) and the code; where this document differs, they are right.
 
 **Purpose:** Show each screen, user path, and result of a tap or click.
 

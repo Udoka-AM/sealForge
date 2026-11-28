@@ -7,9 +7,9 @@
 [![CI](https://github.com/Udoka-AM/sealForge/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Udoka-AM/sealForge/actions/workflows/ci.yml)
 [![Security](https://github.com/Udoka-AM/sealForge/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/Udoka-AM/sealForge/actions/workflows/security.yml)
 [![Licence: MIT or Apache-2.0](https://img.shields.io/badge/licence-MIT%20or%20Apache--2.0-blue)](#licence)
-[![Docs](https://img.shields.io/badge/docs-sealforge.mintlify.app-informational)](https://sealforge.mintlify.app)
+[![Docs](https://img.shields.io/badge/docs-docs.sealforge.auction-informational)](https://docs.sealforge.auction)
 
-**Live on Zcash testnet: [sealforge.udokaam.dev](https://sealforge.udokaam.dev)** · **Docs: [sealforge.mintlify.app](https://sealforge.mintlify.app)** · Release: [v0.1.0](https://github.com/Udoka-AM/sealForge/releases/tag/v0.1.0)
+**Live on Zcash testnet: [sealforge.auction](https://sealforge.auction)** · **Docs: [docs.sealforge.auction](https://docs.sealforge.auction)** · Release: [v0.1.0](https://github.com/Udoka-AM/sealForge/releases/tag/v0.1.0)
 
 **Sealed-bid auctions on Zcash. The clearing price is public. The bidders aren't. And you don't have to trust us for the result: anyone can recompute it from the chain.**
 
@@ -37,7 +37,7 @@ underneath](#the-primitives-underneath), and
 |---|---|
 | **You bid privately** | Scan one ZIP-321 QR with any Zcash wallet. The payment is a shielded Ironwood transfer, and its memo carries a salted commitment and a fresh refund address. Your receipt stays in your browser |
 | **Or bid from the built-in wallet** | Create a shielded wallet in the page, or link the one you already use by importing its 24-word phrase (Zashi, Zodl and other ZIP 32 wallets). It syncs, proves and signs in a Web Worker with librustzcash; the phrase never leaves the browser. Paying a bid or a reveal is one tap |
-| **No single key can move the money** | Bids go to an escrow whose spend authority is split across three trustees with **FROST 2-of-3**. One trustee alone can't move funds, and the coordinator holds no key share. Trustees decode and check every transaction before they sign it, and refuse one that pays anyone it doesn't owe ([security](https://sealforge.mintlify.app/security#trust-assumptions)) |
+| **No single key can move the money** | Bids go to an escrow whose spend authority is split across three trustees with **FROST 2-of-3**. One trustee alone can't move funds, and the coordinator holds no key share. Trustees decode and check every transaction before they sign it, and refuse one that pays anyone it doesn't owe ([security](https://docs.sealforge.auction/security#trust-assumptions)) |
 | **Optional: nobody sees bids early** | In **sealed-reveal** mode you deposit a standard budget and reveal your bid after the close. Until then the coordinator, the trustees and the public see only budgets |
 | **Anyone can check the result** | After close, the escrow's incoming viewing key and a Merkle root of every bid are published. The Audit page (in the browser) or `sealforge-audit` (CLI) rescans the chain with that key, through any lightwallet server, and recomputes price, volume, winners, each bidder's outcome and the root |
 | **Refunds can't be traced back to bids** | Refunds are split into standard denominations, sent after random delays, and batched with other bidders' refunds. Measured: **0.1%** of refunds linkable at the exit, against 100% for naive refunds |
@@ -47,7 +47,7 @@ underneath](#the-primitives-underneath), and
 
 | | | |
 |---|---|---|
-| **The site** | [sealforge.udokaam.dev](https://sealforge.udokaam.dev) | Every settled auction and its audit page. Runs on a single server in Docker behind a Cloudflare tunnel ([docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md)) |
+| **The site** | [sealforge.auction](https://sealforge.auction) | Every settled auction and its audit page. Runs on a single server in Docker behind a Cloudflare tunnel, served on this domain by a Cloudflare Worker ([docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md)) |
 | **Always available** | this repository | Every auction's full record is in [docs/evidence](docs/evidence), and the results are permanent on chain — see [Verify it yourself](#verify-it-yourself). **The site doesn't have to be up for you to check our claims** |
 
 If the site is down, the auction records and the independent audit path are
@@ -58,9 +58,9 @@ viewing key: the evidence does not depend on our servers.
 
 | | |
 |---|---|
-| **Try it** | [sealforge.udokaam.dev](https://sealforge.udokaam.dev) — Zcash testnet, no signup |
-| **Read the docs** | [sealforge.mintlify.app](https://sealforge.mintlify.app) — protocol spec, Zcash integration reference, security, verification, guides and API ([source](docs/site)) |
-| **Audit a real auction** | [25 bids, 10 units](https://sealforge.udokaam.dev/audit/K7GHHBC4GP) · [7 bids, 4 winners](https://sealforge.udokaam.dev/audit/KE5DFF4PDA) — press **Rescan the chain in my browser** and recompute it yourself |
+| **Try it** | [sealforge.auction](https://sealforge.auction) — Zcash testnet, no signup |
+| **Read the docs** | [docs.sealforge.auction](https://docs.sealforge.auction) — protocol spec, Zcash integration reference, security, verification, guides and API ([source](docs/site)) |
+| **Audit a real auction** | [25 bids, 10 units](https://sealforge.auction/audit/K7GHHBC4GP) · [7 bids, 4 winners](https://sealforge.auction/audit/KE5DFF4PDA) — press **Rescan the chain in my browser** and recompute it yourself |
 | **Why it matters commercially** | [docs/BUSINESS.md](docs/BUSINESS.md) |
 | **What it does, in product terms** | [docs/PRODUCT.md](docs/PRODUCT.md) |
 | **What is shipped, and what is sequenced** | [Status](#status) |
@@ -74,7 +74,7 @@ Everything below ran on real Zcash chains with real shielded transactions and re
 
 | Claim | Evidence |
 |---|---|
-| **The first auction on public testnet**, live at [sealforge.udokaam.dev](https://sealforge.udokaam.dev/audit/KE5DFF4PDA): 7 sealed bids, reveals, uniform price, 2 refund transactions and a payout, each signed by a different pair of trustees, settled, with the chain audit matching from the CLI and in the browser | [docs/evidence/testnet-genesis.md](docs/evidence/testnet-genesis.md) |
+| **The first auction on public testnet**, live at [sealforge.auction](https://sealforge.auction/audit/KE5DFF4PDA): 7 sealed bids, reveals, uniform price, 2 refund transactions and a payout, each signed by a different pair of trustees, settled, with the chain audit matching from the CLI and in the browser | [docs/evidence/testnet-genesis.md](docs/evidence/testnet-genesis.md) |
 | **25 sealed bids on testnet**, settled, plus the test plan run: 12 of 14 acceptance criteria pass. The remaining two cover ShieldRamp, which settles real assets and so is sequenced behind mainnet | [docs/evidence/test-run.md](docs/evidence/test-run.md) |
 | **The whole bidder journey with the built-in wallet** on testnet: restore, pay the deposit, reveal, win, receive the refund at the bid's own address | [docs/WALLET-INTEGRATION.md](docs/WALLET-INTEGRATION.md) |
 | A whole auction: bids → auto-close → publish → 2-of-3 signed refunds → payout → settled | [docs/evidence/regtest-e2e.md](docs/evidence/regtest-e2e.md) |

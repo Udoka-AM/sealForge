@@ -1,6 +1,6 @@
 # sealForge: Product Description
 
-> **Design history.** Written in October 2026 to plan the first build, and kept as it was. Current behaviour is specified in the [documentation site](https://sealforge.mintlify.app) and the code; where this document differs, they are right.
+> **Design history.** Written in October 2026 to plan the first build, and kept as it was. Current behaviour is specified in the [documentation site](https://docs.sealforge.auction) and the code; where this document differs, they are right.
 
 > Extracted from the Zecathon build plan (prepared 2026-10-05). The plan called this product **SEALED + ShieldRamp**. It ships as **sealForge**, and **ShieldRamp** stays the name of its cross-chain bidding widget.
 
